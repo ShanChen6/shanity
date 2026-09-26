@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+    ports:
+      - "${API_PORT:-4000}:4000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
