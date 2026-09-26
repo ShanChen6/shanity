@@ -1,3 +1,4 @@
+import { configureApp } from '../src/setup.js';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -13,6 +14,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
@@ -21,6 +23,13 @@ describe('AppController (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('/health/db (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/health/db')
+      .expect(200)
+      .expect({ status: 'ok' });
   });
 
   afterEach(async () => {
