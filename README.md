@@ -4,7 +4,7 @@
 
 Shanity là dự án học trực tuyến dành cho học sinh, dự kiến phục vụ khoảng **1.000 người dùng** với **5–10 khóa học** ban đầu. Học sinh học qua video và tài liệu, làm bài kiểm tra, theo dõi tiến độ và trao đổi trong khóa học. Giáo viên quản lý nội dung và chấm bài; quản trị viên quản lý toàn bộ nền tảng.
 
-> **Trạng thái hiện tại:** Repository mới chỉ là bộ khung monorepo. Web đang hiển thị trang mặc định của Next.js, API mới có một endpoint mẫu (`GET /`). Toàn bộ các module nghiệp vụ trong lộ trình bên dưới **chưa được triển khai**.
+> **Trạng thái hiện tại:** Repository mới chỉ là bộ khung monorepo. Web đang hiển thị trang mặc định của Next.js, API có endpoint mẫu (`GET /`) và kiểm tra PostgreSQL (`GET /health/db`), migration và seed nền tảng. Toàn bộ các module nghiệp vụ trong lộ trình bên dưới **chưa được triển khai**.
 >
 > README này có hai vai trò: (1) hướng dẫn chạy mã nguồn hiện có, và (2) làm tài liệu triển khai sản phẩm cho các giai đoạn tiếp theo.
 
@@ -31,7 +31,7 @@ Shanity là dự án học trực tuyến dành cho học sinh, dự kiến ph�
 | Workspace | pnpm 11.24.0, dùng chung một lockfile |
 | Kiểm thử | Vitest cho API, đã có cấu hình e2e và test mẫu |
 | Đóng gói | Dockerfile nhiều giai đoạn; Docker Compose cho web và API |
-| Cơ sở dữ liệu | Dự kiến dùng PostgreSQL, **chưa được cấu hình** |
+| Cơ sở dữ liệu | PostgreSQL 17, Knex + pg, migration và seed; xem [hướng dẫn](docs/database.md) |
 
 ### 1.2. Cấu trúc thư mục
 
@@ -44,7 +44,7 @@ shanity/
 │       ├── src/             # Controller/service mẫu
 │       └── test/            # Test e2e mẫu
 ├── docs/docker.md
-├── compose.yaml             # web + api; chưa có postgres
+├── compose.yaml             # postgres + migrate + api + web
 ├── Dockerfile
 ├── package.json             # Script cấp workspace
 ├── pnpm-lock.yaml
@@ -72,7 +72,7 @@ corepack prepare pnpm@11.24.0 --activate
 pnpm install --frozen-lockfile
 ```
 
-Từ thư mục gốc, mở hai terminal riêng biệt:
+Trước khi chạy API, làm theo [hướng dẫn database](docs/database.md) để cấu hình `.env`, khởi động PostgreSQL, migrate và seed. Sau đó mở hai terminal từ thư mục gốc:
 
 ```bash
 # Terminal 1 — chạy web
@@ -96,6 +96,8 @@ Sau khi khởi động:
 **Yêu cầu:** Docker Engine/Desktop có Compose plugin.
 
 ```bash
+cp .env.example .env
+# Sửa PGPASSWORD trong .env
 docker compose up --build -d
 docker compose ps
 docker compose logs -f
@@ -119,7 +121,7 @@ docker compose up --build -d
 
 Có thể tạo file `.env` ở thư mục gốc với `WEB_PORT=3001` và `API_PORT=4001` để Compose tự đọc.
 
-> **Lưu ý:** repo hiện **chưa có `.env.example`**; hướng dẫn sao chép file này trong `docs/docker.md` chưa áp dụng được. Cứ dùng hướng dẫn cấu hình cổng ở trên.
+> `.env.example` chứa cấu hình PostgreSQL và cổng host; không commit `.env`.
 
 Dừng các container:
 
@@ -127,7 +129,7 @@ Dừng các container:
 docker compose down
 ```
 
-> Docker Compose hiện **chưa khởi tạo PostgreSQL**. Khi bổ sung database, cần cập nhật đồng thời: Compose, mẫu biến môi trường, migration, và hướng dẫn sao lưu.
+> Compose chờ PostgreSQL healthy và migration thành công trước khi chạy API. Volume giữ dữ liệu khi `down`; xem [database](docs/database.md).
 
 ---
 
@@ -144,7 +146,7 @@ docker compose down
 | `pnpm --filter api test:e2e` | E2E test API |
 | `pnpm --filter api test:cov` | Coverage test API |
 
-> Hiện chưa có script migration hay script gốc chạy đồng thời cả hai app.
+> Database: `pnpm --filter api db:migrate`, `db:seed`, `db:verify`. Xem [schema, giả định và phần chưa triển khai](docs/database.md).
 
 ---
 
@@ -158,6 +160,8 @@ docker compose down
 | Giáo viên | Soạn khóa/bài, tạo đề, chấm tự luận, xem tiến độ, quản lý trao đổi trong khóa |
 | Quản trị viên | Duyệt nội dung, quản lý tài khoản, khóa, đơn hàng, báo cáo và kiểm duyệt |
 | Phụ huynh | **Chưa quyết định** — cân nhắc khi cần thanh toán hoặc quản lý tài khoản thay học sinh |
+
+Ma trận quyền chi tiết đã chốt: [Học sinh, Giảng viên, Quản trị viên](docs/permissions.md). Lớp dữ liệu có vai trò, chủ sở hữu khóa và phân công giảng viên; API kiểm tra quyền chưa triển khai.
 
 ### 4.2. Các module dự kiến
 
@@ -312,4 +316,4 @@ Backend là nơi kiểm tra quyền theo **tài nguyên**, không chỉ theo vai
 4. Trước khi merge, chạy build, lint và các test liên quan. Với Auth, Quiz và Payment, cần kiểm tra thêm: truy cập sai quyền, gửi yêu cầu lặp, và lỗi mạng.
 5. Cập nhật README khi module hoạt động thật: chuyển trạng thái trong bảng tương ứng, ghi rõ API, biến môi trường và lệnh chạy chính xác.
 
-> Đọc thêm [tài liệu Docker](docs/docker.md). Lưu ý tài liệu này hiện có bước sao chép `.env.example` — file này **chưa tồn tại** trong repo; hãy dùng hướng dẫn Docker ở mục [2.2](#22-chạy-bằng-docker) của README cho cấu hình hiện tại.
+> Đọc thêm [tài liệu Docker](docs/docker.md). Schema hiện tại và đề xuất cho quiz/thanh toán được mô tả trong [tài liệu database](docs/database.md).
