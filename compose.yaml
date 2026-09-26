@@ -43,7 +43,15 @@ services:
       target: api
     environment:
       <<: *database_environment
+      NODE_ENV: ${API_NODE_ENV:-production}
       PORT: 4000
+      JWT_SECRET: ${JWT_SECRET:?Set a random JWT_SECRET in .env}
+      JWT_ACCESS_SECONDS: ${JWT_ACCESS_SECONDS:-900}
+      AUTH_REFRESH_SECONDS: ${AUTH_REFRESH_SECONDS:-2592000}
+      WEB_ORIGIN: ${WEB_ORIGIN:?Set WEB_ORIGIN in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
     ports:
       - "${API_PORT:-4000}:4000"
     depends_on:

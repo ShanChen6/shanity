@@ -4,7 +4,7 @@
 
 Repository gốc dùng NestJS 12/TypeScript ESM, chưa có entity, ORM, migration hay cấu hình DB. Dùng **Knex + pg**: query builder và migration có transaction/lock, không thêm ORM hay đồng bộ schema tự động. Migration SQL rõ ràng giúp kiểm soát composite foreign key. Tham khảo [Knex migrations](https://knexjs.org/guide/migrations.html). Node 24 như Dockerfile hỗ trợ chạy config TypeScript chỉ chứa cú pháp có thể xóa kiểu.
 
-Chưa có API nghiệp vụ hoặc xác thực. `GET /health/db` thực hiện SELECT 1, trả 200 hoặc 503 không tiết lộ lỗi kết nối. API kiểm tra kết nối trước khi listen và đóng pool khi shutdown. Khi chạy trực tiếp, DB chưa sẵn sàng thì API dừng; chạy lại sau khi DB healthy. Compose chờ healthcheck và migration hoàn tất trước khi chạy API.
+Auth + User đã được triển khai; xem [hướng dẫn Auth](auth.md) để cấu hình JWT_SECRET, WEB_ORIGIN và thời hạn token trước khi chạy API. `GET /health/db` thực hiện SELECT 1, trả 200 hoặc 503 không tiết lộ lỗi kết nối. API kiểm tra kết nối trước khi listen và đóng pool khi shutdown. Khi chạy trực tiếp, DB chưa sẵn sàng thì API dừng; chạy lại sau khi DB healthy. Compose chờ healthcheck và migration hoàn tất trước khi chạy API.
 
 ## Chạy trên máy
 
@@ -102,3 +102,6 @@ Các lệnh tích hợp cần DB đã migrate và env hợp lệ. `db:verify` d�
 ### Xác minh bổ sung ma trận quyền
 
 Migration 003 đã áp dụng thành công trên volume kiểm thử có hai migration cũ và dữ liệu seed; chạy lại báo Already up to date. Khóa demo vẫn draft, owner_id vẫn NULL và user_roles rỗng: không tự đổi dữ liệu nghiệp vụ hoặc cấp quyền. Trên database kiểm thử trống `shanity_access_fresh`, cả ba migration, seed và db:verify đều thành công. Các kiểm tra mới bao gồm danh mục role, FK role/user, gán role/giảng viên không trùng, owner FK và tập trạng thái khóa. Chỉ thay đổi SQL/test script/tài liệu nên không chạy lại build TypeScript. Đã dừng Compose kiểm thử và giữ volume.
+
+
+Migration 004 bổ sung users.status và bảng auth_sessions, oauth_requests, auth_rate_limits. Xem [Auth](auth.md) cho cookie, rotation, OAuth và kiểm tra quyền hiện hành.
