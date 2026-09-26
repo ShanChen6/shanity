@@ -227,12 +227,14 @@ describe('Auth + User with PostgreSQL', () => {
     await request(app.getHttpServer())
       .get('/auth/google/callback')
       .query({ state, code: 'fake-code' })
-      .expect(401);
+      .expect(302)
+      .expect('Location', `${origin}/auth/callback?error=failed`);
     await request(app.getHttpServer())
       .get('/auth/google/callback')
       .query({ state, code: 'fake-code' })
       .set('Cookie', cookies(login))
-      .expect(409);
+      .expect(302)
+      .expect('Location', `${origin}/auth/callback?error=account_conflict`);
     expect(
       await db('auth_identities').where({ provider_subject: sub }).first(),
     ).toBeUndefined();
@@ -249,7 +251,8 @@ describe('Auth + User with PostgreSQL', () => {
       .get('/auth/google/callback')
       .query({ state, code: 'fake-code' })
       .set('Cookie', [...first, ...cookies(link)])
-      .expect(401);
+      .expect(302)
+      .expect('Location', `${origin}/auth/callback?error=failed`);
     const duplicate = await post('/auth/google/link')
       .set('Cookie', second)
       .expect(200);
@@ -258,7 +261,8 @@ describe('Auth + User with PostgreSQL', () => {
       .get('/auth/google/callback')
       .query({ state, code: 'fake-code' })
       .set('Cookie', [...second, ...cookies(duplicate)])
-      .expect(409);
+      .expect(302)
+      .expect('Location', `${origin}/auth/callback?error=account_conflict`);
     const cancel = await request(app.getHttpServer())
       .get('/auth/google')
       .expect(302);
@@ -269,7 +273,8 @@ describe('Auth + User with PostgreSQL', () => {
         error: 'access_denied',
       })
       .set('Cookie', cookies(cancel))
-      .expect(401);
+      .expect(302)
+      .expect('Location', `${origin}/auth/callback?error=cancelled`);
     // A new verified Google identity creates a student and uses the same sessions.
     googleVerify.mockResolvedValue({
       sub: randomUUID(),

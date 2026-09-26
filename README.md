@@ -4,11 +4,11 @@
 
 Shanity là dự án học trực tuyến dành cho học sinh, dự kiến phục vụ khoảng **1.000 người dùng** với **5–10 khóa học** ban đầu. Học sinh học qua video và tài liệu, làm bài kiểm tra, theo dõi tiến độ và trao đổi trong khóa học. Giáo viên quản lý nội dung và chấm bài; quản trị viên quản lý toàn bộ nền tảng.
 
-> **Trạng thái hiện tại:** Repository mới chỉ là bộ khung monorepo. Web đang hiển thị trang mặc định của Next.js, API có endpoint mẫu (`GET /`) và kiểm tra PostgreSQL (`GET /health/db`), migration và seed nền tảng. Auth + User đã có backend cơ bản; các module nghiệp vụ còn lại trong lộ trình chưa có API.
+> **Trạng thái hiện tại:** Repository đã có nền tảng monorepo và Auth + User. Web có theme/component nền và Auth frontend tại `/login`, `/register`, `/profile` đã nối API, API có endpoint mẫu (`GET /`) và kiểm tra PostgreSQL (`GET /health/db`), migration và seed nền tảng. Auth + User đã có backend cơ bản; các module nghiệp vụ còn lại trong lộ trình chưa có API.
 >
 > README này có hai vai trò: (1) hướng dẫn chạy mã nguồn hiện có, và (2) làm tài liệu triển khai sản phẩm cho các giai đoạn tiếp theo.
 
-Auth + User đã có API email/JWT/Google OAuth và hồ sơ cá nhân: xem [cấu hình, API và kiểm thử Auth](docs/auth.md). Frontend chưa có giao diện đăng nhập.
+Auth + User đã có API email/JWT/Google OAuth và hồ sơ cá nhân: xem [cấu hình, API và kiểm thử Auth](docs/auth.md). Frontend đã nối Auth + User; xem [cấu hình và kiểm thử tích hợp](docs/auth-frontend.md) và [component nền](docs/frontend.md).
 
 ## Mục lục
 

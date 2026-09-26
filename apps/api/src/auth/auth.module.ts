@@ -1,3 +1,4 @@
+import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { Module, ValidationPipe } from '@nestjs/common';
 import { SafeErrorsFilter } from './safe-errors.filter.js';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -12,6 +13,7 @@ import { GoogleProvider, GoogleService } from './google.service.js';
   controllers: [AuthController, UsersController],
   providers: [
     { provide: APP_FILTER, useClass: SafeErrorsFilter },
+    OAuthRedirectFilter,
     AuthConfig,
     AuthService,
     GoogleProvider,

@@ -93,11 +93,15 @@ describe('Google OAuth backend with PostgreSQL', () => {
       createHash('sha256').update(row.verifier).digest('base64url'),
     );
     const other = await start();
-    await callback({ ...flow, cookie: other.cookie }).expect(401);
+    await callback({ ...flow, cookie: other.cookie })
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     await db('oauth_requests')
       .where({ state_hash: digest(flow.state) })
       .update({ expires_at: new Date(Date.now() - 1000) });
-    await callback(flow).expect(401);
+    await callback(flow)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     expect(verify).not.toHaveBeenCalled();
   });
 
@@ -105,19 +109,27 @@ describe('Google OAuth backend with PostgreSQL', () => {
     const first = await account(),
       second = await account();
     const missing = await start(first.session);
-    await callback(missing).expect(401);
+    await callback(missing)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     const switched = await start(first.session);
-    await callback(switched, second.session).expect(401);
+    await callback(switched, second.session)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     const revoked = await start(first.session);
     await request(app.getHttpServer())
       .post('/auth/logout')
       .set('Origin', config.origin)
       .set('Cookie', first.session)
       .expect(204);
-    await callback(revoked, first.session).expect(401);
+    await callback(revoked, first.session)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     const disabled = await start(second.session);
     await db('users').where({ id: second.id }).update({ status: 'disabled' });
-    await callback(disabled, second.session).expect(401);
+    await callback(disabled, second.session)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     expect(verify).not.toHaveBeenCalled();
   });
 
@@ -143,7 +155,9 @@ describe('Google OAuth backend with PostgreSQL', () => {
     ).toBe(1);
     const login = await start();
     const response = await callback(login).expect(302);
-    expect(response.headers.location).toBe(config.origin);
+    expect(response.headers.location).toBe(
+      `${config.origin}/auth/callback?result=signed_in`,
+    );
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
     const me = await request(app.getHttpServer())
@@ -155,7 +169,9 @@ describe('Google OAuth backend with PostgreSQL', () => {
       await db('users').where({ email: identity.email }).first(),
     ).toBeUndefined();
     await db('users').where({ id: user.id }).update({ status: 'disabled' });
-    await callback(await start()).expect(401);
+    await callback(await start())
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
   });
 
   it('serializes concurrent first login callbacks into one user and identity', async () => {
@@ -202,9 +218,9 @@ describe('Google OAuth backend with PostgreSQL', () => {
       callback(fa, a.session),
       callback(fb, b.session),
     ]);
-    expect(results.map((res) => res.status).sort((x, y) => x - y)).toEqual([
-      302, 409,
-    ]);
+    expect(
+      results.map((res) => new URL(res.headers.location).search).sort(),
+    ).toEqual(['?error=account_conflict', '?result=linked']);
     expect(
       Number(
         (await db('auth_identities')
@@ -221,8 +237,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
     verify.mockRejectedValue(
       new UnauthorizedException('Google authentication failed'),
     );
-    await callback(flow).expect(401);
-    await callback(flow).expect(401);
+    await callback(flow)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
+    await callback(flow)
+      .expect(302)
+      .expect('Location', `${config.origin}/auth/callback?error=failed`);
     expect(verify).toHaveBeenCalledTimes(1);
     expect(
       await db('oauth_requests')
