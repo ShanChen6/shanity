@@ -20,7 +20,7 @@ Compose: `docker compose up --build -d`. Mẫu `.env` đặt `API_NODE_ENV=devel
 
 ## API và cookie
 
-Frontend hiện là trang Next.js mẫu, chưa có giao diện auth. Backend chọn cookie HttpOnly cho cả JWT và refresh token; frontend không đọc/lưu token vào localStorage hoặc sessionStorage. Gọi fetch với `credentials: 'include'`; triển khai web/API cùng site (cùng scheme và miền gốc), có thể khác origin. CORS chỉ cho WEB_ORIGIN với credentials. Mô hình khác site cần thiết kế cookie/CSRF riêng, chưa được hỗ trợ.
+Frontend đã nối Auth + User; xem [cấu hình web và kiểm thử tích hợp](auth-frontend.md). Backend chọn cookie HttpOnly cho cả JWT và refresh token; frontend không đọc/lưu token vào localStorage hoặc sessionStorage. Gọi fetch với `credentials: 'include'`; triển khai web/API cùng site (cùng scheme và miền gốc), có thể khác origin. CORS chỉ cho WEB_ORIGIN với credentials. Mô hình khác site cần thiết kế cookie/CSRF riêng, chưa được hỗ trợ.
 
 Cookie production dùng tiền tố `__Host-`, Secure, HttpOnly, SameSite=Lax, Path=/, không có Domain. Local dùng `shanity_access`, `shanity_refresh`. Access JWT HS256 có iss/aud/exp/sub/sid; không chứa role. Mỗi request bảo vệ tra phiên, trạng thái user và role hiện tại trong DB: logout, khóa tài khoản hoặc thu hồi admin có hiệu lực với access token đã cấp. Việc mở lại tài khoản có thể cho phép dùng lại phiên chưa hết hạn/chưa bị thu hồi; quy trình vô hiệu hóa lâu dài nên đồng thời thu hồi tất cả phiên.
 
@@ -39,7 +39,7 @@ Mọi POST/PATCH yêu cầu header Origin khớp WEB_ORIGIN, kể cả login/reg
 | GET /users/admin-check | access cookie và role admin hiện tại | 200 hoặc 403 |
 | GET /auth/google | điều hướng trình duyệt | chuyển đến Google |
 | POST /auth/google/link | access cookie, Origin | URL Google để điều hướng liên kết |
-| GET /auth/google/callback | code/state hoặc lỗi provider | cookie phiên và chuyển về WEB_ORIGIN; link thành công giữ phiên hiện tại |
+| GET /auth/google/callback | code/state hoặc lỗi provider | cookie phiên và chuyển về WEB_ORIGIN/auth/callback; link thành công giữ phiên hiện tại |
 
 DTO whitelist + forbidNonWhitelisted trả 400 cho role/status/id/password gửi qua cập nhật hồ sơ hoặc role gửi khi đăng ký. Email trim/lowercase, unique DB chống đua. Mật khẩu dùng Node scrypt (N=131072, r=8, p=1, salt ngẫu nhiên 16 byte), so sánh constant-time, có hash giả cho email không tồn tại. Không trả password/hash. Hash hiện hữu không đúng định dạng scrypt sẽ không đăng nhập được; cần quy trình migration hash/reset riêng nếu có dữ liệu nhập ngoài.
 
@@ -69,7 +69,7 @@ Tạo OAuth client loại Web application trong Google Cloud, cấu hình consen
 
 Dùng authorization code flow, PKCE S256, state + cookie browser ngẫu nhiên và nonce; state hash lưu server, hết hạn 10 phút, tiêu thụ nguyên tử một lần. `google-auth-library` đổi code và xác minh chữ ký ID token, issuer, expiry, audience; ứng dụng kiểm tra nonce và email_verified. Không lưu token Google; verifier/state tạm thời không phải refresh credential. Chỉ redirect về origin cấu hình, không nhận return URL tùy ý. Tham khảo [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
 
-Đăng nhập Google tìm theo unique(provider,provider_subject). Nếu email đã thuộc tài khoản khác nhưng chưa liên kết thì trả 409, không auto-link. Người dùng đăng nhập tài khoản cũ rồi POST /auth/google/link, điều hướng đến URL trả về; callback yêu cầu access cookie vẫn thuộc đúng phiên đã khởi tạo liên kết, phiên chưa bị thu hồi/hết hạn và tài khoản active. Nếu đổi tài khoản, mất cookie hoặc access token hết hạn trong lúc consent, phải làm mới/đăng nhập lại rồi khởi tạo một yêu cầu liên kết mới. Một Google identity không thể thuộc hai user; transaction advisory lock theo Google subject tuần tự hóa callback đăng nhập/liên kết trên nhiều API instance, và unique constraint vẫn bảo vệ dữ liệu. Hai callback đăng nhập đầu tiên cho cùng subject dùng chung một user; hai tài khoản tranh liên kết thì chỉ một thành công. Người dùng hủy, state giả/hết hạn/tái sử dụng hoặc ID token sai trả 401. Xung đột identity/email trả 409. Bản này chưa có giao diện hiển thị lỗi OAuth, callback lỗi trả JSON theo API.
+Đăng nhập Google tìm theo unique(provider,provider_subject). Nếu email đã thuộc tài khoản khác nhưng chưa liên kết thì service từ chối với 409, không auto-link; callback chuyển thành redirect lỗi account_conflict cho frontend. Người dùng đăng nhập tài khoản cũ rồi POST /auth/google/link, điều hướng đến URL trả về; callback yêu cầu access cookie vẫn thuộc đúng phiên đã khởi tạo liên kết, phiên chưa bị thu hồi/hết hạn và tài khoản active. Nếu đổi tài khoản, mất cookie hoặc access token hết hạn trong lúc consent, phải làm mới/đăng nhập lại rồi khởi tạo một yêu cầu liên kết mới. Một Google identity không thể thuộc hai user; transaction advisory lock theo Google subject tuần tự hóa callback đăng nhập/liên kết trên nhiều API instance, và unique constraint vẫn bảo vệ dữ liệu. Hai callback đăng nhập đầu tiên cho cùng subject dùng chung một user; hai tài khoản tranh liên kết thì chỉ một thành công. Ở tầng service, người dùng hủy, state giả/hết hạn/tái sử dụng hoặc ID token sai dùng lỗi 401; xung đột identity/email dùng lỗi 409. Filter callback chuyển các lỗi này thành redirect 302 an toàn cho frontend. Callback lỗi chuyển về WEB_ORIGIN/auth/callback với mã lỗi trong allowlist; frontend hiển thị thông báo và không tin query string làm bằng chứng đăng nhập.
 
 ## Mở rộng quyền và vận hành
 
@@ -112,3 +112,6 @@ E2E tạo email ngẫu nhiên, giữ dữ liệu thử và không reset DB; rate
 - Build và lint qua; 7 unit test và 14 e2e test PostgreSQL qua. Unit test dùng JWT ký RSA cục bộ để chạy bộ xác minh chữ ký Google thật (cert/token exchange được thay bằng fixture), kiểm tra chữ ký sai, audience/issuer sai, token hết hạn, nonce sai và email chưa xác minh. E2E bổ sung state hết hạn/sai browser, đổi phiên, revoke/disabled, đăng nhập lại, liên kết lặp và callback đồng thời.
 - Không sửa schema hoặc frontend trong lần bổ sung này. Không chỉnh `.env` hoặc ghi credential vào log. PostgreSQL test riêng, không reset dữ liệu; container đã dừng và giữ volume.
 - Chưa thực hiện consent bằng tài khoản Google thật và đổi authorization code thật. Cấu hình có đủ không chứng minh Google Cloud đã cho phép chính xác redirect URI/consent user; bước nghiệm thu cuối cần người dùng mở GET /auth/google trên origin API khớp callback, đăng nhập Google và chấp thuận. Kiểm tra cookie HttpOnly được cấp và GET /users/me trả tài khoản; không gửi code/token/secret vào hội thoại.
+
+
+Cập nhật tích hợp frontend: callback thành công/lỗi hiện redirect về `/auth/callback`; các kết quả kiểm thử callback 401/409 JSON trong phần lịch sử phía trên thuộc phiên bản trước. Xem [hợp đồng hiện hành](auth-frontend.md).

@@ -43,3 +43,7 @@ next-env.d.ts
 
 # local env files
 .vscode
+
+# Browser test artifacts (may contain user data)
+**/test-results/
+**/playwright-report/

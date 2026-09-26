@@ -9,6 +9,7 @@ import {
   Req,
   Res,
   UseGuards,
+  UseFilters,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
@@ -21,6 +22,7 @@ import {
   SessionGuard,
   type AuthRequest,
 } from './auth.guards.js';
+import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { GoogleService } from './google.service.js';
 
 @Controller('auth')
@@ -86,6 +88,7 @@ export class AuthController {
       );
   }
   @Get('google')
+  @UseFilters(OAuthRedirectFilter)
   async googleLogin(@Res() res: Response) {
     const flow = await this.google.start();
     res.setHeader('Cache-Control', 'no-store');
@@ -113,6 +116,7 @@ export class AuthController {
     return { url: flow.url };
   }
   @Get('google/callback')
+  @UseFilters(OAuthRedirectFilter)
   async googleCallback(@Req() req: Request, @Res() res: Response) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -130,7 +134,9 @@ export class AuthController {
     );
     if (!result.linked) this.write(res, result.tokens);
     // A fixed configured destination; no token or caller-controlled return URL.
-    res.redirect(this.auth.config.origin);
+    res.redirect(
+      `${this.auth.config.origin}/auth/callback?result=${result.linked ? 'linked' : 'signed_in'}`,
+    );
   }
 }
 

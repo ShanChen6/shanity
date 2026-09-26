@@ -7,6 +7,8 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile
 FROM dependencies AS build
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY apps/api apps/api
 COPY apps/web apps/web
 RUN pnpm --filter api build && pnpm --filter web build
