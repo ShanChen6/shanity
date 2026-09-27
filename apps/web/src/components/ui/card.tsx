@@ -17,3 +17,50 @@ export function Card({
     />
   );
 }
+
+export function CardHeader({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div">) {
+  return (
+    <div {...props} className={`mb-4 flex flex-col gap-1.5 ${className}`} />
+  );
+}
+
+export function CardTitle({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"h3">) {
+  return (
+    <h3
+      {...props}
+      className={`font-heading text-h3 font-semibold ${className}`}
+    />
+  );
+}
+
+export function CardDescription({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"p">) {
+  return <p {...props} className={`text-body-sm text-muted ${className}`} />;
+}
+
+export function CardContent({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div">) {
+  return <div {...props} className={className} />;
+}
+
+export function CardFooter({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div">) {
+  return (
+    <div
+      {...props}
+      className={`mt-4 flex items-center border-t border-border pt-4 ${className}`}
+    />
+  );
+}

@@ -5,11 +5,6 @@
   padding-inline: var(--page-gutter);
 }
 
-@utility page-container {
-  width: min(100% - 2rem, var(--page-width));
-  margin-inline: auto;
-}
-
 @utility content {
   width: 100%;
   max-width: 48rem;
@@ -55,12 +50,6 @@
       transparent 1px
     );
     background-size: 20px 20px;
-  }
-
-  @media (min-width: 48rem) {
-    .page-container {
-      width: min(100% - 4rem, var(--page-width));
-    }
   }
 
   @media (min-width: 64rem) {

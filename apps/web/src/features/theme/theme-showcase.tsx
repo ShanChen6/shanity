@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
-import { Avatar } from "@/components/ui/avatar";
+import { AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +24,12 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useTheme, type ThemePreference } from "./theme-provider";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingState } from "@/components/shared/loading-state";
+import { Logo } from "@/components/shared/logo";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { useTheme } from "@/providers/theme-provider";
 
 const palettes = [
   "slate",
@@ -57,7 +70,7 @@ function Section({
 }
 
 export function ThemeShowcase() {
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const [selectedRadio, setSelectedRadio] = useState("lesson");
 
   return (
@@ -65,27 +78,16 @@ export function ThemeShowcase() {
       <header className="border-b border-border bg-surface">
         <div className="container flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
+            <Logo />
             <p className="text-caption font-semibold uppercase text-primary">
-              Shanity / Development
+              Development showcase
             </p>
             <h1 className="mt-1 font-heading text-h1 font-semibold">
               Theme foundation
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="theme-preference">Theme</Label>
-            <Select
-              id="theme-preference"
-              value={theme}
-              onChange={(event) =>
-                setTheme(event.target.value as ThemePreference)
-              }
-              className="w-auto"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">System</option>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3">
+            <ThemeToggle />
             <span className="text-caption text-muted" aria-live="polite">
               {resolvedTheme}
             </span>
@@ -157,6 +159,7 @@ export function ThemeShowcase() {
             <p className="font-heading text-h1 font-semibold">Heading one</p>
             <p className="font-heading text-h2 font-semibold">Heading two</p>
             <p className="font-heading text-h3 font-semibold">Heading three</p>
+            <p className="font-heading text-h4 font-semibold">Heading four</p>
             <p className="text-body-lg">
               Body large for introductions and lead copy.
             </p>
@@ -181,6 +184,7 @@ export function ThemeShowcase() {
             <Button variant="outline">Outline</Button>
             <Button variant="ghost">Ghost</Button>
             <Button variant="danger">Danger</Button>
+            <Button variant="link">Link</Button>
             <Button size="sm">Small</Button>
             <Button size="lg">Large</Button>
             <Button size="icon" aria-label="Action">
@@ -263,6 +267,8 @@ export function ThemeShowcase() {
         <Section title="Badges and alerts">
           <div className="flex flex-wrap gap-2">
             <Badge>Draft</Badge>
+            <Badge tone="secondary">Secondary</Badge>
+            <Badge tone="outline">Outline</Badge>
             <Badge tone="primary">In progress</Badge>
             <Badge tone="success">Completed</Badge>
             <Badge tone="warning">Needs review</Badge>
@@ -282,16 +288,31 @@ export function ThemeShowcase() {
             <Alert tone="error" title="Check your response">
               One or more required fields need attention.
             </Alert>
+            <Alert tone="info">
+              <div>
+                <AlertTitle>Composable alert</AlertTitle>
+                <AlertDescription>
+                  Title and description can be composed for richer messages.
+                </AlertDescription>
+              </div>
+            </Alert>
           </div>
         </Section>
 
         <Section title="Cards, avatars and separators">
           <div className="grid gap-3 md:grid-cols-3">
             <Card>
-              <h3 className="font-semibold">Default card</h3>
-              <p className="mt-2 text-body-sm text-muted">
-                Quiet content surface.
-              </p>
+              <CardHeader>
+                <CardTitle>Compound card</CardTitle>
+                <CardDescription>Quiet content surface.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                Header, content and footer compose independently.
+              </CardContent>
+              <CardFooter className="justify-between text-caption text-muted">
+                <span>Course foundation</span>
+                <span>72%</span>
+              </CardFooter>
             </Card>
             <Card variant="interactive">
               <h3 className="font-semibold">Interactive card</h3>
@@ -309,6 +330,9 @@ export function ThemeShowcase() {
           <div className="flex items-center gap-3">
             <Avatar name="Shanity Learner" />
             <Avatar name="Course Mentor" className="size-12" />
+            <Avatar name="Design Student">
+              <AvatarFallback>DS</AvatarFallback>
+            </Avatar>
             <span className="text-body-sm">Learner and mentor</span>
           </div>
           <Separator />
@@ -341,6 +365,26 @@ export function ThemeShowcase() {
               <Skeleton className="h-4 w-4/5" />
             </div>
           </div>
+        </Section>
+
+        <Section title="Shared states">
+          <div className="grid gap-4 md:grid-cols-2">
+            <EmptyState
+              title="No items yet"
+              description="A reusable empty state accepts content and an optional action."
+              action={<Button size="sm">Create item</Button>}
+            />
+            <ErrorState
+              title="Unable to load content"
+              description="A generic error presentation with an optional recovery action."
+              action={
+                <Button variant="outline" size="sm">
+                  Try again
+                </Button>
+              }
+            />
+          </div>
+          <LoadingState label="Loading shared content" />
         </Section>
       </div>
     </main>

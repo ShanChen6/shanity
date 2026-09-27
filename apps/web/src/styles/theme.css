@@ -7,6 +7,7 @@
   --surface-secondary: oklch(0.965 0.012 260);
   --surface-elevated: oklch(1 0 0);
   --surface-hover: oklch(0.94 0.018 260);
+  --surface-active: oklch(0.91 0.025 260);
   --foreground: oklch(0.23 0.035 260);
   --foreground-secondary: oklch(0.38 0.035 260);
   --muted: oklch(0.52 0.025 260);
@@ -14,6 +15,7 @@
   --disabled-foreground: oklch(0.65 0.018 260);
   --primary: oklch(0.49 0.19 260);
   --primary-hover: oklch(0.43 0.19 260);
+  --primary-active: oklch(0.38 0.17 260);
   --primary-foreground: oklch(0.99 0.003 260);
   --secondary: oklch(0.93 0.035 260);
   --secondary-hover: oklch(0.88 0.055 260);
@@ -49,6 +51,9 @@
   --shadow-sm: 0 1px 2px oklch(0.25 0.03 260 / 0.08);
   --shadow-md: 0 8px 24px -12px oklch(0.25 0.03 260 / 0.2);
   --shadow-lg: 0 20px 48px -22px oklch(0.25 0.03 260 / 0.24);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 280ms;
   --page-gutter: clamp(1rem, 4vw, 2.5rem);
   --page-width: 80rem;
 }
@@ -60,6 +65,7 @@
   --surface-secondary: oklch(0.25 0.026 260);
   --surface-elevated: oklch(0.28 0.03 260);
   --surface-hover: oklch(0.31 0.035 260);
+  --surface-active: oklch(0.35 0.04 260);
   --foreground: oklch(0.94 0.012 260);
   --foreground-secondary: oklch(0.82 0.02 260);
   --muted: oklch(0.71 0.022 260);
@@ -67,6 +73,7 @@
   --disabled-foreground: oklch(0.55 0.02 260);
   --primary: oklch(0.74 0.12 250);
   --primary-hover: oklch(0.8 0.1 250);
+  --primary-active: oklch(0.85 0.08 250);
   --primary-foreground: oklch(0.2 0.05 260);
   --secondary: oklch(0.3 0.045 260);
   --secondary-hover: oklch(0.35 0.055 260);
@@ -102,6 +109,7 @@
   --color-surface-secondary: var(--surface-secondary);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
   --color-foreground: var(--foreground);
   --color-foreground-secondary: var(--foreground-secondary);
   --color-muted: var(--muted);
@@ -109,6 +117,7 @@
   --color-disabled-foreground: var(--disabled-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-hover: var(--secondary-hover);
@@ -156,9 +165,16 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+  --radius-full: 9999px;
   --radius-control: var(--radius-lg);
   --radius-card: var(--radius-xl);
   --font-sans: var(--font-geist-sans), sans-serif;
   --font-heading: var(--font-geist-sans), sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
+}
+
+@theme inline {
+  --transition-duration-fast: var(--duration-fast);
+  --transition-duration-normal: var(--duration-normal);
+  --transition-duration-slow: var(--duration-slow);
 }

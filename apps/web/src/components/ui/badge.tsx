@@ -1,6 +1,9 @@
 import type { ComponentPropsWithRef } from "react";
 
 const tones = {
+  default: "bg-surface-secondary text-foreground-secondary",
+  secondary: "bg-secondary text-secondary-foreground",
+  outline: "border border-border-strong bg-transparent text-foreground",
   neutral: "bg-surface-secondary text-foreground-secondary",
   primary: "bg-secondary text-secondary-foreground",
   success: "bg-success-background text-success-foreground",
@@ -10,7 +13,7 @@ const tones = {
 };
 
 export function Badge({
-  tone = "neutral",
+  tone = "default",
   className = "",
   ...props
 }: ComponentPropsWithRef<"span"> & { tone?: keyof typeof tones }) {

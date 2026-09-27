@@ -7,6 +7,8 @@
   --text-h2--line-height: 1.2;
   --text-h3: clamp(1.25rem, 1.1rem + 0.55vw, 1.625rem);
   --text-h3--line-height: 1.3;
+  --text-h4: 1.125rem;
+  --text-h4--line-height: 1.4;
   --text-body-lg: 1.125rem;
   --text-body-lg--line-height: 1.7;
   --text-body: 1rem;

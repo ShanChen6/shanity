@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageContainer } from "./page-container";
 import { Icon } from "../ui/icon";
+import { Logo } from "../shared/logo";
 
 function LearningIllustration() {
   return (
@@ -69,13 +70,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       </a>
       <header className="py-5 sm:py-7">
         <PageContainer className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/"
-            aria-label="Shanity — trang chủ"
-            className="inline-flex min-h-11 items-center text-2xl font-bold tracking-[-0.06em]"
-          >
-            shanity<span className="text-primary">.</span>
-          </Link>
+          <Logo className="tracking-[-0.06em]" />
           <Link
             href="/"
             className="inline-flex min-h-11 items-center gap-2 text-sm text-muted hover:text-primary"
@@ -88,7 +83,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="auth-grid w-full overflow-hidden rounded-[2rem] border border-border bg-surface shadow-card"
+          className="auth-grid w-full overflow-hidden rounded-4xl border border-border bg-surface shadow-card"
         >
           <aside
             aria-label="Cùng học với Shanity"
