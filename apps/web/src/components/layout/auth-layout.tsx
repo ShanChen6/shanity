@@ -9,7 +9,7 @@ function LearningIllustration() {
       aria-hidden="true"
       className="learning-orbit relative mx-auto my-8 flex h-64 w-full max-w-sm items-center justify-center rounded-full xl:my-10"
     >
-      <div className="absolute inset-7 rounded-full border border-hero-line" />
+      <div className="absolute inset-7 rounded-full border border-border-strong" />
       <svg
         className="relative w-64 text-primary"
         viewBox="0 0 280 230"
@@ -22,13 +22,13 @@ function LearningIllustration() {
         <path
           d="m39 66 95 17 104-27-7 103-97 33-91-28Z"
           fill="var(--surface)"
-          stroke="var(--hero-line)"
+          stroke="var(--border-strong)"
           strokeWidth="2"
         />
         <path d="m134 83 104-27-7 103-97 33Z" fill="var(--accent)" />
         <path
           d="M134 83v109M58 87l57 11M58 101l57 11M58 115l34 7M154 106l58-17M154 119l58-17M154 132l35-10"
-          stroke="var(--hero-line)"
+          stroke="var(--border-strong)"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -42,7 +42,7 @@ function LearningIllustration() {
           cy="28"
           r="7"
           fill="var(--accent)"
-          stroke="var(--hero-line)"
+          stroke="var(--border-strong)"
         />
       </svg>
       <div className="absolute -left-1 top-9 rotate-[-8deg] rounded-2xl border border-border bg-surface px-4 py-2 text-xl font-semibold shadow-float">
@@ -92,10 +92,10 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         >
           <aside
             aria-label="Cùng học với Shanity"
-            className="relative hidden flex-col justify-between bg-hero px-7 py-8 sm:px-10 lg:flex lg:p-12 xl:px-16"
+            className="relative hidden flex-col justify-between bg-surface-secondary px-7 py-8 sm:px-10 lg:flex lg:p-12 xl:px-16"
           >
             <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-hero-line px-3 py-1.5 text-[0.6875rem] font-semibold tracking-[0.14em]">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border-strong px-3 py-1.5 text-[0.6875rem] font-semibold tracking-[0.14em]">
                 <span className="size-1.5 rounded-full bg-primary" /> MỖI NGÀY
                 MỘT BƯỚC TIẾN
               </div>
@@ -112,7 +112,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             <div className="hidden lg:block">
               <LearningIllustration />
             </div>
-            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hero-line pt-5 text-caption text-muted">
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border-strong pt-5 text-caption text-muted">
               <span className="inline-flex items-center gap-2">
                 <Icon name="book" className="size-4" /> Học theo cách của bạn
               </span>
