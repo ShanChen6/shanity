@@ -7,6 +7,8 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile
 FROM dependencies AS build
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY apps/api apps/api
 COPY apps/web apps/web
 RUN pnpm --filter api build && pnpm --filter web build
@@ -16,6 +18,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/apps/api/database ./apps/api/database
+COPY --from=build /app/apps/api/src/database/config.ts ./apps/api/src/database/config.ts
 WORKDIR /app/apps/api
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

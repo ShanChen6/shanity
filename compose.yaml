@@ -1,14 +1,64 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${PGUSER:-shanity}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?Set PGPASSWORD in .env}
+      POSTGRES_DB: ${PGDATABASE:-shanity}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:${PGPORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    environment: &database_environment
+      NODE_ENV: production
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${PGUSER:-shanity}
+      PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD in .env}
+      PGDATABASE: ${PGDATABASE:-shanity}
+    command: ["node", "node_modules/knex/bin/cli.js", "--knexfile", "database/knexfile.mjs", "migrate:latest"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
       target: api
     environment:
-      NODE_ENV: production
+      <<: *database_environment
+      NODE_ENV: ${API_NODE_ENV:-production}
       PORT: 4000
+      JWT_SECRET: ${JWT_SECRET:?Set a random JWT_SECRET in .env}
+      JWT_ACCESS_SECONDS: ${JWT_ACCESS_SECONDS:-900}
+      AUTH_REFRESH_SECONDS: ${AUTH_REFRESH_SECONDS:-2592000}
+      WEB_ORIGIN: ${WEB_ORIGIN:?Set WEB_ORIGIN in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
     ports:
       - "${API_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   web:
@@ -16,6 +66,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -24,3 +76,6 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+
+volumes:
+  postgres_data:
