@@ -14,8 +14,13 @@ import {
   errorMessage,
   SESSION_LOST,
   sessionLock,
-  type User,
 } from "@/lib/api";
+import type {
+  CurrentUserResponse,
+  LoginRequest,
+  RegisterRequest,
+  User,
+} from "./types";
 
 type Status = "loading" | "authenticated" | "anonymous" | "error";
 type Session = {
@@ -26,11 +31,12 @@ type Session = {
   load: () => Promise<User | null>;
   signIn: (
     path: "/auth/login" | "/auth/register",
-    data: Record<string, string>,
+    data: SignInPayload,
   ) => Promise<void>;
   logout: () => Promise<void>;
   update: (name: string) => Promise<void>;
 };
+type SignInPayload = LoginRequest | RegisterRequest;
 const Context = createContext<Session | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +56,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const load = useCallback(() => {
     if (flight.current) return flight.current;
     const current = generation.current;
-    flight.current = api<User>("/users/me")
+    flight.current = api<CurrentUserResponse>("/users/me")
       .then((profile) => {
         if (current !== generation.current) return null;
         setUser(profile);
@@ -111,14 +117,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   async function signIn(
     path: "/auth/login" | "/auth/register",
-    data: Record<string, string>,
+    data: SignInPayload,
   ) {
     // Wait for bootstrap/refresh before replacing its cookie session.
     await flight.current;
     await sessionLock(async () => {
       await api(path, { method: "POST", body: JSON.stringify(data) }, false);
       generation.current++;
-      const profile = await api<User>("/users/me", {}, false);
+      const profile = await api<CurrentUserResponse>("/users/me", {}, false);
       setUser(profile);
       setStatus("authenticated");
       setError("");
@@ -137,7 +143,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   async function update(displayName: string) {
     const current = generation.current;
-    const profile = await api<User>("/users/me", {
+    const profile = await api<CurrentUserResponse>("/users/me", {
       method: "PATCH",
       body: JSON.stringify({ displayName }),
     });
