@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 12
@@ -30,7 +30,15 @@ services:
       PGUSER: ${PGUSER:-shanity}
       PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD in .env}
       PGDATABASE: ${PGDATABASE:-shanity}
-    command: ["node", "node_modules/knex/bin/cli.js", "--knexfile", "database/knexfile.mjs", "migrate:latest"]
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?Set SUPER_ADMIN_EMAIL in .env}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?Set SUPER_ADMIN_PASSWORD in .env}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Super Admin}
+    command:
+      [
+        "sh",
+        "-c",
+        "node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs migrate:latest && node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs seed:run",
+      ]
     depends_on:
       postgres:
         condition: service_healthy

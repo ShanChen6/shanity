@@ -4,7 +4,7 @@ Xem [hướng dẫn PostgreSQL và Compose](database.md) để tạo `.env`, kh�
 
 ```bash
 cp .env.example .env
-# Sửa PGPASSWORD, sinh JWT_SECRET ngẫu nhiên và cấu hình Auth trong .env trước khi chạy.
+# Sửa PGPASSWORD, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD; sinh JWT_SECRET ngẫu nhiên và cấu hình Auth trong .env.
 docker compose up --build -d
 docker compose ps
 docker compose logs -f migrate api

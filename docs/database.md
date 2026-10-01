@@ -14,7 +14,7 @@ Từ thư mục gốc, Node 24 và pnpm:
 2. `docker compose up -d --wait postgres`
 3. `pnpm install --frozen-lockfile`
 4. `pnpm --filter api db:migrate`
-5. `pnpm --filter api db:seed`
+5. `pnpm --filter api db:seed` (tạo admin ban đầu nếu đã cấu hình `SUPER_ADMIN_EMAIL` và `SUPER_ADMIN_PASSWORD`)
 6. `pnpm dev:api`
 7. `curl http://localhost:4000/health/db`
 
@@ -22,7 +22,7 @@ API và CLI đọc `.env` gốc dựa trên đường dẫn module, không phụ
 
 ## Chạy toàn bộ bằng Compose
 
-Sau khi tạo `.env`: `docker compose up --build -d`. Service `postgres` có volume và healthcheck; `migrate` chạy một lần rồi thoát 0; API dùng hostname `postgres`, cổng nội bộ 5432 dù host đổi cổng. Seed không tự chạy. Để có dữ liệu demo trong môi trường phát triển:
+Sau khi tạo `.env` và thay `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD` bằng thông tin riêng: `docker compose up --build -d`. Service `postgres` có volume và healthcheck; `migrate` chạy migration rồi seed admin ban đầu trước khi thoát 0; API dùng hostname `postgres`, cổng nội bộ 5432 dù host đổi cổng. Mật khẩu chỉ dùng để tạo tài khoản mới, được lưu dưới dạng scrypt hash; chạy lại seed không đổi mật khẩu của tài khoản đã tồn tại. Không đưa `.env` hoặc secret vào Git và nên dùng secret manager khi triển khai production. Để có thêm dữ liệu demo trong môi trường phát triển:
 
 ```bash
 docker compose run --rm -e NODE_ENV=development migrate node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs seed:run
@@ -30,21 +30,21 @@ curl http://localhost:4000/health/db
 docker compose logs migrate api
 ```
 
-Khi triển khai phiên bản có migration mới, chạy `docker compose run --rm migrate` trước khi cập nhật API. Không chạy nhiều phiên bản ứng dụng không tương thích schema cùng lúc. Không dùng seed ở production: script từ chối `NODE_ENV=production`. Seed tạo một khóa nháp, một chương, một bài văn bản, không tạo người dùng/admin; UUID cố định và ON CONFLICT DO NOTHING nên không ghi đè nội dung đã sửa. Xung đột slug/position với dữ liệu khác sẽ báo lỗi và rollback toàn bộ seed để kiểm tra thủ công.
+Khi triển khai phiên bản có migration mới, chạy `docker compose run --rm migrate` trước khi cập nhật API. Không chạy nhiều phiên bản ứng dụng không tương thích schema cùng lúc. Seeder admin yêu cầu env trong production; seeder dữ liệu demo tự bỏ qua production. Role `admin` hiện là quyền quản trị tài khoản trong ứng dụng. Seeder chỉ cấp role này cho email cấu hình và không thay đổi mật khẩu nếu tài khoản đã tồn tại. Seed demo tạo một khóa nháp, một chương, một bài văn bản; UUID cố định và ON CONFLICT DO NOTHING nên không ghi đè nội dung đã sửa. Xung đột slug/position với dữ liệu khác sẽ báo lỗi và rollback toàn bộ seed để kiểm tra thủ công.
 
 `docker compose down` giữ dữ liệu; **không dùng `down -v` với dữ liệu cần giữ**. Thay POSTGRES_USER/PASSWORD/DB trong env không sửa database đã khởi tạo trong volume.
 
 ## Các bảng đã triển khai
 
-| Nhóm | Bảng và quan hệ |
-| --- | --- |
-| Danh tính | `users`: UUID, email chuẩn hóa lowercase/trim và unique, hash mật khẩu nullable; `auth_identities`: nhiều danh tính trên một user, unique(provider, provider_subject), không lưu OAuth token |
-| Phân quyền | `roles`, `user_roles`; `courses.owner_id` nullable để giữ khóa cũ; `course_instructors` phân công giảng viên, tách khỏi quyền sở hữu; xem [ma trận quyền](permissions.md) |
-| Nội dung | `courses` → `course_sections` → `lessons` → `lesson_assets`; slug khóa unique, position không âm và unique trong cha; tài nguyên chỉ lưu storage key, không lưu file hoặc signed URL |
-| Ghi danh | `enrollments`: unique(user_id, course_id), revoked_at riêng; cấp lại quyền bằng cập nhật bản ghi, không tạo bản sao |
-| Tiến độ | `lesson_progress`: PK(enrollment_id, lesson_id); composite FK đảm bảo enrollment và lesson cùng khóa; last_position_seconds là vị trí tiếp tục, watched_seconds là thời lượng do ứng dụng tính, completed_at độc lập; updated_at tự cập nhật bằng trigger |
-| Blog | `posts` có tác giả, slug unique, draft/review/published/archived; published cần published_at; `categories` và `post_categories` nhiều–nhiều |
-| Chat | `chat_rooms` luôn thuộc khóa; `chat_members` unique(room_id,user_id); `messages` FK đến thành viên cùng phòng, index(room_id,created_at,id) để phân trang lịch sử |
+| Nhóm       | Bảng và quan hệ                                                                                                                                                                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Danh tính  | `users`: UUID, email chuẩn hóa lowercase/trim và unique, hash mật khẩu nullable; `auth_identities`: nhiều danh tính trên một user, unique(provider, provider_subject), không lưu OAuth token                                                              |
+| Phân quyền | `roles`, `user_roles`; `courses.owner_id` nullable để giữ khóa cũ; `course_instructors` phân công giảng viên, tách khỏi quyền sở hữu; xem [ma trận quyền](permissions.md)                                                                                 |
+| Nội dung   | `courses` → `course_sections` → `lessons` → `lesson_assets`; slug khóa unique, position không âm và unique trong cha; tài nguyên chỉ lưu storage key, không lưu file hoặc signed URL                                                                      |
+| Ghi danh   | `enrollments`: unique(user_id, course_id), revoked_at riêng; cấp lại quyền bằng cập nhật bản ghi, không tạo bản sao                                                                                                                                       |
+| Tiến độ    | `lesson_progress`: PK(enrollment_id, lesson_id); composite FK đảm bảo enrollment và lesson cùng khóa; last_position_seconds là vị trí tiếp tục, watched_seconds là thời lượng do ứng dụng tính, completed_at độc lập; updated_at tự cập nhật bằng trigger |
+| Blog       | `posts` có tác giả, slug unique, draft/review/published/archived; published cần published_at; `categories` và `post_categories` nhiều–nhiều                                                                                                               |
+| Chat       | `chat_rooms` luôn thuộc khóa; `chat_members` unique(room_id,user_id); `messages` FK đến thành viên cùng phòng, index(room_id,created_at,id) để phân trang lịch sử                                                                                         |
 
 UUID do PostgreSQL sinh, không cần extension. FK mặc định RESTRICT để bảo vệ lịch sử; chỉ quan hệ phụ `post_categories` cascade khi xóa bài. Index bổ sung cho các FK/truy vấn lịch sử; index unique đã bao phủ tra cứu đầu cột nên không tạo trùng. Chưa triển khai hard-delete tài khoản hoặc tự động xóa lịch sử.
 
@@ -102,6 +102,5 @@ Các lệnh tích hợp cần DB đã migrate và env hợp lệ. `db:verify` d�
 ### Xác minh bổ sung ma trận quyền
 
 Migration 003 đã áp dụng thành công trên volume kiểm thử có hai migration cũ và dữ liệu seed; chạy lại báo Already up to date. Khóa demo vẫn draft, owner_id vẫn NULL và user_roles rỗng: không tự đổi dữ liệu nghiệp vụ hoặc cấp quyền. Trên database kiểm thử trống `shanity_access_fresh`, cả ba migration, seed và db:verify đều thành công. Các kiểm tra mới bao gồm danh mục role, FK role/user, gán role/giảng viên không trùng, owner FK và tập trạng thái khóa. Chỉ thay đổi SQL/test script/tài liệu nên không chạy lại build TypeScript. Đã dừng Compose kiểm thử và giữ volume.
-
 
 Migration 004 bổ sung users.status và bảng auth_sessions, oauth_requests, auth_rate_limits. Xem [Auth](auth.md) cho cookie, rotation, OAuth và kiểm tra quyền hiện hành.
