@@ -24,7 +24,7 @@ pnpm dev:web
 - Web: http://localhost:3000/login, `/register`, `/profile`.
 - API: http://localhost:4000. CORS chỉ chấp nhận WEB_ORIGIN; trình duyệt tự gửi Origin với POST/PATCH.
 - Sau Google, backend chuyển tới `WEB_ORIGIN/auth/callback?result=signed_in` hoặc `result=linked`. Lỗi chuyển tới cùng route với mã cố định `error=cancelled|account_conflict|rate_limited|unavailable|failed`. Không có token/code/secret/raw error trong redirect frontend.
-- Các role hiện cùng về `/profile` vì chưa có dashboard tương ứng. Chỉ admin thấy thao tác thử quyền `/users/admin-check`; student không thấy và backend trả 403 nếu gọi trực tiếp.
+- Mặc định đăng nhập về `/profile`; khi có `redirect` hợp lệ sẽ về URL đó. `/dashboard` và `/my-courses` hiện chỉ là trang chờ nội dung. Chỉ admin thấy thao tác thử quyền `/users/admin-check`; student không thấy và backend trả 403 nếu gọi trực tiếp.
 
 Next config chỉ đọc giá trị public API URL từ `.env` gốc; không đưa các biến backend vào bundle. Biến môi trường đã export hoặc `.env.local` của web được ưu tiên. URL phải là origin HTTP(S), không path/query. `NEXT_PUBLIC_API_URL` được đóng vào bundle lúc build: đổi origin phải build lại. Compose truyền public URL qua build arg cho web. Browser dùng URL host/public, **không** dùng hostname nội bộ `api`.
 
@@ -32,7 +32,7 @@ Next config chỉ đọc giá trị public API URL từ `.env` gốc; không đ�
 docker compose up --build -d
 ```
 
-Local Compose dùng API_NODE_ENV=development như mẫu. Production cần HTTPS, API_NODE_ENV=production, web/API cùng site (cùng scheme và miền gốc), CORS đúng origin. Cookie Secure và SameSite=Lax của backend không hỗ trợ mô hình web/API khác site; không nới SameSite để né cấu hình.
+Local Compose dùng API_NODE_ENV=development như mẫu. Production cần HTTPS, API_NODE_ENV=production, web/API cùng hostname để server guard nhận cookie host-only, CORS đúng origin. Cookie Secure và SameSite=Lax của backend không hỗ trợ mô hình web/API khác site; không nới SameSite để né cấu hình.
 
 ## Hợp đồng đã nối
 
@@ -56,7 +56,7 @@ DTO frontend dùng cùng thư viện validator mà class-validator backend sử 
 - `features/auth/session-provider.tsx`: profile chỉ ở bộ nhớ, bootstrap bằng API; trạng thái loading/authenticated/anonymous/error. Generation counter ngăn response cũ khôi phục state sau logout. BroadcastChannel chỉ gửi sự kiện changed/logout, không có token hay dữ liệu hồ sơ.
 - Refresh có một promise dùng chung trong tab. Web Locks tuần tự hóa refresh/login/logout giữa các tab cùng origin. Khi lấy được lock, client kiểm tra `/users/me` trước: nếu tab khác đã refresh thì dùng cookie mới, không rotate lần nữa. Browser không có Web Locks vẫn có bảo vệ trong một tab; cần browser hiện đại/secure context (localhost hoặc HTTPS) để có bảo vệ nhiều tab đầy đủ.
 - Refresh thất bại phát sự kiện xóa state. `/profile` chuyển về `/login`. Lỗi mạng khi tải profile ban đầu hiển thị thử lại. Session đọc lại khi tab lấy focus; quyền hiển thị có thể cũ giữa hai request nhưng backend luôn kiểm tra quyền hiện hành.
-- `/profile` render trạng thái chờ trước khi có profile, không đưa dữ liệu cá nhân vào HTML tĩnh. Đây là bảo vệ UI; backend vẫn là ranh giới bảo mật. Không tạo dashboard giả hay nhận URL `next` tùy ý.
+- `/dashboard`, `/profile`, `/my-courses` dùng Proxy và server guard trước khi render; client guard xử lý mất phiên trong tab đang mở. NestJS vẫn kiểm tra phiên/quyền ở từng API.
 - Thông số `result/error` trên callback chỉ điều khiển thông báo/điều hướng, không chứng minh xác thực. Frontend luôn gọi profile qua cookie; tự nhập URL callback không cấp quyền.
 
 ## Điều chỉnh backend tối thiểu
@@ -127,3 +127,30 @@ Chưa có xác minh email, reset mật khẩu, cấp quyền giảng viên/admin
 - Google lần đầu/lần sau, liên kết tài khoản, callback hủy/lỗi đi qua backend thật nhưng dùng GoogleProvider fixture. Không coi đây là nghiệm thu Google thật; chưa thực hiện consent và đổi code thật.
 - Regression đã phát hiện và sửa: BroadcastChannel dùng hai object trong cùng tab làm tab tự nhận sự kiện của mình, remount form và mất thông báo lưu. Hiện tái sử dụng một channel để chỉ các tab khác nhận sự kiện. Profile editor được key theo user ID để không giữ bản nháp khi đổi tài khoản.
 - Không chạy hoặc sửa database production. Container/process test đã dừng, volume dữ liệu test được giữ. Không commit secret, screenshot lỗi hoặc trace.
+
+## Kiểm tra cấu hình Google hiện tại (2026-10-01)
+
+- Đã đọc `GoogleService`/`GoogleProvider` và `AuthController`: dự án dùng `google-auth-library` trực tiếp, không có Passport Google strategy riêng.
+- API đang chạy tại `localhost:4000` trả 302 từ `/auth/google` đến Google, callback là `http://localhost:4000/auth/google/callback`, có cookie OAuth HttpOnly. Client ID/secret đã được cấu hình; không in hoặc sao chép secret sang frontend.
+- Luồng đang nối: `CredentialsForm` → NestJS `/auth/google` → Google → NestJS `/auth/google/callback` → FE `/auth/callback` → `SessionProvider` gọi `/users/me` bằng cookie → `/profile`.
+- Xác minh lại: backend build, 7 unit test, 14 integration test; frontend lint/build; 3 browser test Google trên PostgreSQL riêng. Bổ sung kiểm tra redirect đúng provider/backend, không có `client_secret` trong authorization URL, cookie phiên HttpOnly, và URL `result=signed_in` không tự cấp phiên.
+- Quét 30 file client build không thấy tên biến hoặc giá trị Google client secret. Browser test dùng GoogleProvider fixture; chưa thực hiện consent/đổi code bằng tài khoản Google thật.
+
+
+## Route protection và return URL
+
+- `src/proxy.ts` chặn request không có access cookie bằng HTTP 307 tới `/login?redirect=...`, giữ pathname/query, áp dụng cả route con và request RSC. Proxy ghi đè header nội bộ chứa URL đích; không tin header do caller gửi. Proxy chỉ kiểm tra sự có mặt của cookie, không coi đó là bằng chứng đăng nhập.
+- `src/lib/server-session.ts` cung cấp `requireUser()`: chỉ chuyển access cookie tới NestJS `/users/me`, không cache giữa request, không chứa JWT/Google secret. Layout `(protected)` và từng page gọi guard để kiểm tra cả khi layout được Next giữ lại. Cookie giả, expired, user disabled hoặc session revoked bị chuyển tới login. Lỗi mạng/5xx fail closed qua error boundary, không giả định guest.
+- API vẫn phải xác thực/ủy quyền mỗi request. Khi thêm server data loader/action mới, gọi `requireUser()` ngay trước thao tác; không dựa vào layout để bảo vệ action hoặc route handler. Thêm route bảo vệ mới vào matcher Proxy và route group.
+- Access cookie hết hạn/mất: login bootstrap dùng refresh hiện có và Web Locks để tự khôi phục phiên, rồi về `redirect`. Server guard không xoay refresh cookie, tránh race với các tab. Client `ProtectedSession` ẩn nội dung và chuyển về login khi logout/mất phiên.
+- `safeRedirect()` chỉ chấp nhận đường dẫn cùng origin, chặn URL tuyệt đối, `//`, backslash, control characters, dạng encode và đường dẫn auth có thể gây vòng lặp. Mặc định `/profile`. Login/register giữ query này khi chuyển qua lại.
+- Email login/register trở về URL đích sau khi `/users/me` xác nhận. Google lưu **chỉ URL đích** trong sessionStorage của tab trước khi rời web; backend vẫn callback cố định. Callback thành công kiểm tra lại URL và xóa giá trị đã lưu; hủy/lỗi giữ đích cho lần thử lại. Không lưu token/current user vào storage. Liên kết Google luôn về `/profile`.
+- Fragment (`#...`) không được gửi tới server: redirect sớm đảm bảo pathname/query; client guard giữ thêm fragment nếu đang ở trong ứng dụng.
+
+### Yêu cầu triển khai
+
+Cookie backend hiện là host-only (`__Host-` khi production). **Web và API public phải cùng hostname** để Next nhận cookie: localhost khác port đang hoạt động; production cần cùng hostname qua reverse proxy (ví dụ proxy `/users/*` và các endpoint `/auth/*` của NestJS trên cùng origin, giữ `/auth/callback` cho Next.js). Hai subdomain riêng chỉ cùng site là chưa đủ cho server guard; không nới cookie Domain hoặc đưa secret sang Next để né yêu cầu này.
+
+`API_INTERNAL_URL` là origin chỉ dành cho Next server gọi NestJS. Compose đặt `http://api:4000`; chạy trực tiếp mặc định dùng `NEXT_PUBLIC_API_URL`. Nếu chạy Next server trong container, không dùng localhost để gọi container API khác. Biến này không có tiền tố `NEXT_PUBLIC_` và không được thêm vào `nextConfig.env`.
+
+Xác minh route infrastructure: frontend lint/build thành công; toàn bộ 19 browser test qua trên NestJS/PostgreSQL riêng, gồm guest redirect HTTP, RSC, cookie/header giả khi tắt JavaScript, login/register/Google return URL, chống open redirect, refresh hai tab và revoke khi chuyển route trong cùng layout. Google dùng fixture; không thay đổi database hoặc container ứng dụng đang chạy.

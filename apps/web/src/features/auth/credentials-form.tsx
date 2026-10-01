@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -10,22 +10,42 @@ import { Icon } from "@/components/ui/icon";
 import { Spinner } from "@/components/ui/spinner";
 import { API_URL, ApiError, errorMessage } from "@/lib/api";
 import { useSession } from "./session-provider";
-import { validateCredentials, type Fields } from "./validation";
+import {
+  validateConfirmPassword,
+  validateCredentials,
+  type Fields,
+} from "./validation";
+
+import { safeRedirect, GOOGLE_RETURN_KEY } from "@/lib/auth-redirect";
 
 export function CredentialsForm({ register = false }: { register?: boolean }) {
   const session = useSession();
   const router = useRouter();
+  const destination = safeRedirect(useSearchParams().get("redirect"));
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
-    [displayName, setDisplayName] = useState("");
+    [displayName, setDisplayName] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState("");
   const [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false);
   const [fields, setFields] = useState<Fields>({}),
     [error, setError] = useState("");
   const pending = useRef(false);
+  const [checked, setChecked] = useState(false);
+  const loadSession = session.load;
   useEffect(() => {
-    if (session.status === "authenticated") router.replace("/profile");
-  }, [session.status, router]);
+    let active = true;
+    void loadSession().finally(() => {
+      if (active) setChecked(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadSession]);
+  useEffect(() => {
+    if (checked && session.status === "authenticated")
+      router.replace(destination);
+  }, [checked, session.status, router, destination]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current) return;
@@ -34,11 +54,13 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
       password,
       register ? displayName : undefined,
     );
+    if (register)
+      next.confirmPassword = validateConfirmPassword(password, confirmPassword);
     setFields(next);
     setError("");
-    const invalid = (["displayName", "email", "password"] as const).find(
-      (key) => next[key],
-    );
+    const invalid = (
+      ["displayName", "email", "password", "confirmPassword"] as const
+    ).find((key) => next[key]);
     if (invalid) {
       document.getElementById(`auth-${invalid}`)?.focus();
       return;
@@ -52,7 +74,13 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
         ...(register ? { displayName: displayName.trim() } : {}),
       });
       setPassword("");
-      router.replace("/profile");
+      setConfirmPassword("");
+      try {
+        sessionStorage.removeItem(GOOGLE_RETURN_KEY);
+      } catch {
+        /* Optional cleanup. */
+      }
+      router.replace(destination);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 409) {
         setFields({
@@ -78,7 +106,11 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
       setBusy(false);
     }
   }
-  if (session.status === "loading" || session.status === "authenticated")
+  if (
+    !checked ||
+    session.status === "loading" ||
+    session.status === "authenticated"
+  )
     return <Spinner label="Đang kiểm tra phiên đăng nhập" />;
   return (
     <div className="w-full max-w-[25rem]">
@@ -101,6 +133,16 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
           if (pending.current) return;
           pending.current = true;
           setBusy(true);
+          try {
+            sessionStorage.setItem(GOOGLE_RETURN_KEY, destination);
+          } catch {
+            pending.current = false;
+            setBusy(false);
+            setError(
+              "Vui lòng cho phép lưu trữ trong tab để tiếp tục với Google.",
+            );
+            return;
+          }
           window.location.assign(new URL("/auth/google", API_URL).href);
         }}
       >
@@ -193,6 +235,25 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
             </div>
           )}
         </FormField>
+        {register && (
+          <FormField
+            id="auth-confirmPassword"
+            label="Xác nhận mật khẩu"
+            error={fields.confirmPassword}
+          >
+            {(props) => (
+              <Input
+                {...props}
+                type={visible ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+                disabled={busy}
+              />
+            )}
+          </FormField>
+        )}
         {error && <Alert tone="error">{error}</Alert>}
         <Button
           type="submit"
@@ -202,12 +263,15 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
         >
           {register ? "Tạo tài khoản" : "Đăng nhập"} <Icon name="arrow" />
         </Button>
+        <p aria-live="polite" className="sr-only">
+          {busy ? "Đang xử lý yêu cầu, vui lòng đợi." : ""}
+        </p>
       </form>
       <p className="mt-5 text-center text-sm text-muted">
         {register ? "Bạn đã có tài khoản?" : "Bạn mới đến Shanity?"}{" "}
         <Link
           className="inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline"
-          href={register ? "/login" : "/register"}
+          href={`${register ? "/login" : "/register"}?${new URLSearchParams({ redirect: destination })}`}
         >
           {register ? "Đăng nhập" : "Tạo tài khoản"}
         </Link>

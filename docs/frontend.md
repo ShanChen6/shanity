@@ -12,29 +12,33 @@ pnpm dev:web
 
 ## Theme và layout
 
-- `apps/web/src/app/globals.css`: biến CSS semantic, nối với utility Tailwind v4 qua `@theme inline`. Dùng `bg-background`, `bg-surface`, `text-foreground`, `text-muted`, `border-border`, `bg-primary`, `text-on-primary`, cùng các cặp màu success/warning/danger.
-- Giữ Geist/Geist Mono từ `next/font` hiện có; body thực sự dùng font token thay vì Arial cố định. Root đặt `lang="vi"` và metadata Shanity.
-- Typography: `text-caption`, `text-body`, `text-title`, `text-display`; weight theo utility Tailwind (`font-medium`, `font-semibold`, `font-bold`). Spacing theo thang 4px mặc định của Tailwind; ưu tiên 2/3/4/6/8/12/16.
-- `rounded-control` (12px), `rounded-card` (24px), `shadow-card`, `shadow-float`; `.control` cao tối thiểu 44px. Input dùng chữ 16px để tránh iOS tự zoom.
-- Focus outline 3px với offset 4px. Hover dùng token primary-hover/surface-muted; disabled dùng native `disabled`, loading có `aria-busy` và spinner. Tôn trọng `prefers-reduced-motion`.
-- Giữ cơ chế dark mode tự động theo hệ điều hành từ starter, bổ sung đủ semantic token cho nền, chữ, viền và trạng thái. Không thêm toggle hoặc persistence theme.
-- `PageContainer`: rộng tối đa 1280px, lề 16px trên mobile và 32px từ 768px.
-- `AuthLayout`: header/footer, skip link và một main landmark. Hai cột từ 1024px; dưới ngưỡng này ẩn phần giới thiệu để ưu tiên form. Có thể bọc form đăng ký/khôi phục sau này, không chứa logic xác thực.
+- `apps/web/src/app/globals.css` là entry point. Palette primitive ở `src/styles/color.css`; semantic light/dark token ở `theme.css`; normalization/accessibility ở `base.css`; type scale ở `typography.css`; layout utilities ở `responsive.css`.
+- Palette primitive cung cấp 13 họ màu với scale 50-950. Chỉ dùng trực tiếp trong phần trình bày palette; UI ứng dụng dùng token như `bg-primary`, `text-foreground`, `bg-surface`, `border-border`, `text-muted` và các token status.
+- Semantic API gồm primary/secondary/accent, hierarchy surface (bao gồm active), text, border/input/focus, success/warning/danger/info và domain state cho course, lesson, quiz, online/offline. Một số tên cũ (`on-primary`, `surface-muted`, `focus`, `*-bg`) được giữ dưới dạng alias tương thích.
+- Light/dark dùng chung semantic API; `.dark` trên `<html>` thay đổi token. Provider lưu lựa chọn `light`, `dark` hoặc `system` vào `localStorage` (`shanity-theme`). Script đồng bộ trước paint tránh flash; system theme theo dõi thay đổi OS. Font Geist/Geist Mono vẫn được tải bằng `next/font`.
+- Typography utilities: `text-display`, `text-h1` through `text-h4`, `text-body-lg`, `text-body`, `text-body-sm`, `text-caption`, `text-code`, `text-link`; `font-sans`, `font-heading`, `font-mono`. Display/headings responsive bằng `clamp()`.
+- Radius semantic: `rounded-sm`, `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-full`; shadow: `shadow-sm`, `shadow-md`, `shadow-lg`; motion durations: `duration-fast`, `duration-normal`, `duration-slow`. Utility layout: `container`, `content`, `content-wide`, `content-sm`, `section`, `page`; `PageContainer` dùng `container` (tối đa 1280px).
+- Focus-visible có ring 3px; input hỗ trợ hover/focus/disabled/error; reduced motion được tôn trọng. Không dùng màu đơn lẻ để thể hiện form result: validation có `aria-invalid`/text, alert có role tương ứng, progress có accessible name/value.
+- `/dev/theme` là showcase chỉ hoạt động trong môi trường development; có palette, token/surface, typography, form controls, button variants, status, composed cards, avatar, shared empty/error/loading states và progress.
+- `AuthLayout` tiếp tục giữ header/footer, skip link và một main landmark. Hai cột từ 1024px; layout không chứa logic xác thực.
 
 ## Component dùng ngay
 
 Tất cả component trong `apps/web/src/components/ui/`, tên file kebab-case và named export PascalCase. `className` bổ sung layout; nếu cần variant mới, thêm vào component thay vì chồng utility trái ngược. Props native và ref được chuyển xuống phần tử tương ứng (React 19).
 
-| Component | Props / hành vi |
-| --- | --- |
-| Button | `variant="primary" | "secondary" | "ghost"`, `loading`, `loadingLabel`; mặc định type=button; loading tự disabled |
-| Input | Props input native, hỗ trợ ref, disabled, aria-invalid; không tự tạo label |
-| Label | Props label native; dùng htmlFor liên kết input |
-| FormField | `id?`, `label`, `description?`, `error?`, children render prop; tạo ID ổn định và liên kết aria-describedby/aria-invalid |
-| Card | Khung div nền surface, border, radius và shadow; không áp đặt heading/landmark |
-| Alert | `tone="info" | "success" | "warning" | "error"`, `title?`; error dùng role=alert, còn lại role=status |
-| Spinner | `label?`, `decorative?`; spinner độc lập có tên đọc cho screen reader, dùng decorative khi nút đã có nhãn loading |
-| Icon | SVG nội bộ nhỏ, luôn decorative; control chứa icon phải có tên accessible |
+| Component                                      | Props / hành vi                                                                                                                               |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Button                                         | `primary`, `secondary`, `outline`, `ghost`, `danger`, `link`; sizes `sm`, `md`, `lg`, `icon`; hỗ trợ loading, disabled và native button props |
+| Input, Textarea, Select                        | Props native, hỗ trợ ref và semantic states; không tự tạo label                                                                               |
+| Checkbox, Radio, Switch                        | Native input, semantic accent/focus/disabled styles                                                                                           |
+| Label, FormField                               | Label native; FormField tạo ID và liên kết label, description, validation message với control                                                 |
+| Badge                                          | Default/secondary/outline và semantic success/warning/danger/info                                                                             |
+| Alert                                          | `tone=info/success/warning/error`, cùng `AlertTitle` và `AlertDescription`; error dùng role=alert                                             |
+| Card                                           | Default/interactive/elevated cùng `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`                                   |
+| Progress, Skeleton, Separator, Avatar, Spinner | Progress có accessible name/value; Avatar hỗ trợ `AvatarImage`/`AvatarFallback`; Spinner có label/decorative                                  |
+| Icon                                           | SVG nội bộ nhỏ, luôn decorative; control chứa icon phải có tên accessible                                                                     |
+
+Layout exports `AppShell`, `PageContainer`, `PageHeader`, `Section`. Shared exports `Logo`, `ThemeToggle`, `EmptyState`, `ErrorState`, `LoadingState`. Tailwind `sr-only` đáp ứng visually-hidden text; không thêm utility trùng.
 
 FormField dùng `useId`, nên phần form với render prop nằm trong Client Component. Ví dụ:
 
@@ -48,7 +52,9 @@ export function EmailExample() {
   return (
     <div className="space-y-4">
       <FormField label="Email" description="Dùng địa chỉ email của bạn.">
-        {(props) => <Input {...props} type="email" autoComplete="email" required />}
+        {(props) => (
+          <Input {...props} type="email" autoComplete="email" required />
+        )}
       </FormField>
       <Button variant="primary">Tiếp tục</Button>
     </div>
@@ -56,7 +62,7 @@ export function EmailExample() {
 }
 ```
 
-`features/auth/credentials-form.tsx` là form thực tế; `login-preview.tsx` giữ làm ví dụ UI cũ, không được mount vào route. Chưa tạo EmptyState vì chưa có danh sách/rỗng nào cần dùng; chưa tạo bảng, biểu đồ hay player.
+`features/auth/credentials-form.tsx` là form hiện hữu; foundation chỉ bổ sung presentation APIs và không thay đổi luồng Auth. Chưa thêm Dialog/Popover/Dropdown/Tooltip vì project chưa dùng Radix hay thư viện overlay; không tự triển khai focus trap/overlay primitives.
 
 ## Kiểm tra
 
@@ -65,7 +71,7 @@ pnpm --filter web lint
 pnpm --filter web build
 ```
 
-Frontend hiện có `pnpm --filter web test:e2e` cho Auth tích hợp; xem auth-frontend.md. Phần kiểm tra theme ban đầu bên dưới được thực hiện trước khi nối API. Lần triển khai này dùng Playwright + axe-core cài riêng trong `/tmp/shanity-ui-tools` và Chrome hệ thống, không thêm dependency vào repo.
+Frontend hiện có `pnpm --filter web test:e2e` cho Auth tích hợp; xem auth-frontend.md. Theme showcase được mở tại `/dev/theme` khi chạy development để rà trực quan light/dark và các component; không thêm dependency vào repo.
 
 Checklist browser:
 

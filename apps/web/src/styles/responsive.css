@@ -1,0 +1,60 @@
+@utility container {
+  width: 100%;
+  max-width: var(--page-width);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+@utility content {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+@utility content-wide {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+@utility content-sm {
+  width: 100%;
+  max-width: 30rem;
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+@utility section {
+  padding-block: clamp(2.5rem, 6vw, 6rem);
+}
+
+@utility page {
+  min-height: 100dvh;
+}
+
+@utility control {
+  min-height: 2.75rem;
+}
+
+@layer components {
+  .auth-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .learning-orbit {
+    background-image: radial-gradient(
+      var(--border-strong) 1px,
+      transparent 1px
+    );
+    background-size: 20px 20px;
+  }
+
+  @media (min-width: 64rem) {
+    .auth-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+}

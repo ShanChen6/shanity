@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
+import { safeRedirect, GOOGLE_RETURN_KEY, loginUrl } from "@/lib/auth-redirect";
 import { useSession } from "./session-provider";
 const errors: Record<string, string> = {
   cancelled:
@@ -21,9 +22,23 @@ export function OAuthCallback() {
     session = useSession(),
     router = useRouter();
   const code = params.get("error");
+  const linked = params.get("result") === "linked";
+  const redirected = useRef(false);
   useEffect(() => {
-    if (!code && session.status === "authenticated") router.replace("/profile");
-  }, [code, session.status, router]);
+    if (!code && session.status === "authenticated" && !redirected.current) {
+      redirected.current = true;
+      let destination = "/profile";
+      try {
+        destination = linked
+          ? "/profile"
+          : safeRedirect(sessionStorage.getItem(GOOGLE_RETURN_KEY));
+        sessionStorage.removeItem(GOOGLE_RETURN_KEY);
+      } catch {
+        /* Storage unavailable: use the safe default. */
+      }
+      router.replace(destination);
+    }
+  }, [code, linked, session.status, router]);
   const message = code
     ? (errors[code] ?? errors.failed)
     : session.status === "anonymous"
@@ -39,6 +54,17 @@ export function OAuthCallback() {
           <Alert tone="error">{message}</Alert>
           <Link
             href={session.user ? "/profile" : "/login"}
+            onClick={(event) => {
+              if (session.user) return;
+              event.preventDefault();
+              let destination = "/profile";
+              try {
+                destination = safeRedirect(
+                  sessionStorage.getItem(GOOGLE_RETURN_KEY),
+                );
+              } catch {}
+              router.push(loginUrl(destination));
+            }}
             className="mt-5 inline-flex min-h-11 items-center font-semibold text-primary"
           >
             {session.user ? "Về hồ sơ" : "Về đăng nhập"} →
