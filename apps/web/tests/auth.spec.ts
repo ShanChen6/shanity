@@ -615,3 +615,523 @@ test("admin login returns to the requested admin route", async ({ page }) => {
     page.getByRole("heading", { name: "Người dùng", exact: true }),
   ).toBeVisible();
 });
+
+test("admin user detail preserves filters and handles missing/error states", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const result = await db.query("SELECT id FROM users WHERE email=$1", [email]);
+  const id = result.rows[0].id;
+  const listPath = `/admin/users?search=${encodeURIComponent(email)}`;
+  await page.goto(listPath);
+  await page
+    .getByRole("link", { name: "Xem chi tiết Browser Student" })
+    .filter({ visible: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Chi tiết người dùng" }),
+  ).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: id })).toBeVisible();
+  await expect(page.locator("main input, main textarea")).toHaveCount(0);
+  await expect(page.locator("time").first()).toHaveAttribute("datetime", /T/);
+  await page.reload();
+  await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByRole("link", { name: "Quay lại danh sách" }).click();
+  await expect(page.getByLabel("Tìm theo tên hoặc email")).toHaveValue(email);
+  await page.goto(`/admin/users/${randomUUID()}`);
+  await expect(
+    page.getByRole("heading", { name: "Không tìm thấy người dùng" }),
+  ).toBeVisible();
+  await page.route(`${API}/users/${id}`, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Test error" }),
+    }),
+  );
+  await page.goto(`/admin/users/${id}`);
+  await expect(
+    page.getByRole("heading", { name: "Không thể tải thông tin người dùng" }),
+  ).toBeVisible();
+  await page.unroute(`${API}/users/${id}`);
+  await page.getByRole("button", { name: "Thử lại" }).click();
+  await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
+});
+
+test("admin role change requires confirmation, supports cancel and persists", async ({
+  page,
+  context,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const target = await db.query(
+    "INSERT INTO users(email, display_name) VALUES ($1, $2) RETURNING id",
+    [`${randomUUID()}@example.invalid`, "Role Target"],
+  );
+  const id = target.rows[0].id;
+  await db.query(
+    "INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'student')",
+    [id],
+  );
+  let mutations = 0;
+  page.on("request", (req) => {
+    if (req.method() === "PATCH" && req.url().endsWith(`/users/${id}/role`))
+      mutations++;
+  });
+  await page.goto(`/admin/users/${id}`);
+  await page.getByLabel("Vai trò mới").selectOption("INSTRUCTOR");
+  await page
+    .getByRole("button", { name: "Thay đổi vai trò", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Hủy", exact: true }),
+  ).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(
+    await dialog.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  await expect(dialog).toContainText("Giảng viên");
+  expect(mutations).toBe(0);
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(mutations).toBe(0);
+  await page
+    .getByRole("button", { name: "Thay đổi vai trò", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Thay đổi vai trò", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Xác nhận đổi vai trò", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toHaveText("Đã cập nhật vai trò.");
+  expect(mutations).toBe(1);
+  expect(
+    (await (await context.request.get(`${API}/users/${id}`)).json()).roles,
+  ).toEqual(["instructor"]);
+  await page.reload();
+  await expect(
+    page.locator("dd").filter({ hasText: "Giảng viên" }),
+  ).toBeVisible();
+  await page.getByLabel("Vai trò mới").selectOption("ADMIN");
+  await page.route(`${API}/users/${id}/role`, (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Role change blocked" }),
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Thay đổi vai trò", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Xác nhận đổi vai trò", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toHaveText("Role change blocked");
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await page.unroute(`${API}/users/${id}/role`);
+  const me = await (await context.request.get(`${API}/users/me`)).json();
+  await page.goto(`/admin/users/${me.id}`);
+  await expect(
+    page.getByLabel("Vai trò mới").locator('option[value="STUDENT"]'),
+  ).toHaveJSProperty("disabled", true);
+  await expect(
+    page.getByLabel("Vai trò mới").locator('option[value="INSTRUCTOR"]'),
+  ).toHaveJSProperty("disabled", true);
+});
+
+test("admin account status confirms disable/activate and preserves account data", async ({
+  page,
+  context,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const targetEmail = `${randomUUID()}@example.invalid`;
+  const target = await db.query(
+    "INSERT INTO users(email, display_name) VALUES ($1, $2) RETURNING id",
+    [targetEmail, "Status Target"],
+  );
+  const id = target.rows[0].id;
+  await db.query(
+    "INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'student')",
+    [id],
+  );
+  let mutations = 0;
+  page.on("request", (req) => {
+    if (req.method() === "PATCH" && req.url().endsWith(`/users/${id}/status`))
+      mutations++;
+  });
+  await page.goto(`/admin/users/${id}`);
+  await page
+    .getByRole("button", { name: "Vô hiệu hóa tài khoản", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(targetEmail);
+  await expect(
+    dialog.getByRole("button", { name: "Hủy", exact: true }),
+  ).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(
+    await dialog.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(mutations).toBe(0);
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  expect(mutations).toBe(0);
+  await page
+    .getByRole("button", { name: "Vô hiệu hóa tài khoản", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Xác nhận", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Đã vô hiệu hóa tài khoản.",
+  );
+  expect(mutations).toBe(1);
+  await expect(page.locator("dd").filter({ hasText: "Đã khóa" })).toBeVisible();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Kích hoạt tài khoản", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Xác nhận", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Đã kích hoạt tài khoản.");
+  const updated = await (
+    await context.request.get(`${API}/users/${id}`)
+  ).json();
+  expect(updated.status).toBe("active");
+  expect(updated.roles).toEqual(["student"]);
+  expect(updated.email).toBe(targetEmail);
+  await page.route(`${API}/users/${id}/status`, (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Không thể vô hiệu hóa tài khoản này." }),
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Vô hiệu hóa tài khoản", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Xác nhận", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Không thể vô hiệu hóa tài khoản này.",
+  );
+  await page.keyboard.press("Escape");
+  await page.unroute(`${API}/users/${id}/status`);
+  const me = await (await context.request.get(`${API}/users/me`)).json();
+  await page.goto(`/admin/users/${me.id}`);
+  await expect(
+    page.getByRole("button", { name: "Vô hiệu hóa tài khoản", exact: true }),
+  ).toBeDisabled();
+});
+
+test("admin overview uses aggregate statistics and handles loading, retry and zero counts", async ({
+  page,
+  context,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const expected = await (
+    await context.request.get(`${API}/users/stats`)
+  ).json();
+  let listRequests = 0;
+  page.on("request", (req) => {
+    if (new URL(req.url()).pathname === "/users") listRequests++;
+  });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`${API}/users/stats`, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.goto("/admin");
+  await expect(
+    page.getByRole("status", { name: "Đang tải thống kê người dùng" }),
+  ).toBeVisible();
+  release();
+  const overview = page.getByRole("region", {
+    name: "Thống kê người dùng",
+    exact: true,
+  });
+  await expect(overview).toBeVisible();
+  const labels: Record<string, string> = {
+    totalUsers: "Tổng người dùng",
+    students: "Học sinh",
+    instructors: "Giảng viên",
+    admins: "Quản trị viên",
+    activeUsers: "Người dùng hoạt động",
+  };
+  for (const [key, label] of Object.entries(labels)) {
+    await expect(
+      overview
+        .locator("div")
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .locator("dd"),
+    ).toHaveText(new Intl.NumberFormat("vi-VN").format(expected[key]));
+  }
+  expect(listRequests).toBe(0);
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.unroute(`${API}/users/stats`);
+  await page.route(`${API}/users/stats`, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Unavailable" }),
+    }),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Không thể tải thống kê người dùng" }),
+  ).toBeVisible();
+  await expect(overview).toHaveCount(0);
+  await page.unroute(`${API}/users/stats`);
+  await page.route(`${API}/users/stats`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        totalUsers: 0,
+        students: 0,
+        instructors: 0,
+        admins: 0,
+        activeUsers: 0,
+      }),
+    }),
+  );
+  await page.getByRole("button", { name: "Thử lại", exact: true }).click();
+  await expect(overview.locator("dd")).toHaveText(["0", "0", "0", "0", "0"]);
+  expect(listRequests).toBe(0);
+});
+
+test("admin UX pagination, empty states and long text remain accessible", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const prefix = randomUUID();
+  const longName = `${prefix}${"N".repeat(64)}`;
+  for (let index = 0; index < 23; index++) {
+    await db.query("INSERT INTO users(email, display_name) VALUES ($1, $2)", [
+      `${prefix}-${index}@${"d".repeat(60)}.${"e".repeat(60)}.invalid`,
+      longName,
+    ]);
+  }
+  await page.goto(`/admin/users?search=${prefix}`);
+  await expect(
+    page.getByText("Hiển thị 1–20 trong 23 tài khoản."),
+  ).toBeVisible();
+  const topPagination = page.getByRole("navigation", {
+    name: "Phân trang người dùng, đầu danh sách",
+  });
+  await expect(topPagination.getByText("Trang trước")).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await topPagination.getByRole("link", { name: "Trang sau" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByText("Hiển thị 21–23 trong 23 tài khoản."),
+  ).toBeVisible();
+  await expect(page.locator("#admin-user-results")).toBeFocused();
+  await expect(page).toHaveURL(
+    new RegExp(`search=${prefix}.*page=2|page=2.*search=${prefix}`),
+  );
+  await expect(topPagination.getByText("Trang sau")).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await page.setViewportSize({ width: 768, height: 900 });
+  const table = page.getByRole("region", {
+    name: "Bảng người dùng, cuộn ngang để xem đầy đủ",
+  });
+  await table.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() => table.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+  for (const width of [1440, 768, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          document: document.documentElement.scrollWidth,
+          viewport: innerWidth,
+        })),
+      )
+      .toEqual({ document: width, viewport: width });
+  }
+  await page
+    .getByRole("link", { name: `Xem chi tiết ${longName}`, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: longName, exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+  await expect(breadcrumb.getByText("Chi tiết người dùng")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await breadcrumb
+    .getByRole("link", { name: "Người dùng", exact: true })
+    .click();
+  await expect(
+    page.getByText("Hiển thị 21–23 trong 23 tài khoản."),
+  ).toBeVisible();
+  await page.getByLabel("Tìm theo tên hoặc email").fill(`${prefix}-no-match`);
+  await page.getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Không tìm thấy tài khoản phù hợp" }),
+  ).toBeVisible();
+  await expect(page.locator("#admin-user-results")).toBeFocused();
+  await page.goto(`/admin/users?search=${prefix}&page=99`);
+  await expect(
+    page.getByRole("heading", { name: "Trang này không còn kết quả" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Về trang đầu", exact: true }).click();
+  await expect(
+    page.getByText("Hiển thị 1–20 trong 23 tài khoản."),
+  ).toBeVisible();
+  await page.route(`${API}/users?**`, (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Forbidden" }),
+    }),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("heading", {
+      name: "Bạn không có quyền xem danh sách tài khoản",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Thử lại" })).toHaveCount(0);
+  await page.unroute(`${API}/users?**`);
+});
+
+test("admin UX dialog focus, pending guard, toast and mobile menu", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  const target = await db.query(
+    "INSERT INTO users(email, display_name) VALUES ($1, $2) RETURNING id",
+    [`${randomUUID()}@example.invalid`, "Focus Target"],
+  );
+  const id = target.rows[0].id;
+  await db.query(
+    "INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'student')",
+    [id],
+  );
+  await page.goto(`/admin/users/${id}`);
+  await page.getByLabel("Vai trò mới").selectOption("INSTRUCTOR");
+  const trigger = page.getByRole("button", {
+    name: "Thay đổi vai trò",
+    exact: true,
+  });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("button", { name: "Hủy", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await page.evaluate(() => !!document.activeElement?.closest("dialog")),
+  ).toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(
+    dialog.getByRole("button", { name: "Hủy", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect
+    .poll(() => page.evaluate(() => document.body.style.overflow))
+    .not.toBe("hidden");
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let writes = 0;
+  await page.route(`${API}/users/${id}/role`, async (route) => {
+    writes++;
+    await gate;
+    await route.continue();
+  });
+  await trigger.click();
+  await dialog
+    .getByRole("button", { name: "Xác nhận đổi vai trò", exact: true })
+    .click();
+  await expect(dialog).toHaveAttribute("aria-busy", "true");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Hủy", exact: true }),
+  ).toBeDisabled();
+  release();
+  await expect(page.getByRole("status")).toHaveText("Đã cập nhật vai trò.");
+  expect(writes).toBe(1);
+  await expect(page.getByLabel("Vai trò mới")).toBeFocused();
+  await page.getByRole("button", { name: "Đóng thông báo" }).click();
+  await expect(
+    page.getByRole("region", { name: "Thông báo quản trị" }),
+  ).toHaveCount(0);
+  await expect(page.locator("#admin-content")).toBeFocused();
+  await page.unroute(`${API}/users/${id}/role`);
+  await page.route(`${API}/users/${id}/role`, (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Không thể đổi vai trò." }),
+    }),
+  );
+  await page.getByLabel("Vai trò mới").selectOption("ADMIN");
+  await trigger.click();
+  await dialog
+    .getByRole("button", { name: "Xác nhận đổi vai trò", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 740 });
+  const toggle = page.getByRole("button", { name: "Mở menu quản trị" });
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  const mobile = page.locator("#admin-mobile-navigation");
+  await expect(mobile).toBeVisible();
+  await mobile.getByRole("link", { name: "Người dùng", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toBeFocused();
+  await expect(mobile).toBeHidden();
+  await toggle.click();
+  await mobile.getByRole("link", { name: "Người dùng", exact: true }).focus();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator("#admin-content")).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 740 });
+  await expect(mobile).toBeHidden();
+});

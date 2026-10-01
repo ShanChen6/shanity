@@ -10,6 +10,7 @@ export type AdminUser = {
   status: AdminUserStatus;
   roles: Role[];
   createdAt: string;
+  updatedAt: string;
 };
 
 export type AdminUserListResponse = {
@@ -18,4 +19,12 @@ export type AdminUserListResponse = {
   limit: number;
   total: number;
   totalPages: number;
+};
+
+export type AdminUserStatistics = {
+  totalUsers: number;
+  students: number;
+  instructors: number;
+  admins: number;
+  activeUsers: number;
 };
