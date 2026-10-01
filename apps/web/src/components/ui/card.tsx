@@ -1,12 +1,66 @@
 import type { ComponentPropsWithRef } from "react";
+const variants = {
+  default: "border-border bg-surface shadow-sm",
+  interactive:
+    "border-border bg-surface shadow-sm transition-colors hover:border-border-strong hover:bg-surface-hover",
+  elevated: "border-border bg-surface-elevated shadow-md",
+};
 export function Card({
+  variant = "default",
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div"> & { variant?: keyof typeof variants }) {
+  return (
+    <div
+      {...props}
+      className={`rounded-lg border p-5 sm:p-6 ${variants[variant]} ${className}`}
+    />
+  );
+}
+
+export function CardHeader({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div">) {
+  return (
+    <div {...props} className={`mb-4 flex flex-col gap-1.5 ${className}`} />
+  );
+}
+
+export function CardTitle({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"h3">) {
+  return (
+    <h3
+      {...props}
+      className={`font-heading text-h3 font-semibold ${className}`}
+    />
+  );
+}
+
+export function CardDescription({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"p">) {
+  return <p {...props} className={`text-body-sm text-muted ${className}`} />;
+}
+
+export function CardContent({
+  className = "",
+  ...props
+}: ComponentPropsWithRef<"div">) {
+  return <div {...props} className={className} />;
+}
+
+export function CardFooter({
   className = "",
   ...props
 }: ComponentPropsWithRef<"div">) {
   return (
     <div
       {...props}
-      className={`rounded-card border border-border bg-surface p-5 shadow-card sm:p-6 ${className}`}
+      className={`mt-4 flex items-center border-t border-border pt-4 ${className}`}
     />
   );
 }

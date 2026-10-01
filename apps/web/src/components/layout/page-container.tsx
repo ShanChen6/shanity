@@ -3,5 +3,5 @@ export function PageContainer({
   className = "",
   ...props
 }: ComponentPropsWithRef<"div">) {
-  return <div {...props} className={`page-container ${className}`} />;
+  return <div {...props} className={`container ${className}`} />;
 }

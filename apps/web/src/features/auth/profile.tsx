@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
@@ -27,9 +27,6 @@ function ProfileContent() {
     [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const pending = useRef(false);
-  useEffect(() => {
-    if (session.status === "anonymous") router.replace("/login");
-  }, [session.status, router]);
   async function perform(action: string, task: () => Promise<void>) {
     if (pending.current) return;
     pending.current = true;

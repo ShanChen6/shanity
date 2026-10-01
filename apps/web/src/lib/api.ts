@@ -2,11 +2,13 @@
 export const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 ).replace(/\/$/, "");
+// Mirrors role_code values seeded in apps/api/database/migrations/202609270003_access_foundation.mjs.
+export type Role = "student" | "instructor" | "admin";
 export type User = {
   id: string;
   email: string;
   displayName: string;
-  roles: string[];
+  roles: Role[];
 };
 export class ApiError extends Error {
   constructor(
@@ -99,11 +101,21 @@ export async function api<T>(
 }
 export function errorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Có lỗi xảy ra. Vui lòng thử lại.";
+  if (error.status === 400) return "Vui lòng kiểm tra lại thông tin đã nhập.";
   if (error.status === 401)
     return "Email hoặc mật khẩu không đúng, hoặc tài khoản chưa thể đăng nhập.";
   if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+  if (error.status === 409)
+    return "Dữ liệu đã tồn tại hoặc xung đột với thông tin hiện có.";
   if (error.status === 429)
     return "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau một phút.";
   if (error.status === 0) return error.message;
+  if (error.status >= 500)
+    return "Máy chủ đang gặp sự cố. Vui lòng thử lại sau.";
   return "Không thể hoàn tất yêu cầu. Vui lòng thử lại.";
+}
+
+// GET /users/me: the only endpoint exposing the authenticated principal (no /auth/me route exists).
+export function getCurrentUser(authenticated = true) {
+  return api<User>("/users/me", {}, authenticated);
 }
