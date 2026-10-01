@@ -17,6 +17,8 @@ import {
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import {
+  CreateUserDto,
+  UpdateUserDto,
   ChangeUserRoleDto,
   ChangeUserStatusDto,
   ListUsersQueryDto,
@@ -160,6 +162,12 @@ export class UsersController {
   list(@Query() query: ListUsersQueryDto) {
     return this.auth.listUsers(query);
   }
+  @Post()
+  @Roles('admin')
+  @Header('Cache-Control', 'no-store')
+  create(@Req() req: AuthRequest, @Body() dto: CreateUserDto) {
+    return this.auth.createUser(req.principal, dto);
+  }
   @Get('me')
   @Header('Cache-Control', 'no-store')
   me(@Req() req: AuthRequest) {
@@ -205,6 +213,16 @@ export class UsersController {
   @Header('Cache-Control', 'no-store')
   statistics() {
     return this.auth.userStatistics();
+  }
+  @Patch(':id')
+  @Roles('admin')
+  @Header('Cache-Control', 'no-store')
+  edit(
+    @Req() req: AuthRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.auth.updateUser(req.principal, id, dto);
   }
   @Get(':id')
   @Roles('admin')

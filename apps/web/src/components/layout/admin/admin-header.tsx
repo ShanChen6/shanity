@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { AdminLogout } from "@/features/admin/auth/admin-logout";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -136,6 +137,7 @@ export function AdminHeader() {
             <span className="block text-xs text-muted">Quản trị viên</span>
           </span>
         </Link>
+        <AdminLogout />
       </div>
       <AdminMobileNavigation
         open={open}

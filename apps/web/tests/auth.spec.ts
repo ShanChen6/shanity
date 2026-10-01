@@ -461,8 +461,10 @@ for (const path of ["/admin", "/admin/users"]) {
     const response = await request.get(`${WEB}${path}`, { maxRedirects: 0 });
     expect(response.status()).toBe(307);
     const location = new URL(response.headers().location, WEB);
-    expect(location.pathname).toBe("/login");
-    expect(location.searchParams.get("redirect")).toBe(path);
+    expect(location.pathname).toBe("/admin/login");
+    expect(location.searchParams.get("redirect")).toBe(
+      path === "/admin" ? null : path,
+    );
   });
 }
 
@@ -608,7 +610,7 @@ test("admin login returns to the requested admin route", async ({ page }) => {
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await page.goto("/admin/users");
-  await expect(page).toHaveURL(`${WEB}/login?redirect=%2Fadmin%2Fusers`);
+  await expect(page).toHaveURL(`${WEB}/admin/login?redirect=%2Fadmin%2Fusers`);
   await login(page, email);
   await expect(page).toHaveURL(`${WEB}/admin/users`);
   await expect(
@@ -634,7 +636,10 @@ test("admin user detail preserves filters and handles missing/error states", asy
   ).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: id })).toBeVisible();
-  await expect(page.locator("main input, main textarea")).toHaveCount(0);
+  // Profile remains a read view until the edit dialog is opened.
+  await expect(
+    page.locator("main input:visible, main textarea:visible"),
+  ).toHaveCount(0);
   await expect(page.locator("time").first()).toHaveAttribute("datetime", /T/);
   await page.reload();
   await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
@@ -1134,4 +1139,419 @@ test("admin UX dialog focus, pending guard, toast and mobile menu", async ({
   await expect(page.locator("#admin-content")).toBeFocused();
   await page.setViewportSize({ width: 320, height: 740 });
   await expect(mobile).toBeHidden();
+});
+
+test("admin login has a separate public UI and rejects invalid credentials", async ({
+  page,
+  request,
+}) => {
+  const response = await request.get(`${WEB}/admin/login`, { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+  await page.goto("/admin/login");
+  await expect(
+    page.getByRole("heading", { name: "Đăng nhập quản trị" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Tạo tài khoản|Đăng ký/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Tiếp tục với Google" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Điều hướng quản trị" }),
+  ).toHaveCount(0);
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await login(
+    page,
+    `${randomUUID()}@example.invalid`,
+    "Wrong-but-long-password",
+  );
+  await expect(
+    page.getByRole("form", { name: "Đăng nhập quản trị" }).getByRole("alert"),
+  ).toContainText("Email hoặc mật khẩu không đúng");
+  await expect(page).toHaveURL(`${WEB}/admin/login`);
+  await expect(page.getByLabel("Mật khẩu", { exact: true })).toHaveValue("");
+  await page.goto("/login");
+  await expect(
+    page.getByRole("heading", { name: "Cùng học tiếp nhé!" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Tiếp tục với Google" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Tạo tài khoản" })).toBeVisible();
+});
+
+for (const role of ["student", "instructor"]) {
+  test(`admin login denies ${role} and backend admin APIs remain forbidden`, async ({
+    page,
+    context,
+  }) => {
+    const email = await register(page);
+    if (role === "instructor")
+      await db.query(
+        "INSERT INTO user_roles(user_id, role_code) SELECT id, 'instructor' FROM users WHERE email=$1",
+        [email],
+      );
+    await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await page.goto("/admin/login");
+    await login(page, email);
+    await expect(
+      page.getByRole("form", { name: "Đăng nhập quản trị" }).getByRole("alert"),
+    ).toContainText("Tài khoản này không có quyền quản trị");
+    await expect(page).toHaveURL(`${WEB}/admin/login`);
+    const me = await (await context.request.get(`${API}/users/me`)).json();
+    for (const path of ["/users", "/users/stats", `/users/${me.id}`])
+      expect((await context.request.get(`${API}${path}`)).status()).toBe(403);
+    for (const [path, data] of [
+      [`/users/${me.id}/role`, { role: "ADMIN" }],
+      [`/users/${me.id}/status`, { status: "ACTIVE" }],
+    ] as const) {
+      expect(
+        (
+          await context.request.patch(`${API}${path}`, {
+            headers: { Origin: WEB },
+            data,
+          })
+        ).status(),
+      ).toBe(403);
+    }
+    for (const path of ["/admin", "/admin/users"]) {
+      const response = await context.request.get(`${WEB}${path}`, {
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(307);
+      expect(new URL(response.headers().location, WEB).pathname).toBe(
+        "/forbidden",
+      );
+    }
+    await page.goto("/admin");
+    await expect(page).toHaveURL(`${WEB}/forbidden`);
+  });
+}
+
+test("admin login restores shared refresh sessions, validates return URLs and logs out to admin", async ({
+  page,
+  context,
+}) => {
+  const email = await register(page);
+  await grantAdmin(email);
+  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  await page.goto("/admin/login");
+  await login(page, email);
+  await expect(page).toHaveURL(`${WEB}/admin`);
+  await expect(
+    page.getByRole("heading", { name: "Khu vực quản trị" }),
+  ).toBeVisible();
+  const response = await context.request.get(`${WEB}/admin/login`, {
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(307);
+  expect(new URL(response.headers().location, WEB).pathname).toBe("/admin");
+  for (const redirect of [
+    "https://evil.invalid",
+    "//evil.invalid",
+    "/admin/login",
+    "/admin/%6cogin",
+    "/admin/..%2fprofile",
+  ]) {
+    const response = await context.request.get(
+      `${WEB}/admin/login?${new URLSearchParams({ redirect })}`,
+      { maxRedirects: 0 },
+    );
+    expect(response.status()).toBe(307);
+    expect(new URL(response.headers().location, WEB).href).toBe(`${WEB}/admin`);
+  }
+  await page.goto("/admin/login");
+  await expect(page).toHaveURL(`${WEB}/admin`);
+  await page.goto("/admin/users");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Người dùng", exact: true }),
+  ).toBeVisible();
+  const jar = await context.cookies();
+  await context.clearCookies();
+  await context.addCookies(
+    jar.filter((cookie) => !cookie.name.endsWith("shanity_access")),
+  );
+  await page.goto("/admin/users?search=retained&role=student");
+  await expect(page).toHaveURL(
+    `${WEB}/admin/users?search=retained&role=student`,
+  );
+  await expect(page.getByLabel("Tìm theo tên hoặc email")).toHaveValue(
+    "retained",
+  );
+  const refreshed = await context.cookies();
+  expect(
+    refreshed.some(
+      (cookie) => cookie.name === "shanity_access" && cookie.httpOnly,
+    ),
+  ).toBe(true);
+  expect(refreshed.some((cookie) => /admin.*token/i.test(cookie.name))).toBe(
+    false,
+  );
+  const sibling = await context.newPage();
+  await sibling.goto("/admin");
+  await expect(
+    sibling.getByRole("heading", { name: "Khu vực quản trị" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Đăng xuất quản trị", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/admin\/login(?:\?.*)?$/);
+  await expect(sibling).toHaveURL(/\/admin\/login(?:\?.*)?$/);
+  await expect(
+    page.getByRole("heading", { name: "Đăng nhập quản trị" }),
+  ).toBeVisible();
+  expect(
+    (await context.cookies()).some((cookie) =>
+      /shanity_(access|refresh)$/.test(cookie.name),
+    ),
+  ).toBe(false);
+});
+
+test("admin user CRUD creates, edits and disables without deleting data", async ({
+  page,
+  context,
+  browser,
+}) => {
+  const actorEmail = await register(page);
+  await grantAdmin(actorEmail);
+  await page.goto("/admin/users");
+  const actor = await (await context.request.get(`${API}/users/me`)).json();
+  const createdEmail = `${randomUUID()}@example.invalid`;
+  await page
+    .getByRole("button", { name: "Thêm người dùng", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Tên hiển thị", { exact: true })
+    .fill("Created by Admin");
+  await dialog.getByLabel("Email", { exact: true }).fill(createdEmail);
+  await dialog.getByLabel("Mật khẩu ban đầu").fill(password);
+  await dialog
+    .getByLabel("Vai trò", { exact: true })
+    .selectOption("INSTRUCTOR");
+  await dialog.getByRole("button", { name: "Xác nhận tạo" }).click();
+  await expect(page).toHaveURL(/\/admin\/users\/[a-f0-9-]+$/);
+  await expect(
+    page.getByRole("heading", { name: "Created by Admin", exact: true }),
+  ).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").pop()!;
+  const detail = await (await context.request.get(`${API}/users/${id}`)).json();
+  expect(detail.roles).toEqual(["instructor"]);
+  expect(detail.status).toBe("active");
+  expect(detail.password_hash).toBeUndefined();
+  expect((await (await context.request.get(`${API}/users/me`)).json()).id).toBe(
+    actor.id,
+  );
+  const row = await db.query("SELECT password_hash FROM users WHERE id=$1", [
+    id,
+  ]);
+  expect(row.rows[0].password_hash).not.toBe(password);
+
+  await page
+    .getByRole("button", { name: "Sửa thông tin", exact: true })
+    .click();
+  await dialog.getByLabel("Tên hiển thị", { exact: true }).fill("Discard this");
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Sửa thông tin", exact: true }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "Created by Admin", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Sửa thông tin", exact: true })
+    .click();
+  await dialog.getByLabel("Email", { exact: true }).fill(actorEmail);
+  await dialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Email đã được sử dụng",
+  );
+  const newEmail = `${randomUUID()}@example.invalid`;
+  await dialog.getByLabel("Email", { exact: true }).fill(newEmail);
+  await dialog
+    .getByLabel("Tên hiển thị", { exact: true })
+    .fill("Edited by Admin");
+  await dialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Edited by Admin", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(newEmail, { exact: true }).first()).toBeVisible();
+  const updated = await (
+    await context.request.get(`${API}/users/${id}`)
+  ).json();
+  expect(new Date(updated.updatedAt).getTime()).toBeGreaterThan(
+    new Date(detail.updatedAt).getTime(),
+  );
+  expect(updated.roles).toEqual(["instructor"]);
+
+  const member = await browser.newContext();
+  const signedIn = await member.request.post(`${API}/auth/login`, {
+    headers: { Origin: WEB },
+    data: { email: newEmail, password },
+  });
+  expect(signedIn.status()).toBe(200);
+  await page
+    .getByRole("button", { name: "Vô hiệu hóa tài khoản", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Xác nhận", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Kích hoạt tài khoản", exact: true }),
+  ).toBeVisible();
+  expect((await member.request.get(`${API}/users/me`)).status()).toBe(401);
+  expect(
+    (await db.query("SELECT status FROM users WHERE id=$1", [id])).rows[0]
+      .status,
+  ).toBe("disabled");
+  await member.close();
+});
+
+test("admin user CRUD API rejects unauthorized, invalid and conflicting writes", async ({
+  page,
+  context,
+  browser,
+}) => {
+  const email = await register(page);
+  const me = await (await context.request.get(`${API}/users/me`)).json();
+  const data = {
+    email: `${randomUUID()}@example.invalid`,
+    displayName: "New user",
+    password,
+    role: "STUDENT",
+  };
+  const headers = { Origin: WEB };
+  const guest = await browser.newContext();
+  expect(
+    (await guest.request.post(`${API}/users`, { headers, data })).status(),
+  ).toBe(401);
+  expect(
+    (
+      await guest.request.patch(`${API}/users/${me.id}`, {
+        headers,
+        data: { email, displayName: "No" },
+      })
+    ).status(),
+  ).toBe(401);
+  await guest.close();
+  for (const role of ["student", "instructor"]) {
+    if (role === "instructor")
+      await db.query(
+        "INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'instructor')",
+        [me.id],
+      );
+    expect(
+      (await context.request.post(`${API}/users`, { headers, data })).status(),
+    ).toBe(403);
+    expect(
+      (
+        await context.request.patch(`${API}/users/${me.id}`, {
+          headers,
+          data: { email, displayName: "No" },
+        })
+      ).status(),
+    ).toBe(403);
+  }
+  await grantAdmin(email);
+  expect(
+    (
+      await context.request.post(`${API}/users`, {
+        headers: { Origin: "https://evil.invalid" },
+        data,
+      })
+    ).status(),
+  ).toBe(403);
+  for (const invalid of [
+    { role: "ROOT" },
+    { password: "short" },
+    { email: "bad" },
+    { displayName: "   " },
+    { status: "disabled" },
+    { password_hash: "injected" },
+  ]) {
+    expect(
+      (
+        await context.request.post(`${API}/users`, {
+          headers,
+          data: { ...data, ...invalid },
+        })
+      ).status(),
+    ).toBe(400);
+  }
+  const result = await context.request.post(`${API}/users`, {
+    headers,
+    data: { ...data, email: `  ${data.email.toUpperCase()}  ` },
+  });
+  expect(result.status()).toBe(201);
+  const created = await result.json();
+  expect(created.email).toBe(data.email);
+  expect(created.roles).toEqual(["student"]);
+  expect(Object.keys(created).sort()).toEqual(
+    [
+      "id",
+      "email",
+      "displayName",
+      "roles",
+      "status",
+      "createdAt",
+      "updatedAt",
+    ].sort(),
+  );
+  expect(
+    (await context.request.post(`${API}/users`, { headers, data })).status(),
+  ).toBe(409);
+  for (const extra of [
+    { role: "ADMIN" },
+    { status: "disabled" },
+    { password: "changed-password" },
+  ]) {
+    expect(
+      (
+        await context.request.patch(`${API}/users/${created.id}`, {
+          headers,
+          data: { email: data.email, displayName: "No", ...extra },
+        })
+      ).status(),
+    ).toBe(400);
+  }
+  expect(
+    (
+      await context.request.patch(`${API}/users/${randomUUID()}`, {
+        headers,
+        data: { email: data.email, displayName: "No" },
+      })
+    ).status(),
+  ).toBe(404);
+  expect(
+    (
+      await context.request.patch(`${API}/users/not-a-uuid`, {
+        headers,
+        data: { email: data.email, displayName: "No" },
+      })
+    ).status(),
+  ).toBe(400);
+  // The pre-existing static profile endpoint must win over PATCH /users/:id.
+  expect(
+    (
+      await context.request.patch(`${API}/users/me`, {
+        headers,
+        data: { displayName: "Still me" },
+      })
+    ).status(),
+  ).toBe(200);
+  const admin = await context.request.post(`${API}/users`, {
+    headers,
+    data: { ...data, email: `${randomUUID()}@example.invalid`, role: "ADMIN" },
+  });
+  expect(admin.status()).toBe(201);
+  expect((await admin.json()).roles).toEqual(["admin"]);
 });

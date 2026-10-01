@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/server-session";
 import { PageHeader } from "@/components/layout/page-header";
+import { UserEditor } from "@/features/admin/user-editor";
 import { UserTable } from "@/features/admin/user-table";
 export const metadata = { title: "Người dùng · Quản trị Shanity" };
 export default async function AdminUsersPage({
@@ -31,6 +32,7 @@ export default async function AdminUsersPage({
         title="Người dùng"
         description="Danh sách tài khoản trong hệ thống."
       />
+      <UserEditor />
       <div className="mt-6">
         <UserTable query={query.toString()} />
       </div>

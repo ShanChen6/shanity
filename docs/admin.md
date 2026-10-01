@@ -165,3 +165,11 @@ Task 09 validation: PostgreSQL integration coverage passed for access control, e
 - Mobile navigation remains a disclosure rather than a modal: Escape closes and returns focus, links close it, browser history closes it, desktop resizing resets it and moves focus out of controls that become hidden. Sidebar/mobile menu can scroll in short viewports.
 
 Task 10 validation: 10 existing admin browser scenarios passed; the 2 new UX scenarios passed after fixing tablet overflow and dialog focus wrapping. Coverage includes 320/768/1440px, long unbroken text, keyboard table scrolling, filter/page return state, empty/forbidden states, confirmation cancellation/pending/errors, focus restoration, toast dismissal and mobile-menu resize behavior. Production web build, typecheck, lint and diff whitespace checks passed. Backend/schema hashes match the start of the task. Isolated test services were cleaned up.
+
+## Separate Admin Login
+
+The existing Admin Tasks 1–10 remain intact. Admin now enters through `/admin/login`; the User Portal keeps `/login`. See [the implementation, security and validation report](admin-login.md).
+
+## User creation and editing
+
+See [Admin user CRUD](admin-user-crud.md) for creation/edit APIs, dashboard dialogs, retained Disable Account behavior and validation.

@@ -31,3 +31,19 @@ export function changeUserStatus(id: string, status: "ACTIVE" | "DISABLED") {
 export function getUserStatistics() {
   return api<AdminUserStatistics>("/users/stats");
 }
+
+export type UserProfileInput = { displayName: string; email: string };
+export function createUser(
+  input: UserProfileInput & { password: string; role: UserRoleInput },
+) {
+  return api<AdminUser>("/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+export function updateUser(id: string, input: UserProfileInput) {
+  return api<AdminUser>(`/users/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}

@@ -16,6 +16,8 @@ import {
   verifyPassword,
 } from './password.js';
 import type {
+  CreateUserDto,
+  UpdateUserDto,
   RegisterDto,
   LoginDto,
   ListUsersQueryDto,
@@ -72,6 +74,47 @@ export class AuthService {
     } catch (error) {
       if (uniqueViolation(error))
         throw new ConflictException('Email unavailable');
+      throw error;
+    }
+  }
+  async createUser(actor: Principal, dto: CreateUserDto) {
+    const passwordHash = await hashPassword(dto.password);
+    try {
+      return await this.database.client.transaction(async (trx) => {
+        await this.lockAdminMutation(trx, actor);
+        const [user] = await trx<UserRow>('users')
+          .insert({
+            email: dto.email,
+            display_name: dto.displayName,
+            password_hash: passwordHash,
+          })
+          .returning('id');
+        await trx('user_roles').insert({
+          user_id: user!.id,
+          role_code: dto.role.toLowerCase(),
+        });
+        return this.userDetail(user!.id, trx);
+      });
+    } catch (error) {
+      if (uniqueViolation(error))
+        throw new ConflictException('Email đã được sử dụng.');
+      throw error;
+    }
+  }
+  async updateUser(actor: Principal, id: string, dto: UpdateUserDto) {
+    try {
+      return await this.database.client.transaction(async (trx) => {
+        await this.lockAdminMutation(trx, actor);
+        const count = await trx('users').where({ id }).update({
+          email: dto.email,
+          display_name: dto.displayName,
+        });
+        if (!count) throw new NotFoundException('User not found');
+        return this.userDetail(id, trx);
+      });
+    } catch (error) {
+      if (uniqueViolation(error))
+        throw new ConflictException('Email đã được sử dụng.');
       throw error;
     }
   }
@@ -227,7 +270,7 @@ export class AuthService {
     };
   }
   private async lockAdminMutation(trx: Knex.Transaction, actor: Principal) {
-    // Role and status changes share this lock; recheck authority after waiting.
+    // Admin mutations share this lock; recheck authority after waiting.
     await trx.raw('SELECT pg_advisory_xact_lock(73104, 7)');
     const actorUser = await trx('users')
       .where({ id: actor.id, status: 'active' })

@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { ApiError, errorMessage } from "@/lib/api";
+import { UserEditor } from "./user-editor";
 import { ChangeStatus } from "./change-status";
 import { ChangeRole } from "./change-role";
 import { getUser } from "./api";
@@ -148,6 +149,10 @@ export function UserDetail({ id }: { id: string }) {
           <dd className="mt-1 break-all font-mono text-sm">{user.id}</dd>
         </div>
       </dl>
+      <UserEditor
+        user={user}
+        onChanged={(updated) => setState({ status: "success", user: updated })}
+      />
       <ChangeStatus
         user={user}
         onChanged={(updated) => setState({ status: "success", user: updated })}

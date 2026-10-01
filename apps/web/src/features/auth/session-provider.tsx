@@ -30,7 +30,7 @@ type Session = {
   signIn: (
     path: "/auth/login" | "/auth/register",
     data: SignInPayload,
-  ) => Promise<void>;
+  ) => Promise<User>;
   logout: () => Promise<void>;
   update: (name: string) => Promise<void>;
 };
@@ -119,7 +119,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   ) {
     // Wait for bootstrap/refresh before replacing its cookie session.
     await flight.current;
-    await sessionLock(async () => {
+    const profile = await sessionLock(async () => {
       await api(path, { method: "POST", body: JSON.stringify(data) }, false);
       generation.current++;
       const profile = await getCurrentUser(false);
@@ -131,8 +131,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ? "Đăng ký thành công. Chào mừng bạn đến với Shanity!"
           : "Đăng nhập thành công.",
       );
+      return profile;
     });
     broadcast("changed");
+    return profile;
   }
   async function logout() {
     await sessionLock(() => api("/auth/logout", { method: "POST" }, false));
