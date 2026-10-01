@@ -4,6 +4,7 @@ export type Fields = {
   email?: string;
   password?: string;
   displayName?: string;
+  confirmPassword?: string;
 };
 export function validateName(value: string) {
   return isLength(value.trim(), { min: 1, max: 100 })
@@ -25,4 +26,8 @@ export function validateCredentials(
     errors.password = "Mật khẩu cần từ 12 đến 128 ký tự.";
   if (displayName !== undefined) errors.displayName = validateName(displayName);
   return errors;
+}
+// Confirmation is a client-only check: the backend RegisterDto has no confirmPassword field.
+export function validateConfirmPassword(password: string, confirm: string) {
+  return password === confirm ? undefined : "Mật khẩu xác nhận không khớp.";
 }

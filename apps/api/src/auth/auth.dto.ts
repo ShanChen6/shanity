@@ -1,5 +1,14 @@
-import { Transform } from 'class-transformer';
-import { IsEmail, IsString, Length, MaxLength, Matches } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsInt,
+  IsString,
+  Length,
+  Max,
+  MaxLength,
+  Matches,
+  Min,
+} from 'class-validator';
 export class LoginDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
@@ -26,4 +35,15 @@ export class ProfileDto {
   @Length(1, 100)
   @Matches(/\S/)
   displayName!: string;
+}
+export class ListUsersQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
 }

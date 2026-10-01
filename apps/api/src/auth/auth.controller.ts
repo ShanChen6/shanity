@@ -6,6 +6,7 @@ import {
   HttpCode,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -13,7 +14,12 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
-import { LoginDto, ProfileDto, RegisterDto } from './auth.dto.js';
+import {
+  ListUsersQueryDto,
+  LoginDto,
+  ProfileDto,
+  RegisterDto,
+} from './auth.dto.js';
 import {
   AuthRateGuard,
   cookie,
@@ -144,6 +150,12 @@ export class AuthController {
 @UseGuards(OriginGuard, SessionGuard)
 export class UsersController {
   constructor(private readonly auth: AuthService) {}
+  @Get()
+  @Roles('admin')
+  @Header('Cache-Control', 'no-store')
+  list(@Query() query: ListUsersQueryDto) {
+    return this.auth.listUsers(query.page, query.limit);
+  }
   @Get('me')
   @Header('Cache-Control', 'no-store')
   me(@Req() req: AuthRequest) {

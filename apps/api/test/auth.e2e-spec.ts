@@ -305,4 +305,78 @@ describe('Auth + User with PostgreSQL', () => {
       status = (await post('/auth/login').send({})).status;
     expect(status).toBe(429);
   });
+
+  it('lists users for admin only, paginates and rejects invalid paging', async () => {
+    const adminEmail = `${randomUUID()}@example.invalid`;
+    const studentEmail = `${randomUUID()}@example.invalid`;
+    const instructorEmail = `${randomUUID()}@example.invalid`;
+    const adminSession = cookies(await register(adminEmail));
+    const studentSession = cookies(await register(studentEmail));
+    const instructorSession = cookies(await register(instructorEmail));
+    const [adminRow] = await db('users').where({ email: adminEmail });
+    const [instructorRow] = await db('users').where({ email: instructorEmail });
+    await db('user_roles').insert({ user_id: adminRow.id, role_code: 'admin' });
+    await db('user_roles').insert({
+      user_id: instructorRow.id,
+      role_code: 'instructor',
+    });
+
+    await request(app.getHttpServer()).get('/users').expect(401);
+    await request(app.getHttpServer())
+      .get('/users')
+      .set('Cookie', studentSession)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/users')
+      .set('Cookie', instructorSession)
+      .expect(403);
+
+    const page = await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 1, limit: 2 })
+      .set('Cookie', adminSession)
+      .expect(200);
+    expect(page.body).toMatchObject({ page: 1, limit: 2 });
+    expect(page.body.items).toHaveLength(2);
+    expect(page.body.total).toBeGreaterThanOrEqual(3);
+    expect(page.body.totalPages).toBe(Math.ceil(page.body.total / 2));
+    for (const item of page.body.items) {
+      expect(item).not.toHaveProperty('password_hash');
+      expect(item).not.toHaveProperty('passwordHash');
+      expect(Array.isArray(item.roles)).toBe(true);
+    }
+
+    const full = await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 1, limit: 100 })
+      .set('Cookie', adminSession)
+      .expect(200);
+    const adminItem = full.body.items.find(
+      (item: { email: string }) => item.email === adminEmail,
+    );
+    // Registration always grants 'student' first; the admin role was granted in addition.
+    expect(adminItem.roles.sort()).toEqual(['admin', 'student']);
+    expect(adminItem.status).toBe('active');
+
+    await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 0, limit: 10 })
+      .set('Cookie', adminSession)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 1, limit: 0 })
+      .set('Cookie', adminSession)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 1, limit: 101 })
+      .set('Cookie', adminSession)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/users')
+      .query({ page: 'abc', limit: 10 })
+      .set('Cookie', adminSession)
+      .expect(400);
+  });
 });

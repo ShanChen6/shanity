@@ -27,6 +27,13 @@ export interface UserRow {
   password_hash: string | null;
   status: string;
 }
+export interface UserListRow {
+  id: string;
+  email: string;
+  display_name: string;
+  status: string;
+  created_at: Date;
+}
 export const uniqueViolation = (error: unknown) =>
   (error as { code?: string })?.code === '23505';
 
@@ -182,6 +189,50 @@ export class AuthService {
         .client('user_roles')
         .where({ user_id: id })
         .pluck('role_code'),
+    };
+  }
+  async listUsers(page: number, limit: number) {
+    const [{ count }] = await this.database
+      .client('users')
+      .count<{ count: string }[]>({ count: '*' });
+    const total = Number(count);
+    const rows = await this.database
+      .client<UserListRow>('users')
+      .select('id', 'email', 'display_name', 'status', 'created_at')
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit)
+      .offset((page - 1) * limit);
+    // One extra query for all roles on this page instead of one per row.
+    const ids = rows.map((row) => row.id);
+    const roleRows = ids.length
+      ? ((await this.database
+          .client('user_roles')
+          .whereIn('user_id', ids)
+          .select('user_id', 'role_code')) as {
+          user_id: string;
+          role_code: string;
+        }[])
+      : [];
+    const rolesByUser = new Map<string, string[]>();
+    for (const row of roleRows)
+      rolesByUser.set(row.user_id, [
+        ...(rolesByUser.get(row.user_id) ?? []),
+        row.role_code,
+      ]);
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        status: row.status,
+        roles: rolesByUser.get(row.id) ?? [],
+        createdAt: row.created_at,
+      })),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     };
   }
 }

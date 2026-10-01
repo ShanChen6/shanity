@@ -114,3 +114,8 @@ export function errorMessage(error: unknown) {
     return "Máy chủ đang gặp sự cố. Vui lòng thử lại sau.";
   return "Không thể hoàn tất yêu cầu. Vui lòng thử lại.";
 }
+
+// GET /users/me: the only endpoint exposing the authenticated principal (no /auth/me route exists).
+export function getCurrentUser(authenticated = true) {
+  return api<User>("/users/me", {}, authenticated);
+}

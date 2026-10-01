@@ -9,23 +9,21 @@ import {
   type ReactNode,
 } from "react";
 import {
-  api,
   ApiError,
+  api,
   errorMessage,
+  getCurrentUser,
   SESSION_LOST,
   sessionLock,
 } from "@/lib/api";
-import type {
-  CurrentUserResponse,
-  LoginRequest,
-  RegisterRequest,
-  User,
-} from "./types";
+import type { LoginRequest, RegisterRequest, User } from "./types";
 
 type Status = "loading" | "authenticated" | "anonymous" | "error";
 type Session = {
   user: User | null;
   status: Status;
+  isAuthenticated: boolean;
+  isLoading: boolean;
   error: string;
   message: string;
   load: () => Promise<User | null>;
@@ -56,7 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const load = useCallback(() => {
     if (flight.current) return flight.current;
     const current = generation.current;
-    flight.current = api<CurrentUserResponse>("/users/me")
+    flight.current = getCurrentUser()
       .then((profile) => {
         if (current !== generation.current) return null;
         setUser(profile);
@@ -124,7 +122,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await sessionLock(async () => {
       await api(path, { method: "POST", body: JSON.stringify(data) }, false);
       generation.current++;
-      const profile = await api<CurrentUserResponse>("/users/me", {}, false);
+      const profile = await getCurrentUser(false);
       setUser(profile);
       setStatus("authenticated");
       setError("");
@@ -143,7 +141,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   async function update(displayName: string) {
     const current = generation.current;
-    const profile = await api<CurrentUserResponse>("/users/me", {
+    const profile = await api<User>("/users/me", {
       method: "PATCH",
       body: JSON.stringify({ displayName }),
     });
@@ -154,7 +152,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   return (
     <Context.Provider
-      value={{ user, status, error, message, load, signIn, logout, update }}
+      value={{
+        user,
+        status,
+        isAuthenticated: status === "authenticated",
+        isLoading: status === "loading",
+        error,
+        message,
+        load,
+        signIn,
+        logout,
+        update,
+      }}
     >
       {children}
     </Context.Provider>
