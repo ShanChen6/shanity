@@ -6,7 +6,7 @@ export function configureApp(app: INestApplication) {
   app.enableCors({
     origin: app.get(AuthConfig).origin,
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   app.enableShutdownHooks();
 }

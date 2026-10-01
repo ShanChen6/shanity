@@ -228,19 +228,16 @@ export class AuthService {
       .pluck('role_code')) as string[];
     return { id: session.id as string, sessionId: payload.sid, roles };
   }
-  async profile(id: string) {
-    const user = await this.database
-      .client('users')
+  async profile(id: string, db: Knex = this.database.client) {
+    const user = await db('users')
       .where({ id })
-      .first('id', 'email', 'display_name');
+      .first('id', 'email', 'display_name', 'avatar_key');
     return {
       id: user.id,
       email: user.email,
       displayName: user.display_name,
-      roles: await this.database
-        .client('user_roles')
-        .where({ user_id: id })
-        .pluck('role_code'),
+      avatarUrl: user.avatar_key ? `/avatars/${user.avatar_key}` : null,
+      roles: await db('user_roles').where({ user_id: id }).pluck('role_code'),
     };
   }
   async userDetail(id: string, db: Knex = this.database.client) {

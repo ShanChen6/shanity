@@ -33,6 +33,8 @@ type Session = {
   ) => Promise<User>;
   logout: () => Promise<void>;
   update: (name: string) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<void>;
+  removeAvatar: () => Promise<void>;
 };
 type SignInPayload = LoginRequest | RegisterRequest;
 const Context = createContext<Session | null>(null);
@@ -141,16 +143,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     reset();
     broadcast("logout");
   }
-  async function update(displayName: string) {
+  async function updateSelf(path: string, init: RequestInit, notice: string) {
     const current = generation.current;
-    const profile = await api<User>("/users/me", {
-      method: "PATCH",
-      body: JSON.stringify({ displayName }),
-    });
+    const profile = await api<User>(path, init);
     if (current === generation.current) {
+      // Ignore older focus/bootstrap reads that finish after this write.
+      generation.current++;
       setUser(profile);
-      broadcast("changed");
+      setStatus("authenticated");
+      setError("");
+      setMessage(notice);
+    } else {
+      // Another tab may have changed the session while this write committed.
+      // Re-read the current identity instead of applying an obsolete response.
+      await flight.current;
+      await load();
     }
+    broadcast("changed");
+  }
+  function update(displayName: string) {
+    return updateSelf(
+      "/users/me",
+      { method: "PATCH", body: JSON.stringify({ displayName }) },
+      "Đã cập nhật hồ sơ.",
+    );
+  }
+  function uploadAvatar(file: File) {
+    const body = new FormData();
+    body.append("file", file);
+    return updateSelf(
+      "/users/me/avatar",
+      { method: "POST", body },
+      "Đã cập nhật ảnh đại diện.",
+    );
+  }
+  function removeAvatar() {
+    return updateSelf(
+      "/users/me/avatar",
+      { method: "DELETE" },
+      "Đã xóa ảnh đại diện.",
+    );
   }
   return (
     <Context.Provider
@@ -165,6 +197,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         signIn,
         logout,
         update,
+        uploadAvatar,
+        removeAvatar,
       }}
     >
       {children}

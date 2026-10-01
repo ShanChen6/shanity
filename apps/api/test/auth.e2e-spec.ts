@@ -28,14 +28,18 @@ describe('Auth + User with PostgreSQL', () => {
     () => `${randomUUID()}@example.invalid`,
   );
   const googleVerify = vi.fn();
+  let testIp: string;
+  beforeEach(() => {
+    testIp = `e2e-${randomUUID()}`;
+  });
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(GoogleProvider)
       .useValue({ client: () => ({}), verify: googleVerify })
       .compile();
     app = module.createNestApplication();
-    // Give this test run its own rate-limit identity without deleting database rows.
-    const testIp = `e2e-${randomUUID()}`;
+    // Keep the rate-limit test from exhausting subsequent tests
+    // while retaining the real limiter and database rows.
     app.use((req: Request, _res: Response, next: NextFunction) => {
       Object.defineProperty(req, 'ip', { value: testIp });
       next();

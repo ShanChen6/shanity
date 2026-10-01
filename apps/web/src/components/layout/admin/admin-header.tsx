@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Avatar } from "@/components/ui/avatar";
+import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
 import { useSession } from "@/features/auth/session-provider";
 import { getAdminSection } from "@/features/admin/navigation";
 import { AdminMobileNavigation } from "./admin-mobile-navigation";
@@ -126,10 +126,7 @@ export function AdminHeader() {
           className="flex min-h-11 max-w-[45%] min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-hover"
           aria-label="Hồ sơ của bạn"
         >
-          <Avatar
-            name={user?.displayName || "Quản trị viên"}
-            className="size-9"
-          />
+          <CurrentUserAvatar className="size-9" />
           <span className="hidden min-w-0 sm:block">
             <span className="block truncate font-medium">
               {user?.displayName}

@@ -1,3 +1,9 @@
+import {
+  AvatarController,
+  AvatarFilesController,
+} from '../avatar/avatar.controller.js';
+import { AvatarService } from '../avatar/avatar.service.js';
+import { AvatarStorage, LocalAvatarStorage } from '../avatar/avatar-storage.js';
 import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { Module, ValidationPipe } from '@nestjs/common';
 import { SafeErrorsFilter } from './safe-errors.filter.js';
@@ -10,8 +16,15 @@ import { AuthRateGuard, OriginGuard, SessionGuard } from './auth.guards.js';
 import { GoogleProvider, GoogleService } from './google.service.js';
 @Module({
   imports: [DatabaseModule],
-  controllers: [AuthController, UsersController],
+  controllers: [
+    AuthController,
+    UsersController,
+    AvatarController,
+    AvatarFilesController,
+  ],
   providers: [
+    AvatarService,
+    { provide: AvatarStorage, useClass: LocalAvatarStorage },
     { provide: APP_FILTER, useClass: SafeErrorsFilter },
     OAuthRedirectFilter,
     AuthConfig,

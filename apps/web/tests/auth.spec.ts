@@ -53,25 +53,26 @@ async function login(page: Page, email: string, pass = password) {
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
 }
 
-test("register, profile update, reload, logout, login and student permissions", async ({
+test("register, profile, reload, logout, login and student permissions", async ({
   page,
   context,
 }) => {
   const email = await register(page);
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  await expect(page.getByText(email, { exact: true }).first()).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Kiểm tra quyền quản trị" }),
   ).toHaveCount(0);
   expect((await context.request.get(`${API}/users/admin-check`)).status()).toBe(
     403,
   );
-  await page.getByLabel("Tên hiển thị", { exact: true }).fill("Tên mới");
-  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
-  await expect(page.getByText("Đã cập nhật hồ sơ.")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Chỉnh sửa hồ sơ" }),
+  ).toBeEnabled();
+  await expect(page.getByRole("textbox")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByLabel("Tên hiển thị", { exact: true })).toHaveValue(
-    "Tên mới",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Browser Student", exact: true }),
+  ).toBeVisible();
   const sibling = await context.newPage();
   await sibling.goto("/profile");
   await expect(
@@ -89,6 +90,7 @@ test("register, profile update, reload, logout, login and student permissions", 
         Object.keys(localStorage).length + Object.keys(sessionStorage).length,
     ),
   ).toBe(0);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await expect(sibling).toHaveURL(/\/login(?:\?redirect=.*)?$/);
@@ -105,6 +107,7 @@ test("wrong password, duplicate email and disabled account", async ({
   page,
 }) => {
   const email = await register(page);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await login(page, email, "wrong-password-123");
@@ -230,14 +233,22 @@ test("Google first/repeat login and explicit linking use the backend callback (t
   expect(new URL(page.url()).search).toBe("");
   const email = await context.request.get(`${API}/users/me`);
   const user = await email.json();
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await page.getByRole("button", { name: "Tiếp tục với Google" }).click();
-  await expect(page.getByText(user.email, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(user.email, { exact: true }).first(),
+  ).toBeVisible();
   const linked = page.waitForResponse((response) =>
     response.url().startsWith(`${API}/auth/google/callback`),
   );
-  await page.getByRole("button", { name: "Liên kết Google" }).click();
+  // Linking remains a backend capability; the read-only profile has no mutation action.
+  const linkResponse = await context.request.post(`${API}/auth/google/link`, {
+    headers: { Origin: WEB },
+  });
+  expect(linkResponse.ok()).toBe(true);
+  await page.goto((await linkResponse.json()).url);
   expect((await linked).headers().location).toContain("result=linked");
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
@@ -331,6 +342,7 @@ for (const path of [
 
 test("email login returns to the original path and query", async ({ page }) => {
   const email = await register(page);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await page.goto("/my-courses?filter=in-progress&q=hello%20world");
@@ -607,6 +619,7 @@ test("admin permission is rechecked on navigation and after focus", async ({
 test("admin login returns to the requested admin route", async ({ page }) => {
   const email = await register(page);
   await grantAdmin(email);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
   await page.goto("/admin/users");
@@ -1199,6 +1212,7 @@ for (const role of ["student", "instructor"]) {
         "INSERT INTO user_roles(user_id, role_code) SELECT id, 'instructor' FROM users WHERE email=$1",
         [email],
       );
+    await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
     await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
     await page.goto("/admin/login");
@@ -1243,6 +1257,7 @@ test("admin login restores shared refresh sessions, validates return URLs and lo
 }) => {
   const email = await register(page);
   await grantAdmin(email);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await page.goto("/admin/login");
   await login(page, email);
@@ -1554,4 +1569,841 @@ test("admin user CRUD API rejects unauthorized, invalid and conflicting writes",
   });
   expect(admin.status()).toBe(201);
   expect((await admin.json()).roles).toEqual(["admin"]);
+});
+
+for (const width of [375, 768, 1024, 1440]) {
+  test(`profile fits ${width}px and account menu supports keyboard`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await register(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("button", { name: "Đổi mật khẩu" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Tải ảnh đại diện" }),
+    ).toBeEnabled();
+    const menu = page.getByLabel("Mở menu tài khoản", { exact: true });
+    await menu.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("link", { name: "Hồ sơ", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("link", { name: "Hồ sơ", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeFocused();
+    await expect(
+      page.getByRole("link", { name: "Hồ sơ", exact: true }),
+    ).toBeHidden();
+  });
+}
+
+test("profile handles missing current-user data and recovers", async ({
+  page,
+}) => {
+  await register(page);
+  await page.route(`${API}/users/me`, (route) => route.fulfill({ json: {} }));
+  await page.reload();
+  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+  ).toHaveCount(0);
+  await page.unroute(`${API}/users/me`);
+  await page.getByRole("button", { name: "Thử lại" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+  ).toBeVisible();
+});
+
+for (const failure of ["network", "server"]) {
+  test(`profile recovers from ${failure} failure`, async ({ page }) => {
+    await register(page);
+    await page.route(`${API}/users/me`, (route) =>
+      failure === "network"
+        ? route.abort()
+        : route.fulfill({ status: 500, json: {} }),
+    );
+    await page.reload();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
+      failure === "network" ? "Không thể kết nối" : "Máy chủ đang gặp sự cố",
+    );
+    await page.unroute(`${API}/users/me`);
+    await page.getByRole("button", { name: "Thử lại" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+    ).toBeVisible();
+  });
+}
+
+test("instructor login defaults to profile and restores identity without flicker", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await db.query(
+    "INSERT INTO user_roles(user_id, role_code) SELECT id, 'instructor' FROM users WHERE email=$1",
+    [email],
+  );
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
+  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await page.goto("/login");
+  await login(page, email);
+  await expect(page).toHaveURL(`${WEB}/profile`);
+  await expect(page.getByText("Giảng viên", { exact: true })).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`${API}/users/me`, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Guest", { exact: true })).toHaveCount(0);
+  release();
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+  ).toBeVisible();
+  await expect(page.getByText(email, { exact: true }).first()).toBeVisible();
+});
+
+for (const width of [375, 768, 1024, 1440]) {
+  test(`edit profile saves and persists at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const email = await register(page);
+    const sibling = await context.newPage();
+    await sibling.goto("/profile");
+    await expect(
+      sibling.getByRole("heading", { name: "Browser Student", exact: true }),
+    ).toBeVisible();
+    const trigger = page.getByRole("button", {
+      name: "Chỉnh sửa hồ sơ",
+      exact: true,
+    });
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    const name = dialog.getByLabel("Tên hiển thị", { exact: true });
+    const save = dialog.getByRole("button", {
+      name: "Lưu thay đổi",
+      exact: true,
+    });
+    await expect(name).toBeFocused();
+    await expect(name).toHaveValue("Browser Student");
+    await expect(save).toBeDisabled();
+    await expect(dialog.getByLabel("Email đăng nhập")).toHaveValue(email);
+    await expect(dialog.getByLabel("Email đăng nhập")).toHaveAttribute(
+      "readonly",
+      "",
+    );
+    expect(
+      await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    const box = await dialog.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await name.fill("Discard me");
+    await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await expect(name).toHaveValue("Browser Student");
+    await name.fill("   ");
+    await save.click();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
+    await expect(name).toBeFocused();
+    await name.fill("x".repeat(101));
+    await save.click();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
+    await name.fill("  Nguyễn Minh Anh  ");
+    let writes = 0;
+    await page.route(`${API}/users/me`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      writes++;
+      const response = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await route.fulfill({ response });
+    });
+    await save.click();
+    await expect(
+      dialog.getByRole("button", { name: "Đang lưu…" }),
+    ).toBeDisabled();
+    await dialog.getByRole("form").evaluate((form: HTMLFormElement) => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toBeHidden();
+    expect(writes).toBe(1);
+    await expect(
+      page.getByText("Đã cập nhật hồ sơ.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Nguyễn Minh Anh", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Tài khoản" }),
+    ).toContainText("Nguyễn Minh Anh");
+    await expect(
+      sibling.getByRole("heading", { name: "Nguyễn Minh Anh", exact: true }),
+    ).toBeVisible();
+    expect(
+      (await db.query("SELECT display_name FROM users WHERE email=$1", [email]))
+        .rows[0].display_name,
+    ).toBe("Nguyễn Minh Anh");
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Nguyễn Minh Anh", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+for (const failure of [400, 409, 500, "network"] as const) {
+  test(`edit profile retains input after ${failure} and retries`, async ({
+    page,
+  }) => {
+    await register(page);
+    await page
+      .getByRole("button", { name: "Chỉnh sửa hồ sơ", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    const name = dialog.getByLabel("Tên hiển thị", { exact: true });
+    await name.fill("Keep this draft");
+    await page.route(`${API}/users/me`, (route) => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      return failure === "network"
+        ? route.abort()
+        : route.fulfill({
+            status: failure,
+            json: { message: "private backend exception" },
+          });
+    });
+    await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
+    if (failure === 400)
+      await expect(name).toHaveAttribute("aria-invalid", "true");
+    else await expect(dialog.getByRole("alert")).toBeVisible();
+    await expect(dialog).not.toContainText("private backend exception");
+    await expect(name).toHaveValue("Keep this draft");
+    await page.unroute(`${API}/users/me`);
+    await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(
+      page.getByRole("heading", { name: "Keep this draft", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+test("self profile API rejects guests, protected fields and other account IDs", async ({
+  page,
+  context,
+  browser,
+}) => {
+  const email = await register(page);
+  const guest = await browser.newContext();
+  const headers = { Origin: WEB };
+  expect(
+    (
+      await guest.request.patch(`${API}/users/me`, {
+        headers,
+        data: { displayName: "Guest" },
+      })
+    ).status(),
+  ).toBe(401);
+  const otherEmail = `${randomUUID()}@example.invalid`;
+  expect(
+    (
+      await guest.request.post(`${API}/auth/register`, {
+        headers,
+        data: { email: otherEmail, password, displayName: "Other user" },
+      })
+    ).status(),
+  ).toBe(201);
+  const other = await (await guest.request.get(`${API}/users/me`)).json();
+  const me = await (await context.request.get(`${API}/users/me`)).json();
+  const before = (
+    await db.query("SELECT * FROM users WHERE id = ANY($1::uuid[])", [
+      [me.id, other.id],
+    ])
+  ).rows;
+  for (const extra of [
+    { role: "ADMIN" },
+    { roles: ["admin"] },
+    { status: "disabled" },
+    { id: other.id },
+    { userId: other.id },
+    { email: otherEmail },
+    { password },
+    { passwordHash: "hash" },
+    { password_hash: "hash" },
+    { createdAt: "2000-01-01" },
+    { updatedAt: "2000-01-01" },
+    { created_at: "2000-01-01" },
+    { update_at: "2000-01-01" },
+    { permissions: ["admin"] },
+    { provider: "google" },
+    { providerId: "other" },
+  ]) {
+    expect(
+      (
+        await context.request.patch(`${API}/users/me`, {
+          headers,
+          data: { displayName: "Attempted overwrite", ...extra },
+        })
+      ).status(),
+    ).toBe(400);
+  }
+  for (const data of [
+    {},
+    { displayName: null },
+    { displayName: 42 },
+    { displayName: "   " },
+    { displayName: "x".repeat(101) },
+  ]) {
+    expect(
+      (
+        await context.request.patch(`${API}/users/me`, { headers, data })
+      ).status(),
+    ).toBe(400);
+  }
+  expect(
+    (
+      await db.query("SELECT * FROM users WHERE id = ANY($1::uuid[])", [
+        [me.id, other.id],
+      ])
+    ).rows,
+  ).toEqual(before);
+  expect(
+    (await (await context.request.get(`${API}/users/me`)).json()).roles,
+  ).toEqual(["student"]);
+  expect(
+    (
+      await context.request.patch(`${API}/users/${other.id}`, {
+        headers,
+        data: { displayName: "Attack", email: otherEmail },
+      })
+    ).status(),
+  ).toBe(403);
+  const saved = await context.request.patch(`${API}/users/me`, {
+    headers,
+    data: { displayName: "  Own name  " },
+  });
+  expect(saved.status()).toBe(200);
+  expect(await saved.json()).toMatchObject({
+    id: me.id,
+    displayName: "Own name",
+    email,
+    roles: ["student"],
+  });
+  expect(
+    (await db.query("SELECT display_name FROM users WHERE id=$1", [other.id]))
+      .rows[0].display_name,
+  ).toBe("Other user");
+  await guest.close();
+});
+
+test("expired session cannot save profile and returns to login", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await page
+    .getByRole("button", { name: "Chỉnh sửa hồ sơ", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Tên hiển thị", { exact: true })
+    .fill("Should not save");
+  await db.query(
+    "UPDATE auth_sessions SET revoked_at=now() WHERE user_id=(SELECT id FROM users WHERE email=$1)",
+    [email],
+  );
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await expect(page).toHaveURL(/\/login\?redirect=%2Fprofile$/);
+  expect(
+    (await db.query("SELECT display_name FROM users WHERE email=$1", [email]))
+      .rows[0].display_name,
+  ).toBe("Browser Student");
+});
+
+test("an older session read cannot overwrite a saved profile name", async ({
+  page,
+}) => {
+  await register(page);
+  let release!: () => void;
+  let captured!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    captured = resolve;
+  });
+  await page.route(`${API}/users/me`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    captured();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await ready;
+  await page
+    .getByRole("button", { name: "Chỉnh sửa hồ sơ", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Tên hiển thị", { exact: true })
+    .fill("Latest saved name");
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Latest saved name", exact: true }),
+  ).toBeVisible();
+  const staleResponse = page.waitForResponse(
+    (response) =>
+      response.url() === `${API}/users/me` &&
+      response.request().method() === "GET",
+  );
+  release();
+  await staleResponse;
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.getByRole("heading", { name: "Latest saved name", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Tài khoản" }),
+  ).toContainText("Latest saved name");
+});
+
+const makeAvatarImage = async (background: string) => {
+  const sharp = requireApi("sharp");
+  return (await sharp({
+    create: { width: 64, height: 64, channels: 3, background },
+  })
+    .png()
+    .toBuffer()) as Buffer;
+};
+
+for (const width of [375, 768, 1024, 1440]) {
+  test(`avatar preview, replace, remove and synchronization at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const email = await register(page);
+    const sibling = await context.newPage();
+    await sibling.goto("/profile");
+    await expect(
+      sibling.getByRole("heading", { name: "Hồ sơ của bạn" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Tải ảnh đại diện", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Ảnh đại diện",
+      exact: true,
+    });
+    const picker = dialog.getByLabel("Chọn ảnh");
+    const firstFile = {
+      name: "photo.png",
+      mimeType: "image/png",
+      buffer: await makeAvatarImage("#0066dd"),
+    };
+    await picker.setInputFiles(firstFile);
+    await expect(dialog.getByAltText("Xem trước ảnh đại diện")).toBeVisible();
+    expect(
+      await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    const box = await dialog.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Tải ảnh đại diện", exact: true }),
+    ).toBeFocused();
+    expect(
+      (await (await context.request.get(`${API}/users/me`)).json()).avatarUrl,
+    ).toBeNull();
+    await page
+      .getByRole("button", { name: "Tải ảnh đại diện", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("button", { name: "Tải ảnh lên" }),
+    ).toBeDisabled();
+    await picker.setInputFiles(firstFile);
+    const uploaded = page.waitForResponse(
+      (res) =>
+        res.url() === `${API}/users/me/avatar` &&
+        res.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+    const first = await (await uploaded).json();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("main img:visible")).toHaveAttribute(
+      "src",
+      `${API}${first.avatarUrl}`,
+    );
+    await expect(page.locator("header img:visible")).toHaveAttribute(
+      "src",
+      `${API}${first.avatarUrl}`,
+    );
+    await expect(sibling.locator("header img:visible")).toHaveAttribute(
+      "src",
+      `${API}${first.avatarUrl}`,
+    );
+    await expect
+      .poll(() =>
+        page
+          .locator("main img:visible")
+          .evaluate((img: HTMLImageElement) => img.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+    await page
+      .getByRole("button", { name: "Đổi ảnh đại diện", exact: true })
+      .click();
+    await picker.setInputFiles({
+      ...firstFile,
+      buffer: await makeAvatarImage("#ff6600"),
+    });
+    const replaced = page.waitForResponse(
+      (res) =>
+        res.url() === `${API}/users/me/avatar` &&
+        res.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+    const next = await (await replaced).json();
+    expect(next.avatarUrl).not.toBe(first.avatarUrl);
+    expect(
+      (await db.query("SELECT avatar_key FROM users WHERE email=$1", [email]))
+        .rows[0].avatar_key,
+    ).toBe(next.avatarUrl.split("/").pop());
+    await expect(dialog).toBeHidden();
+    await page.reload();
+    await expect(page.locator("main img:visible")).toHaveAttribute(
+      "src",
+      `${API}${next.avatarUrl}`,
+    );
+    // Editing the display name must preserve the avatar in the shared user response.
+    await page
+      .getByRole("button", { name: "Chỉnh sửa hồ sơ", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByLabel("Tên hiển thị", { exact: true })
+      .fill("Avatar Owner");
+    await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Avatar Owner", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("header img:visible")).toHaveAttribute(
+      "src",
+      `${API}${next.avatarUrl}`,
+    );
+    await page
+      .getByRole("button", { name: "Đổi ảnh đại diện", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Xóa ảnh đại diện", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText("Xóa ảnh đại diện?");
+    await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+    expect(
+      (await (await context.request.get(`${API}/users/me`)).json()).avatarUrl,
+    ).toBe(next.avatarUrl);
+    await dialog
+      .getByRole("button", { name: "Xóa ảnh đại diện", exact: true })
+      .click();
+    await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("header img:visible")).toHaveCount(0);
+    await expect(page.locator("main img:visible")).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", { name: "Tài khoản" }),
+    ).toContainText("AO");
+    await expect(sibling.locator("header img:visible")).toHaveCount(0);
+    expect(
+      (await db.query("SELECT avatar_key FROM users WHERE email=$1", [email]))
+        .rows[0].avatar_key,
+    ).toBeNull();
+  });
+}
+
+for (const failure of [400, 413, 415, 500, "network"] as const) {
+  test(`avatar upload retains preview on ${failure} and retries`, async ({
+    page,
+  }) => {
+    await register(page);
+    await page
+      .getByRole("button", { name: "Tải ảnh đại diện", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Chọn ảnh").setInputFiles({
+      name: "avatar.png",
+      mimeType: "image/png",
+      buffer: await makeAvatarImage("blue"),
+    });
+    await page.route(`${API}/users/me/avatar`, (route) =>
+      failure === "network"
+        ? route.abort()
+        : route.fulfill({
+            status: failure,
+            json: { message: "private storage path" },
+          }),
+    );
+    await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+    await expect(dialog.getByRole("alert")).toBeVisible();
+    await expect(dialog).not.toContainText("private storage path");
+    await expect(dialog.getByAltText("Xem trước ảnh đại diện")).toBeVisible();
+    await page.unroute(`${API}/users/me/avatar`);
+    await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("header img:visible")).toBeVisible();
+  });
+}
+
+test("avatar rejects invalid selections and prevents repeated upload/remove", async ({
+  page,
+}) => {
+  await register(page);
+  await page
+    .getByRole("button", { name: "Tải ảnh đại diện", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  const picker = dialog.getByLabel("Chọn ảnh");
+  await picker.setInputFiles({
+    name: "a.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from("<svg/>"),
+  });
+  await expect(picker).toHaveValue("");
+  await expect(dialog.getByRole("alert")).toContainText("JPEG, PNG hoặc WebP");
+  await picker.setInputFiles({
+    name: "a.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
+  });
+  await expect(dialog.getByRole("alert")).toContainText("2 MB");
+  await picker.setInputFiles({
+    name: "a.png",
+    mimeType: "image/png",
+    buffer: await makeAvatarImage("green"),
+  });
+  let calls = 0;
+  await page.route(`${API}/users/me/avatar`, async (route) => {
+    calls++;
+    const response = await route.fetch();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({ response });
+  });
+  await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+  await expect(
+    dialog.getByRole("button", { name: "Đang xử lý…" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeHidden();
+  expect(calls).toBe(1);
+  await page
+    .getByRole("button", { name: "Đổi ảnh đại diện", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Xóa ảnh đại diện", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
+  await expect(
+    dialog.getByRole("button", { name: "Đang xử lý…" }),
+  ).toBeDisabled();
+  await expect(dialog).toBeHidden();
+  expect(calls).toBe(2);
+});
+
+test("avatar removal failure keeps current image and expired upload returns to login", async ({
+  page,
+  context,
+}) => {
+  const email = await register(page);
+  const uploaded = await context.request.post(`${API}/users/me/avatar`, {
+    headers: { Origin: WEB },
+    multipart: {
+      file: {
+        name: "a.png",
+        mimeType: "image/png",
+        buffer: await makeAvatarImage("blue"),
+      },
+    },
+  });
+  expect(uploaded.status()).toBe(200);
+  const avatarUrl = (await uploaded.json()).avatarUrl;
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Đổi ảnh đại diện", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: "Xóa ảnh đại diện", exact: true })
+    .click();
+  await page.route(`${API}/users/me/avatar`, (route) =>
+    route.fulfill({ status: 500, json: {} }),
+  );
+  await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(page.locator("header img")).toHaveAttribute(
+    "src",
+    `${API}${avatarUrl}`,
+  );
+  await page.unroute(`${API}/users/me/avatar`);
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await dialog.getByLabel("Chọn ảnh").setInputFiles({
+    name: "a.png",
+    mimeType: "image/png",
+    buffer: await makeAvatarImage("red"),
+  });
+  await db.query(
+    "UPDATE auth_sessions SET revoked_at=now() WHERE user_id=(SELECT id FROM users WHERE email=$1)",
+    [email],
+  );
+  await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
+  await expect(page).toHaveURL(/\/login\?redirect=%2Fprofile$/);
+  expect(
+    (await db.query("SELECT avatar_key FROM users WHERE email=$1", [email]))
+      .rows[0].avatar_key,
+  ).toBe(avatarUrl.split("/").pop());
+});
+
+test("unavailable avatar falls back and canceled preview revokes its object URL", async ({
+  page,
+  context,
+}) => {
+  await page.addInitScript(() => {
+    const original = URL.revokeObjectURL;
+    Object.assign(window, { avatarRevocations: 0 });
+    URL.revokeObjectURL = (url) => {
+      Object.assign(window, {
+        avatarRevocations:
+          (window as unknown as { avatarRevocations: number })
+            .avatarRevocations + 1,
+      });
+      original(url);
+    };
+  });
+  await register(page);
+  const uploaded = await context.request.post(`${API}/users/me/avatar`, {
+    headers: { Origin: WEB },
+    multipart: {
+      file: {
+        name: "a.png",
+        mimeType: "image/png",
+        buffer: await makeAvatarImage("blue"),
+      },
+    },
+  });
+  expect(uploaded.status()).toBe(200);
+  await page.route(`${API}/avatars/*`, (route) => route.abort());
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Đổi ảnh đại diện", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("header img")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Tài khoản" }),
+  ).toContainText("BS");
+  await page
+    .getByRole("button", { name: "Đổi ảnh đại diện", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Chọn ảnh").setInputFiles({
+    name: "a.png",
+    mimeType: "image/png",
+    buffer: await makeAvatarImage("blue"),
+  });
+  await expect(dialog.getByAltText("Xem trước ảnh đại diện")).toBeVisible();
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { avatarRevocations: number })
+            .avatarRevocations,
+      ),
+    )
+    .toBe(1);
+});
+
+test("concurrent avatar responses across tabs converge on the committed current user", async ({
+  page,
+  context,
+}) => {
+  await register(page);
+  const sibling = await context.newPage();
+  await sibling.goto("/profile");
+  await expect(
+    sibling.getByRole("button", { name: "Tải ảnh đại diện", exact: true }),
+  ).toBeVisible();
+  let release!: () => void;
+  let committed!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    committed = resolve;
+  });
+  await page.route(`${API}/users/me/avatar`, async (route) => {
+    const response = await route.fetch();
+    committed();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await page
+    .getByRole("button", { name: "Tải ảnh đại diện", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Chọn ảnh")
+    .setInputFiles({
+      name: "a.png",
+      mimeType: "image/png",
+      buffer: await makeAvatarImage("blue"),
+    });
+  await page.getByRole("button", { name: "Tải ảnh lên" }).click();
+  await ready;
+  await sibling
+    .getByRole("button", { name: /^(Tải|Đổi) ảnh đại diện$/ })
+    .click();
+  await sibling
+    .getByRole("dialog")
+    .getByLabel("Chọn ảnh")
+    .setInputFiles({
+      name: "b.png",
+      mimeType: "image/png",
+      buffer: await makeAvatarImage("red"),
+    });
+  const saved = sibling.waitForResponse(
+    (res) => res.url() === `${API}/users/me/avatar`,
+  );
+  await sibling.getByRole("button", { name: "Tải ảnh lên" }).click();
+  const latest = await (await saved).json();
+  await expect(page.locator("header img:visible")).toHaveAttribute(
+    "src",
+    `${API}${latest.avatarUrl}`,
+  );
+  release();
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("header img:visible")).toHaveAttribute(
+    "src",
+    `${API}${latest.avatarUrl}`,
+  );
+  await expect(sibling.locator("header img:visible")).toHaveAttribute(
+    "src",
+    `${API}${latest.avatarUrl}`,
+  );
 });

@@ -16,3 +16,13 @@ Web: http://localhost:3000; API: http://localhost:4000; kiểm tra DB: `/health/
 `docker compose down` giữ volume database. Không dùng `down -v` nếu cần giữ dữ liệu.
 
 Xem [Auth](auth.md): local dùng API_NODE_ENV=development; production cần HTTPS và API_NODE_ENV=production.
+
+## Avatar storage
+
+The API uses `AVATAR_STORAGE_DIR=/data/avatars` and the Compose named volume
+`avatar_data`. Apply migrations before starting the new API; existing users get
+`avatar_key = null`. Back up this volume together with PostgreSQL. Ordinary
+container replacement preserves avatars; removing the volume deletes their files.
+Uploaded content is excluded from Git and Docker build contexts. See
+[Avatar Management](avatar-management.md) for upload limits, public image URLs,
+provider replacement and cleanup/reconciliation guidance.

@@ -60,6 +60,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      AVATAR_STORAGE_DIR: /data/avatars
+    volumes:
+      - avatar_data:/data/avatars
     ports:
       - "${API_PORT:-4000}:4000"
     depends_on:
@@ -88,3 +91,4 @@ services:
 
 volumes:
   postgres_data:
+  avatar_data:
