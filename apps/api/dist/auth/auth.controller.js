@@ -10,9 +10,10 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+import { User } from '../users/user.entity.js';
 import { Body, Controller, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards, UseFilters, } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
-import { CreateUserDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto, } from './auth.dto.js';
+import { CreateUserDto, ChangePasswordDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto, } from './auth.dto.js';
 import { AuthRateGuard, cookie, OriginGuard, Roles, SessionGuard, } from './auth.guards.js';
 import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { GoogleService } from './google.service.js';
@@ -153,11 +154,16 @@ let UsersController = class UsersController {
         return this.auth.profile(req.principal.id);
     }
     async update(req, dto) {
-        await this.auth.database
-            .client('users')
-            .where({ id: req.principal.id, status: 'active' })
-            .update({ display_name: dto.displayName });
+        await this.auth.database.dataSource.manager
+            .getRepository(User)
+            .update({ id: req.principal.id, status: 'active' }, { displayName: dto.displayName })
+            .then((result) => result.affected);
         return this.auth.profile(req.principal.id);
+    }
+    async changePassword(req, dto, res) {
+        await this.auth.changePassword(req.principal, dto);
+        for (const kind of ['access', 'refresh'])
+            res.clearCookie(this.auth.config.cookieName(kind), this.auth.config.cookieOptions(0));
     }
     adminCheck() {
         return { authorized: true };
@@ -214,6 +220,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, ProfileDto]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "update", null);
+__decorate([
+    Patch('me/password'),
+    UseGuards(AuthRateGuard),
+    HttpCode(204),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Body()),
+    __param(2, Res({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, ChangePasswordDto, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "changePassword", null);
 __decorate([
     Get('admin-check'),
     Roles('admin'),

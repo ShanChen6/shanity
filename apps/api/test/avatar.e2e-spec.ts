@@ -22,7 +22,7 @@ if (!process.env.PGDATABASE?.endsWith('_test'))
   throw new Error('Use an isolated test database');
 describe('Self avatar management', () => {
   let app: INestApplication;
-  let db: DatabaseService['client'];
+  let db: DatabaseService['dataSource']['manager'];
   let storage: AvatarStorage;
   let root: string;
   let origin: string;
@@ -45,7 +45,7 @@ describe('Self avatar management', () => {
     });
     configureApp(app);
     await app.init();
-    db = app.get(DatabaseService).client;
+    db = app.get(DatabaseService).dataSource.manager;
     origin = app.get(AuthConfig).origin;
     png = await sharp({
       create: { width: 800, height: 600, channels: 3, background: '#165dff' },
@@ -121,8 +121,13 @@ describe('Self avatar management', () => {
       expect(meta.height).toBe(384);
       expect(meta.exif).toBeUndefined();
       expect(
-        (await db('users').where({ id: actor.id }).first('avatar_key'))
-          .avatar_key,
+        (
+          await db
+            .query('SELECT "avatar_key" FROM "users" WHERE "id" = $1 LIMIT 1', [
+              actor.id,
+            ])
+            .then((rows) => rows[0])
+        ).avatar_key,
       ).toBe(res.body.avatarUrl.split('/').pop());
       if (oldUrl) await request(app.getHttpServer()).get(oldUrl).expect(404);
       oldUrl = res.body.avatarUrl;
@@ -172,8 +177,13 @@ describe('Self avatar management', () => {
       .send({})
       .expect(400);
     expect(
-      (await db('users').where({ id: actor.id }).first('avatar_key'))
-        .avatar_key,
+      (
+        await db
+          .query('SELECT "avatar_key" FROM "users" WHERE "id" = $1 LIMIT 1', [
+            actor.id,
+          ])
+          .then((rows) => rows[0])
+      ).avatar_key,
     ).toBeNull();
   });
 
@@ -222,8 +232,13 @@ describe('Self avatar management', () => {
       .expect(404);
     await expect(storage.delete('../outside.webp')).rejects.toThrow();
     expect(
-      (await db('users').where({ id: other.id }).first('avatar_key'))
-        .avatar_key,
+      (
+        await db
+          .query('SELECT "avatar_key" FROM "users" WHERE "id" = $1 LIMIT 1', [
+            other.id,
+          ])
+          .then((rows) => rows[0])
+      ).avatar_key,
     ).toBeNull();
   });
 

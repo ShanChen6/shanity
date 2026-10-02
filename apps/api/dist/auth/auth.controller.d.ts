@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
-import { CreateUserDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto } from './auth.dto.js';
+import { CreateUserDto, ChangePasswordDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto } from './auth.dto.js';
 import { type AuthRequest } from './auth.guards.js';
 import { GoogleService } from './google.service.js';
 export declare class AuthController {
@@ -52,19 +52,22 @@ export declare class UsersController {
         updatedAt: Date;
     }>;
     me(req: AuthRequest): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
     update(req: AuthRequest, dto: ProfileDto): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
+    changePassword(req: AuthRequest, dto: ChangePasswordDto, res: Response): Promise<void>;
     adminCheck(): {
         authorized: boolean;
     };

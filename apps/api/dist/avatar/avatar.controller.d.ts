@@ -6,18 +6,20 @@ export declare class AvatarController {
     private readonly avatars;
     constructor(avatars: AvatarService);
     uploadAvatar(req: AuthRequest, file?: Express.Multer.File): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
     removeAvatar(req: AuthRequest): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
 }
 export declare class AvatarFilesController {

@@ -1,4 +1,6 @@
-import { hashPassword } from '../../src/auth/password.ts';
+import { hashPassword } from '../../dist/auth/password.js';
+import { UserRole } from '../../dist/auth/auth.entities.js';
+import { User } from '../../dist/users/user.entity.js';
 
 export async function seed(db) {
   const email = process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase();
@@ -31,26 +33,34 @@ export async function seed(db) {
   }
 
   await db.transaction(async (trx) => {
-    let user = await trx('users').where({ email }).first('id');
+    const users = trx.getRepository(User);
+    let user = await users.findOne({
+      where: { email },
+      select: { id: true },
+    });
     if (!user) {
       const passwordHash = await hashPassword(password);
-      const [created] = await trx('users')
-        .insert({
-          email,
-          display_name: displayName,
-          password_hash: passwordHash,
-        })
-        .onConflict('email')
-        .ignore()
-        .returning('id');
-      user = created ?? (await trx('users').where({ email }).first('id'));
+      const created = await users
+        .createQueryBuilder()
+        .insert()
+        .values({ email, displayName, passwordHash })
+        .orIgnore()
+        .returning(['id'])
+        .execute();
+      user = created.raw[0] ?? (await users.findOne({
+        where: { email },
+        select: { id: true },
+      }));
     }
     if (!user)
       throw new Error('Unable to create or find the configured super admin');
 
-    await trx('user_roles')
-      .insert({ user_id: user.id, role_code: 'admin' })
-      .onConflict(['user_id', 'role_code'])
-      .ignore();
+    await trx
+      .createQueryBuilder()
+      .insert()
+      .into(UserRole)
+      .values({ user_id: user.id, role_code: 'admin' })
+      .orIgnore()
+      .execute();
   });
 }

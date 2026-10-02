@@ -8,6 +8,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 var AvatarService_1;
+import { User } from '../users/user.entity.js';
 import { BadRequestException, Injectable, Logger, PayloadTooLargeException, UnauthorizedException, UnsupportedMediaTypeException, } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
@@ -79,16 +80,20 @@ let AvatarService = AvatarService_1 = class AvatarService {
     async replace(id, key) {
         let result;
         try {
-            result = await this.database.client.transaction(async (trx) => {
-                const user = await trx('users')
-                    .where({ id, status: 'active' })
-                    .forUpdate()
-                    .first('avatar_key');
+            result = await this.database.dataSource.transaction(async (trx) => {
+                const user = await trx.getRepository(User).findOne({
+                    where: { id, status: 'active' },
+                    select: { id: true, avatarKey: true },
+                    lock: { mode: 'pessimistic_write' },
+                });
                 if (!user)
                     throw new UnauthorizedException();
-                await trx('users').where({ id }).update({ avatar_key: key });
+                await trx
+                    .getRepository(User)
+                    .update({ id }, { avatarKey: key })
+                    .then((result) => result.affected);
                 const profile = await this.auth.profile(id, trx);
-                return { oldKey: user.avatar_key, profile };
+                return { oldKey: user.avatarKey, profile };
             });
         }
         catch (error) {

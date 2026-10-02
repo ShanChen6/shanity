@@ -45,6 +45,6 @@ import { GoogleProvider, GoogleService } from './google.service.js';
         }),
     },
   ],
-  exports: [AuthService, SessionGuard, OriginGuard],
+  exports: [AuthConfig, AuthService, SessionGuard, OriginGuard],
 })
 export class AuthModule {}

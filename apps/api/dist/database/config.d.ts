@@ -1,2 +1,2 @@
-import type { Knex } from 'knex';
-export declare function databaseConfig(): Knex.Config;
+import type { DataSourceOptions } from 'typeorm';
+export declare function databaseConfig(): DataSourceOptions;

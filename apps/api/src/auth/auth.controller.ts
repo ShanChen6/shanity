@@ -1,3 +1,4 @@
+import { User } from '../users/user.entity.js';
 import {
   Body,
   Controller,
@@ -177,10 +178,13 @@ export class UsersController {
   @Patch('me')
   @Header('Cache-Control', 'no-store')
   async update(@Req() req: AuthRequest, @Body() dto: ProfileDto) {
-    await this.auth.database
-      .client('users')
-      .where({ id: req.principal.id, status: 'active' })
-      .update({ display_name: dto.displayName });
+    await this.auth.database.dataSource.manager
+      .getRepository(User)
+      .update(
+        { id: req.principal.id, status: 'active' },
+        { displayName: dto.displayName },
+      )
+      .then((result) => result.affected);
     return this.auth.profile(req.principal.id);
   }
   @Patch('me/password')

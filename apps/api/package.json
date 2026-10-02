@@ -8,6 +8,9 @@
   "type": "module",
   "scripts": {
     "build": "nest build",
+    "typecheck": "tsc --noEmit --incremental false",
+    "test:course-schema": "pnpm build && node --test database/typeorm.test.mjs",
+    "test:database": "pnpm build && node --test database/typeorm.test.mjs",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -20,9 +23,11 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "db:migrate": "knex --cwd . --knexfile database/knexfile.mjs migrate:latest",
-    "db:seed": "knex --cwd . --knexfile database/knexfile.mjs seed:run",
-    "db:verify": "node database/verify.mjs"
+    "db:migrate": "pnpm build && node database/cli.mjs migrate",
+    "db:revert": "pnpm build && node database/cli.mjs revert",
+    "db:adopt-legacy": "pnpm build && node database/cli.mjs adopt-legacy",
+    "db:seed": "pnpm build && node database/cli.mjs seed",
+    "db:verify": "pnpm build && node database/verify.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -33,11 +38,11 @@
     "cookie-parser": "^1.4.7",
     "google-auth-library": "^11.1.0",
     "jose": "^6.2.12",
-    "knex": "^3.3.0",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "sharp": "0.35.4"
+    "sharp": "0.35.4",
+    "typeorm": "1.1.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

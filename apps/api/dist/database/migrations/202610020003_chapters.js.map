@@ -1,0 +1,1 @@
+{"version":3,"file":"202610020003_chapters.js","sourceRoot":"","sources":["../../../src/database/migrations/202610020003_chapters.ts"],"names":[],"mappings":"AAEA,MAAM,OAAO,qBAAqB;IAChC,KAAK,CAAC,EAAE,CAAC,WAAwB;QAC/B,MAAM,WAAW,CAAC,KAAK,CAAC;;;;;;;;;;;;;;;;KAgBvB,CAAC,CAAC;IACL,CAAC;IAED,KAAK,CAAC,IAAI,CAAC,WAAwB;QACjC,MAAM,WAAW,CAAC,KAAK,CAAC,qBAAqB,CAAC,CAAC;IACjD,CAAC;CACF"}

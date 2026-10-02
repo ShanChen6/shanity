@@ -79,7 +79,7 @@ Avatar images are public to anyone with their URL; the dialog states this before
 
 ## Files Created
 
-- apps/api/database/migrations/202610020001_user_avatar.mjs
+- apps/api/src/database/migrations/202610020001_user_avatar.ts
 - apps/api/src/avatar/avatar-storage.ts
 - apps/api/src/avatar/avatar.service.ts
 - apps/api/src/avatar/avatar.controller.ts

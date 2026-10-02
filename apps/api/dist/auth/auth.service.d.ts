@@ -1,26 +1,11 @@
-import type { Knex } from 'knex';
+import type { EntityManager } from 'typeorm';
 import { DatabaseService } from '../database/database.module.js';
 import { AuthConfig } from './auth.config.js';
-import type { CreateUserDto, UpdateUserDto, RegisterDto, LoginDto, ListUsersQueryDto, ChangeUserRoleDto, ChangeUserStatusDto } from './auth.dto.js';
+import type { ChangePasswordDto, CreateUserDto, UpdateUserDto, RegisterDto, LoginDto, ListUsersQueryDto, ChangeUserRoleDto, ChangeUserStatusDto } from './auth.dto.js';
 export interface Principal {
     id: string;
     sessionId: string;
     roles: string[];
-}
-export interface UserRow {
-    id: string;
-    email: string;
-    display_name: string;
-    password_hash: string | null;
-    status: string;
-}
-export interface UserListRow {
-    id: string;
-    email: string;
-    display_name: string;
-    status: string;
-    created_at: Date;
-    update_at: Date;
 }
 export declare const uniqueViolation: (error: unknown) => boolean;
 export declare class AuthService {
@@ -53,7 +38,8 @@ export declare class AuthService {
         access: string;
         refresh: string;
     }>;
-    issue(trx: Knex.Transaction, userId: string): Promise<{
+    changePassword(actor: Principal, dto: ChangePasswordDto): Promise<void>;
+    issue(trx: EntityManager, userId: string): Promise<{
         access: string;
         refresh: string;
     }>;
@@ -64,14 +50,15 @@ export declare class AuthService {
     }>;
     logout(token?: string): Promise<void>;
     authenticate(token?: string): Promise<Principal>;
-    profile(id: string, db?: Knex): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+    profile(id: string, db?: EntityManager): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
-    userDetail(id: string, db?: Knex): Promise<{
+    userDetail(id: string, db?: EntityManager): Promise<{
         id: string;
         email: string;
         displayName: string;

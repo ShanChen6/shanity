@@ -2,7 +2,7 @@
 
 ## Phạm vi và cấu hình
 
-NestJS tiếp tục dùng Knex + pg. Migration `202609270004_auth.mjs` thêm `users.status` (active/disabled), `auth_sessions`, `oauth_requests`, `auth_rate_limits`. Người dùng cũ giữ nguyên dữ liệu, mặc định active; không tự gán role cho tài khoản cũ. Tài khoản mới qua email hoặc Google nhận student trong cùng transaction. Không thay migration cũ.
+NestJS dùng TypeORM + pg cho toàn bộ runtime và migration; xem [nâng cấp database](typeorm.md). Migration `202609270004_auth.ts` thêm `users.status` (active/disabled), `auth_sessions`, `oauth_requests`, `auth_rate_limits`. Người dùng cũ giữ nguyên dữ liệu, mặc định active; không tự gán role cho tài khoản cũ. Tài khoản mới qua email hoặc Google nhận student trong cùng transaction. Không thay migration cũ.
 
 ```bash
 cp .env.example .env
