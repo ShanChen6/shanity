@@ -25,14 +25,49 @@ export function safeRedirect(value: string | null | undefined): string {
     )
       return "/profile";
     path = new URL(path, "https://shanity.invalid").pathname;
-    if (/^\/(?:login|register|auth|api|_next)(?:\/|$)/.test(path))
+    if (
+      /^\/(?:login|register|auth|api|_next)(?:\/|$)/.test(path) ||
+      /^\/admin\/login(?:\/|$)/.test(path)
+    )
       return "/profile";
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return "/profile";
   }
 }
+export function safeAdminRedirect(value: string | null | undefined): string {
+  const destination = safeRedirect(value);
+  try {
+    const pathname = new URL(destination, "https://shanity.invalid").pathname;
+    let decoded = pathname;
+    for (let i = 0; i < 5; i++) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+    const canonical = new URL(decoded, "https://shanity.invalid").pathname;
+    if (
+      decoded.includes("//") ||
+      !/^\/admin(?:\/|$)/.test(pathname) ||
+      !/^\/admin(?:\/|$)/.test(canonical) ||
+      /^\/admin\/login(?:\/|$)/.test(canonical)
+    )
+      return "/admin";
+    return destination;
+  } catch {
+    return "/admin";
+  }
+}
 export function loginUrl(destination: string) {
-  return `/login?${new URLSearchParams({ redirect: safeRedirect(destination) })}`;
+  const safe = safeRedirect(destination);
+  if (
+    /^\/admin(?:\/|$)/.test(new URL(safe, "https://shanity.invalid").pathname)
+  ) {
+    const adminDestination = safeAdminRedirect(safe);
+    return adminDestination === "/admin"
+      ? "/admin/login"
+      : `/admin/login?${new URLSearchParams({ redirect: adminDestination })}`;
+  }
+  return `/login?${new URLSearchParams({ redirect: safe })}`;
 }
 export const GOOGLE_RETURN_KEY = "shanity-google-return";

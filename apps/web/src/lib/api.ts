@@ -9,6 +9,7 @@ export type User = {
   email: string;
   displayName: string;
   roles: Role[];
+  avatarUrl: string | null;
 };
 export class ApiError extends Error {
   constructor(
@@ -30,7 +31,9 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
       cache: "no-store",
       signal: init.signal ?? AbortSignal.timeout(15000),
       headers: {
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.body && !(init.body instanceof FormData)
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...init.headers,
       },
     });
@@ -105,6 +108,9 @@ export function errorMessage(error: unknown) {
   if (error.status === 401)
     return "Email hoặc mật khẩu không đúng, hoặc tài khoản chưa thể đăng nhập.";
   if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+  if (error.status === 413)
+    return "Ảnh quá lớn. Vui lòng chọn ảnh tối đa 2 MB.";
+  if (error.status === 415) return "Vui lòng chọn ảnh JPEG, PNG hoặc WebP.";
   if (error.status === 409)
     return "Dữ liệu đã tồn tại hoặc xung đột với thông tin hiện có.";
   if (error.status === 429)
@@ -116,6 +122,20 @@ export function errorMessage(error: unknown) {
 }
 
 // GET /users/me: the only endpoint exposing the authenticated principal (no /auth/me route exists).
-export function getCurrentUser(authenticated = true) {
-  return api<User>("/users/me", {}, authenticated);
+export async function getCurrentUser(authenticated = true): Promise<User> {
+  const user = await api<User | null>("/users/me", {}, authenticated);
+  if (
+    !user ||
+    typeof user.id !== "string" ||
+    !user.id ||
+    typeof user.displayName !== "string" ||
+    !user.displayName.trim() ||
+    typeof user.email !== "string" ||
+    !user.email.trim() ||
+    !Array.isArray(user.roles) ||
+    !user.roles.every((role) => typeof role === "string")
+  ) {
+    throw new ApiError(502, ["Không thể tải thông tin hồ sơ."]);
+  }
+  return user;
 }

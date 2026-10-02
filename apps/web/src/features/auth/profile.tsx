@@ -1,198 +1,115 @@
 "use client";
-import { useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+
 import { PageContainer } from "@/components/layout/page-container";
 import { Card } from "@/components/ui/card";
+import { CurrentUserAvatar } from "./current-user-avatar";
+import { AvatarManager } from "./avatar-manager";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { api, errorMessage } from "@/lib/api";
+import { EditProfile } from "./edit-profile";
+import { UserHeader } from "./user-header";
 import { useSession } from "./session-provider";
-import { validateName } from "./validation";
+
+const roles = {
+  student: "Học sinh",
+  instructor: "Giảng viên",
+  admin: "Quản trị viên",
+};
 
 export function Profile() {
-  const { user } = useSession();
-  return <ProfileContent key={user?.id ?? "signed-out"} />;
-}
-
-function ProfileContent() {
-  const session = useSession(),
-    router = useRouter();
-  const [draft, setDraft] = useState<string | null>(null),
-    [error, setError] = useState(""),
-    [fieldError, setFieldError] = useState(""),
-    [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState("");
-  const pending = useRef(false);
-  async function perform(action: string, task: () => Promise<void>) {
-    if (pending.current) return;
-    pending.current = true;
-    setBusy(action);
-    setError("");
-    setNotice("");
-    try {
-      await task();
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      pending.current = false;
-      setBusy("");
-    }
-  }
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const name = draft ?? session.user?.displayName ?? "";
-    const invalid = validateName(name);
-    setFieldError(invalid ?? "");
-    if (invalid) {
-      document.getElementById("profile-name")?.focus();
-      return;
-    }
-    await perform("save", async () => {
-      await session.update(name.trim());
-      setDraft(null);
-      setNotice("Đã cập nhật hồ sơ.");
-    });
-  }
+  const session = useSession();
   if (session.status === "loading" || session.status === "anonymous")
+    return <Spinner label="Đang tải hồ sơ" />;
+  if (session.status === "error" || !session.user)
     return (
       <PageContainer className="py-16">
-        <Spinner label="Đang kiểm tra phiên đăng nhập" />
-      </PageContainer>
-    );
-  if (session.status === "error")
-    return (
-      <PageContainer className="py-16">
-        <Alert tone="error">{session.error}</Alert>
+        <Alert tone="error">
+          {session.error || "Không thể tải thông tin hồ sơ."}
+        </Alert>
         <Button className="mt-4" onClick={() => void session.load()}>
           Thử lại
         </Button>
       </PageContainer>
     );
-  if (!session.user) return null;
-  const roles: Record<string, string> = {
-    student: "Học sinh",
-    instructor: "Giảng viên",
-    admin: "Quản trị viên",
-  };
+  const user = session.user;
   return (
-    <PageContainer className="max-w-3xl py-8 sm:py-14">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <Link href="/" className="text-2xl font-bold">
-          shanity.
-        </Link>
-        <Button
-          variant="secondary"
-          disabled={!!busy}
-          loading={busy === "logout"}
-          onClick={() =>
-            void perform("logout", async () => {
-              await session.logout();
-              router.replace("/login");
-            })
-          }
-        >
-          Đăng xuất
-        </Button>
-      </header>
-      <main>
-        <h1 className="text-title font-semibold">Hồ sơ của bạn</h1>
-        <p className="mb-6 mt-2 text-muted">
-          Quản lý thông tin bạn sử dụng trên Shanity.
-        </p>
-        {session.message && !notice && (
-          <div className="mb-4">
-            <Alert tone="success">{session.message}</Alert>
-          </div>
-        )}
+    <PageContainer className="max-w-5xl py-6 sm:py-10">
+      <UserHeader />
+      <main className="mt-10 space-y-6">
+        <div>
+          <h1 className="text-title font-semibold">Hồ sơ của bạn</h1>
+          <p className="mt-2 text-muted">
+            Thông tin tài khoản của bạn trên Shanity.
+          </p>
+        </div>
+        {session.message && <Alert tone="success">{session.message}</Alert>}
         <Card>
-          <dl className="mb-6 space-y-3">
-            <div>
-              <dt className="text-sm text-muted">Email</dt>
-              <dd className="break-all font-medium">{session.user.email}</dd>
+          <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+            <CurrentUserAvatar className="size-20 text-2xl" />
+            <div className="min-w-0 space-y-2">
+              <h2 className="break-words text-2xl font-semibold">
+                {user.displayName}
+              </h2>
+              <p className="break-all text-muted">{user.email}</p>
+              <div className="flex flex-wrap gap-2">
+                {user.roles.map((role) => (
+                  <Badge key={role} tone="primary">
+                    {roles[role] ?? role}
+                  </Badge>
+                ))}
+                {!user.roles.length && <Badge>Chưa được phân vai trò</Badge>}
+              </div>
             </div>
-            <div>
-              <dt className="text-sm text-muted">Vai trò</dt>
-              <dd>
-                {session.user.roles
-                  .map((role) => roles[role] ?? role)
-                  .join(", ") || "Chưa được phân vai trò"}
-              </dd>
-            </div>
-          </dl>
-          <form onSubmit={save} noValidate className="space-y-5">
-            <FormField
-              id="profile-name"
-              label="Tên hiển thị"
-              error={fieldError}
-            >
-              {(props) => (
-                <Input
-                  {...props}
-                  autoComplete="name"
-                  value={draft ?? session.user!.displayName}
-                  disabled={!!busy}
-                  onChange={(e) => setDraft(e.target.value)}
-                  required
-                />
-              )}
-            </FormField>
-            <Button type="submit" disabled={!!busy} loading={busy === "save"}>
-              Lưu thay đổi
-            </Button>
-          </form>
-          <div className="mt-6 border-t border-border pt-5">
-            <h2 className="mb-2 font-semibold">Tài khoản Google</h2>
-            <p className="mb-3 text-sm text-muted">
-              Liên kết Google để có thêm cách đăng nhập vào tài khoản này.
-            </p>
-            <Button
-              variant="secondary"
-              disabled={!!busy}
-              loading={busy === "google"}
-              onClick={() =>
-                void perform("google", async () => {
-                  const result = await api<{ url: string }>(
-                    "/auth/google/link",
-                    { method: "POST" },
-                  );
-                  window.location.assign(result.url);
-                })
-              }
-            >
-              Liên kết Google
-            </Button>
           </div>
-          {session.user.roles.includes("admin") && (
-            <div className="mt-5">
-              <Button
-                variant="secondary"
-                disabled={!!busy}
-                onClick={() =>
-                  void perform("admin", async () => {
-                    await api("/users/admin-check");
-                    setNotice("Máy chủ đã xác nhận quyền quản trị.");
-                  })
-                }
-              >
-                Kiểm tra quyền quản trị
-              </Button>
-            </div>
-          )}
         </Card>
-        {error && (
-          <div className="mt-4">
-            <Alert tone="error">{error}</Alert>
+        <div className="grid min-w-0 gap-6 md:grid-cols-2">
+          <Card>
+            <h2 className="mb-5 text-lg font-semibold">Thông tin cá nhân</h2>
+            <dl className="space-y-5">
+              <div>
+                <dt className="text-sm text-muted">Tên hiển thị</dt>
+                <dd className="break-words font-medium">{user.displayName}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted">Email</dt>
+                <dd className="break-all font-medium">{user.email}</dd>
+              </div>
+            </dl>
+          </Card>
+          <Card>
+            <h2 className="mb-5 text-lg font-semibold">Thông tin tài khoản</h2>
+            <dl>
+              <dt className="text-sm text-muted">Vai trò tài khoản</dt>
+              <dd className="mt-1 font-medium">
+                {user.roles.map((role) => roles[role] ?? role).join(", ") ||
+                  "Chưa được phân vai trò"}
+              </dd>
+            </dl>
+          </Card>
+        </div>
+        <Card>
+          <h2 className="text-lg font-semibold">Tùy chọn hồ sơ</h2>
+          <p id="profile-actions-note" className="mt-2 text-sm text-muted">
+            Bạn có thể chỉnh sửa tên hiển thị và ảnh đại diện. Đổi mật khẩu sẽ
+            được bổ sung sau.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <EditProfile key={user.id} />
+            <AvatarManager key={`avatar-${user.id}`} />
+            {["Đổi mật khẩu"].map((label) => (
+              <Button
+                key={label}
+                variant="secondary"
+                disabled
+                aria-describedby="profile-actions-note"
+              >
+                {label}
+              </Button>
+            ))}
           </div>
-        )}
-        {notice && (
-          <div className="mt-4">
-            <Alert tone="success">{notice}</Alert>
-          </div>
-        )}
+        </Card>
       </main>
     </PageContainer>
   );

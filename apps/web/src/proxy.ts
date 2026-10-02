@@ -6,7 +6,8 @@ export function proxy(request: NextRequest) {
   const hasAccess = ["__Host-shanity_access", "shanity_access"].some((name) =>
     Boolean(request.cookies.get(name)?.value),
   );
-  if (!hasAccess) {
+  const publicAdminLogin = request.nextUrl.pathname === "/admin/login";
+  if (!hasAccess && !publicAdminLogin) {
     const response = NextResponse.redirect(
       new URL(loginUrl(destination), request.url),
     );

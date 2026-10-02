@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 type AvatarContextValue = {
   name: string;
+  unoptimized?: boolean;
   imageLoaded: boolean;
   setImageLoaded: (loaded: boolean) => void;
 };
@@ -17,17 +18,25 @@ function useAvatar() {
   return value;
 }
 
-export function Avatar({
-  name,
-  src,
-  children,
-  className = "",
-}: {
+type AvatarProps = {
   name: string;
   src?: string;
   children?: ReactNode;
   className?: string;
-}) {
+  unoptimized?: boolean;
+};
+
+export function Avatar(props: AvatarProps) {
+  return <AvatarContent key={props.src ?? "fallback"} {...props} />;
+}
+
+function AvatarContent({
+  name,
+  src,
+  children,
+  className = "",
+  unoptimized,
+}: AvatarProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const initials = name
     .trim()
@@ -44,7 +53,9 @@ export function Avatar({
   );
 
   return (
-    <AvatarContext.Provider value={{ name, imageLoaded, setImageLoaded }}>
+    <AvatarContext.Provider
+      value={{ name, unoptimized, imageLoaded, setImageLoaded }}
+    >
       <span
         role="img"
         aria-label={name}
@@ -65,16 +76,22 @@ export function AvatarImage({
   alt?: string;
   className?: string;
 }) {
-  const { name, setImageLoaded } = useAvatar();
+  const { name, unoptimized, setImageLoaded } = useAvatar();
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
   return (
     <Image
       src={src}
+      unoptimized={unoptimized}
       alt={alt ?? name}
       fill
       sizes="48px"
       className={`object-cover ${className}`}
       onLoad={() => setImageLoaded(true)}
-      onError={() => setImageLoaded(false)}
+      onError={() => {
+        setImageLoaded(false);
+        setFailed(true);
+      }}
     />
   );
 }

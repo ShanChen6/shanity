@@ -47,3 +47,6 @@ next-env.d.ts
 # Browser test artifacts (may contain user data)
 **/test-results/
 **/playwright-report/
+
+# Managed local avatar files
+**/uploads/

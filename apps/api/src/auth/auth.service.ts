@@ -1,6 +1,8 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SignJWT, jwtVerify } from 'jose';
@@ -13,7 +15,15 @@ import {
   randomToken,
   verifyPassword,
 } from './password.js';
-import type { RegisterDto, LoginDto } from './auth.dto.js';
+import type {
+  CreateUserDto,
+  UpdateUserDto,
+  RegisterDto,
+  LoginDto,
+  ListUsersQueryDto,
+  ChangeUserRoleDto,
+  ChangeUserStatusDto,
+} from './auth.dto.js';
 
 export interface Principal {
   id: string;
@@ -33,6 +43,7 @@ export interface UserListRow {
   display_name: string;
   status: string;
   created_at: Date;
+  update_at: Date;
 }
 export const uniqueViolation = (error: unknown) =>
   (error as { code?: string })?.code === '23505';
@@ -63,6 +74,47 @@ export class AuthService {
     } catch (error) {
       if (uniqueViolation(error))
         throw new ConflictException('Email unavailable');
+      throw error;
+    }
+  }
+  async createUser(actor: Principal, dto: CreateUserDto) {
+    const passwordHash = await hashPassword(dto.password);
+    try {
+      return await this.database.client.transaction(async (trx) => {
+        await this.lockAdminMutation(trx, actor);
+        const [user] = await trx<UserRow>('users')
+          .insert({
+            email: dto.email,
+            display_name: dto.displayName,
+            password_hash: passwordHash,
+          })
+          .returning('id');
+        await trx('user_roles').insert({
+          user_id: user!.id,
+          role_code: dto.role.toLowerCase(),
+        });
+        return this.userDetail(user!.id, trx);
+      });
+    } catch (error) {
+      if (uniqueViolation(error))
+        throw new ConflictException('Email đã được sử dụng.');
+      throw error;
+    }
+  }
+  async updateUser(actor: Principal, id: string, dto: UpdateUserDto) {
+    try {
+      return await this.database.client.transaction(async (trx) => {
+        await this.lockAdminMutation(trx, actor);
+        const count = await trx('users').where({ id }).update({
+          email: dto.email,
+          display_name: dto.displayName,
+        });
+        if (!count) throw new NotFoundException('User not found');
+        return this.userDetail(id, trx);
+      });
+    } catch (error) {
+      if (uniqueViolation(error))
+        throw new ConflictException('Email đã được sử dụng.');
       throw error;
     }
   }
@@ -176,29 +228,204 @@ export class AuthService {
       .pluck('role_code')) as string[];
     return { id: session.id as string, sessionId: payload.sid, roles };
   }
-  async profile(id: string) {
-    const user = await this.database
-      .client('users')
+  async profile(id: string, db: Knex = this.database.client) {
+    const user = await db('users')
       .where({ id })
-      .first('id', 'email', 'display_name');
+      .first('id', 'email', 'display_name', 'avatar_key');
     return {
       id: user.id,
       email: user.email,
       displayName: user.display_name,
-      roles: await this.database
-        .client('user_roles')
-        .where({ user_id: id })
-        .pluck('role_code'),
+      avatarUrl: user.avatar_key ? `/avatars/${user.avatar_key}` : null,
+      roles: await db('user_roles').where({ user_id: id }).pluck('role_code'),
     };
   }
-  async listUsers(page: number, limit: number) {
-    const [{ count }] = await this.database
-      .client('users')
+  async userDetail(id: string, db: Knex = this.database.client) {
+    const user = await db<UserListRow>('users')
+      .where({ id })
+      .first(
+        'id',
+        'email',
+        'display_name',
+        'status',
+        'created_at',
+        'update_at',
+      );
+    if (!user) throw new NotFoundException('User not found');
+    const roles = await db('user_roles')
+      .where({ user_id: id })
+      .orderBy('role_code')
+      .pluck<string[]>('role_code');
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.display_name,
+      status: user.status,
+      roles,
+      createdAt: user.created_at,
+      updatedAt: user.update_at,
+    };
+  }
+  private async lockAdminMutation(trx: Knex.Transaction, actor: Principal) {
+    // Admin mutations share this lock; recheck authority after waiting.
+    await trx.raw('SELECT pg_advisory_xact_lock(73104, 7)');
+    const actorUser = await trx('users')
+      .where({ id: actor.id, status: 'active' })
+      .forUpdate()
+      .first('id');
+    const actorRole = await trx('user_roles')
+      .where({ user_id: actor.id, role_code: 'admin' })
+      .first('user_id');
+    if (!actorUser || !actorRole)
+      throw new ForbiddenException('Bạn không còn quyền quản trị.');
+  }
+  async changeUserStatus(
+    actor: Principal,
+    id: string,
+    status: ChangeUserStatusDto['status'],
+  ) {
+    return this.database.client.transaction(async (trx) => {
+      await this.lockAdminMutation(trx, actor);
+      const target = await trx('users')
+        .where({ id })
+        .forUpdate()
+        .first('id', 'status');
+      if (!target) throw new NotFoundException('User not found');
+      const nextStatus = status.toLowerCase();
+      if (id === actor.id && nextStatus === 'disabled') {
+        throw new ConflictException(
+          'Không thể vô hiệu hóa tài khoản quản trị đang sử dụng.',
+        );
+      }
+      if (nextStatus === 'disabled') {
+        const targetAdmin = await trx('user_roles')
+          .where({ user_id: id, role_code: 'admin' })
+          .first('user_id');
+        if (targetAdmin) {
+          const otherAdmin = await trx('users as u')
+            .join('user_roles as r', 'r.user_id', 'u.id')
+            .where({ 'u.status': 'active', 'r.role_code': 'admin' })
+            .whereNot('u.id', id)
+            .first('u.id');
+          if (!otherAdmin)
+            throw new ConflictException(
+              'Phải giữ ít nhất một quản trị viên hoạt động.',
+            );
+        }
+      }
+      if (target.status !== nextStatus) {
+        // The existing user trigger advances update_at. Roles and user data remain intact.
+        await trx('users').where({ id }).update({ status: nextStatus });
+      }
+      return this.userDetail(id, trx);
+    });
+  }
+  async changeUserRole(
+    actor: Principal,
+    id: string,
+    role: ChangeUserRoleDto['role'],
+  ) {
+    return this.database.client.transaction(async (trx) => {
+      await this.lockAdminMutation(trx, actor);
+      const target = await trx('users').where({ id }).forUpdate().first('id');
+      if (!target) throw new NotFoundException('User not found');
+      const nextRole = role.toLowerCase();
+      if (id === actor.id && nextRole !== 'admin') {
+        throw new ConflictException(
+          'Không thể tự hạ quyền tài khoản quản trị đang sử dụng.',
+        );
+      }
+      const currentRoles = await trx('user_roles')
+        .where({ user_id: id })
+        .pluck<string[]>('role_code');
+      if (currentRoles.includes('admin') && nextRole !== 'admin') {
+        const otherAdmin = await trx('users as u')
+          .join('user_roles as r', 'r.user_id', 'u.id')
+          .where({ 'u.status': 'active', 'r.role_code': 'admin' })
+          .whereNot('u.id', id)
+          .first('u.id');
+        if (!otherAdmin)
+          throw new ConflictException(
+            'Phải giữ ít nhất một quản trị viên hoạt động.',
+          );
+      }
+      // Repeating the same single-role assignment is a no-op.
+      if (currentRoles.length !== 1 || currentRoles[0] !== nextRole) {
+        await trx('user_roles').where({ user_id: id }).delete();
+        await trx('user_roles').insert({ user_id: id, role_code: nextRole });
+        await trx('users').where({ id }).update({ update_at: trx.fn.now() });
+      }
+      return this.userDetail(id, trx);
+    });
+  }
+  async userStatistics() {
+    // One statement gives a consistent snapshot. Aggregate each table separately
+    // so users with several roles do not inflate total/active counts.
+    const result = await this.database.client.raw<{
+      rows: {
+        total_users: string;
+        students: string;
+        instructors: string;
+        admins: string;
+        active_users: string;
+      }[];
+    }>(`
+      SELECT u.total_users, u.active_users, r.students, r.instructors, r.admins
+      FROM (
+        SELECT count(*) AS total_users,
+          count(*) FILTER (WHERE status = 'active') AS active_users
+        FROM users
+      ) u CROSS JOIN (
+        SELECT count(*) FILTER (WHERE role_code = 'student') AS students,
+          count(*) FILTER (WHERE role_code = 'instructor') AS instructors,
+          count(*) FILTER (WHERE role_code = 'admin') AS admins
+        FROM user_roles
+      ) r
+    `);
+    const counts = result.rows[0]!;
+    return {
+      totalUsers: Number(counts.total_users),
+      students: Number(counts.students),
+      instructors: Number(counts.instructors),
+      admins: Number(counts.admins),
+      activeUsers: Number(counts.active_users),
+    };
+  }
+  async listUsers({ page, limit, search, role, status }: ListUsersQueryDto) {
+    const filtered = this.database.client<UserListRow>('users');
+    if (search) {
+      // Treat SQL LIKE metacharacters as literal search text.
+      const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
+      filtered.where((query) => {
+        query
+          .whereILike('display_name', pattern)
+          .orWhereILike('email', pattern);
+      });
+    }
+    if (status) filtered.where('status', status);
+    if (role) {
+      filtered.whereIn(
+        'id',
+        this.database
+          .client('user_roles')
+          .select('user_id')
+          .where('role_code', role),
+      );
+    }
+    const [{ count }] = await filtered
+      .clone()
       .count<{ count: string }[]>({ count: '*' });
     const total = Number(count);
-    const rows = await this.database
-      .client<UserListRow>('users')
-      .select('id', 'email', 'display_name', 'status', 'created_at')
+    const rows = await filtered
+      .clone()
+      .select(
+        'id',
+        'email',
+        'display_name',
+        'status',
+        'created_at',
+        'update_at',
+      )
       .orderBy('created_at', 'desc')
       .orderBy('id', 'desc')
       .limit(limit)
@@ -228,6 +455,7 @@ export class AuthService {
         status: row.status,
         roles: rolesByUser.get(row.id) ?? [],
         createdAt: row.created_at,
+        updatedAt: row.update_at,
       })),
       page,
       limit,
