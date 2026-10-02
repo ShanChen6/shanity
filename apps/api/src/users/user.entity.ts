@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Enrollment } from '../courses/enrollment.entity.js';
 
 /** Maps the existing users table without changing its SQL constraints. */
 @Entity('users')
@@ -31,4 +32,7 @@ export class User {
 
   @Column({ name: 'update_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
+
+  @OneToMany(() => Enrollment, (enrollment) => enrollment.user)
+  enrollments: Enrollment[];
 }

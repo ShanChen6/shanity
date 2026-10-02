@@ -7,8 +7,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, } from 'typeorm';
 import { User } from '../users/user.entity.js';
+import { Chapter } from './chapter.entity.js';
+import { Enrollment } from './enrollment.entity.js';
 import { CourseStatus } from './course-status.js';
 let Course = class Course {
     id;
@@ -24,6 +26,8 @@ let Course = class Course {
     publishedAt;
     createdAt;
     updatedAt;
+    chapters;
+    enrollments;
 };
 __decorate([
     PrimaryGeneratedColumn('uuid'),
@@ -86,6 +90,14 @@ __decorate([
     Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' }),
     __metadata("design:type", Date)
 ], Course.prototype, "updatedAt", void 0);
+__decorate([
+    OneToMany(() => Chapter, (chapter) => chapter.course),
+    __metadata("design:type", Array)
+], Course.prototype, "chapters", void 0);
+__decorate([
+    OneToMany(() => Enrollment, (enrollment) => enrollment.course),
+    __metadata("design:type", Array)
+], Course.prototype, "enrollments", void 0);
 Course = __decorate([
     Entity('courses'),
     Index('courses_instructor_idx', ['instructorId']),

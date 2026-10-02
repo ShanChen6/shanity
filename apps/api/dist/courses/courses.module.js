@@ -4,20 +4,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-import { AuthModule } from './auth/auth.module.js';
-import { DatabaseModule } from './database/database.module.js';
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { CoursesModule } from './courses/courses.module.js';
-let AppModule = class AppModule {
+import { AuthModule } from '../auth/auth.module.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { OriginGuard, SessionGuard } from '../auth/auth.guards.js';
+import { CoursesController } from './courses.controller.js';
+import { CoursesService } from './courses.service.js';
+let CoursesModule = class CoursesModule {
 };
-AppModule = __decorate([
+CoursesModule = __decorate([
     Module({
-        imports: [DatabaseModule, AuthModule, CoursesModule],
-        controllers: [AppController],
-        providers: [AppService],
+        imports: [AuthModule, DatabaseModule],
+        controllers: [CoursesController],
+        providers: [CoursesService, OriginGuard, SessionGuard],
     })
-], AppModule);
-export { AppModule };
-//# sourceMappingURL=app.module.js.map
+], CoursesModule);
+export { CoursesModule };
+//# sourceMappingURL=courses.module.js.map

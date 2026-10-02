@@ -7,7 +7,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Enrollment } from '../courses/enrollment.entity.js';
 let User = class User {
     id;
     email;
@@ -17,6 +18,7 @@ let User = class User {
     avatarKey;
     createdAt;
     updatedAt;
+    enrollments;
 };
 __decorate([
     PrimaryGeneratedColumn('uuid'),
@@ -55,6 +57,10 @@ __decorate([
     Column({ name: 'update_at', type: 'timestamptz', default: () => 'now()' }),
     __metadata("design:type", Date)
 ], User.prototype, "updatedAt", void 0);
+__decorate([
+    OneToMany(() => Enrollment, (enrollment) => enrollment.user),
+    __metadata("design:type", Array)
+], User.prototype, "enrollments", void 0);
 User = __decorate([
     Entity('users')
 ], User);

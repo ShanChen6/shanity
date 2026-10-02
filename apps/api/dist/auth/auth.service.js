@@ -407,12 +407,14 @@ let AuthService = class AuthService {
     }
     async userStatistics() {
         const counts = await this.database.dataSource
-            .createQueryBuilder()
-            .select('(SELECT count(*) FROM "users")', 'total_users')
-            .addSelect('(SELECT count(*) FROM "users" WHERE "status" = \'active\')', 'active_users')
-            .addSelect('(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'student\')', 'students')
-            .addSelect('(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'instructor\')', 'instructors')
-            .addSelect('(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'admin\')', 'admins')
+            .getRepository(User)
+            .createQueryBuilder('user')
+            .select('COUNT(DISTINCT user.id)', 'total_users')
+            .addSelect("COUNT(DISTINCT user.id) FILTER (WHERE user.status = 'active')", 'active_users')
+            .addSelect("COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'student')", 'students')
+            .addSelect("COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'instructor')", 'instructors')
+            .addSelect("COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'admin')", 'admins')
+            .leftJoin(UserRole, 'role', 'role.user_id = user.id')
             .getRawOne();
         return {
             totalUsers: Number(counts?.total_users ?? 0),

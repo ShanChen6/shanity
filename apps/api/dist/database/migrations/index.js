@@ -5,6 +5,8 @@ import { Auth1790467200004 } from './202609270004_auth.js';
 import { UserUpdateAt1790812800001 } from './202610010001_user_update_at.js';
 import { UserAvatar1790899200001 } from './202610020001_user_avatar.js';
 import { CourseSchema1790899200002 } from './202610020002_course_schema.js';
+import { Chapters1790899200003 } from './202610020003_chapters.js';
+import { Enrollments1790899200004 } from './202610020004_enrollments.js';
 export const migrationHistory = [
     {
         legacy: '202609270001_foundation.mjs',
@@ -47,6 +49,18 @@ export const migrationHistory = [
         name: 'CourseSchema1790899200002',
         timestamp: 1790899200002,
         migration: CourseSchema1790899200002,
+    },
+    {
+        legacy: null,
+        name: 'Chapters1790899200003',
+        timestamp: 1790899200003,
+        migration: Chapters1790899200003,
+    },
+    {
+        legacy: null,
+        name: 'Enrollments1790899200004',
+        timestamp: 1790899200004,
+        migration: Enrollments1790899200004,
     },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

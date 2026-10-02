@@ -68,7 +68,13 @@ async function prepareHistory(runner: QueryRunner, adoptLegacy: boolean) {
   const previous: { name: string }[] = await runner.query(
     'SELECT name FROM knex_migrations ORDER BY id',
   );
-  if (previous.some((row, i) => row.name !== migrationHistory[i]?.legacy)) {
+  if (
+    previous.some(
+      (row, i) =>
+        !migrationHistory[i]?.legacy ||
+        row.name !== migrationHistory[i].legacy,
+    )
+  ) {
     throw new Error(
       'Unknown or non-contiguous Knex migration history; no schema was adopted',
     );

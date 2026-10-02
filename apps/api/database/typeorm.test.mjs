@@ -10,6 +10,8 @@ import {
   migrations,
 } from '../dist/database/migrations/index.js';
 import { Course } from '../dist/courses/course.entity.js';
+import { Chapter } from '../dist/courses/chapter.entity.js';
+import { Enrollment } from '../dist/courses/enrollment.entity.js';
 import { User } from '../dist/users/user.entity.js';
 import { CourseStatus } from '../dist/courses/course-status.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
@@ -30,7 +32,7 @@ async function isolated(run) {
       schema,
       extra: {
         ...options.extra,
-        options: `-c timezone=UTC -c search_path=${schema}`,
+        options: `-c timezone=UTC -c search_path=${schema},public`,
       },
     }).initialize();
     await run(db, schema);
@@ -84,12 +86,14 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
       migrateDatabase(db),
       migrateDatabase(db),
     ]);
-    assert.equal(completed.flat().length, 7);
+    assert.equal(completed.flat().length, 9);
     assert.deepEqual(await migrateDatabase(db), []);
     assert.equal(
       (await db.query('SELECT * FROM typeorm_migrations')).length,
-      7,
+      9,
     );
+    await migrateDatabase(db, { revert: true });
+    await migrateDatabase(db, { revert: true });
     await migrateDatabase(db, { revert: true });
     await assert.rejects(
       () => migrateDatabase(db, { revert: true }),
@@ -99,7 +103,195 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
       (await db.query('SELECT * FROM typeorm_migrations')).length,
       6,
     );
+    assert.equal((await migrateDatabase(db)).length, 3);
+  }));
+
+test('C4 enrollment schema: preserves legacy rows, relations, constraints, cascades and Down/Up', async () =>
+  isolated(async (db, schema) => {
+    await legacy(db, 7);
+    const [user] = await db.query(
+      "INSERT INTO users(email,display_name) VALUES ('c4@example.invalid','C4 User') RETURNING id",
+    );
+    const [course] = await db.query(
+      "INSERT INTO courses(title,slug) VALUES ('C4 Course','c4-course') RETURNING id",
+    );
+    const [existing] = await db.query(
+      'INSERT INTO enrollments(user_id,course_id) VALUES ($1,$2) RETURNING id',
+      [user.id, course.id],
+    );
+    assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 2);
+
+    const preserved = await db.query(
+      'SELECT id,user_id,course_id,revoked_at FROM enrollments WHERE id=$1',
+      [existing.id],
+    );
+    assert.deepEqual(preserved[0], {
+      id: existing.id,
+      user_id: user.id,
+      course_id: course.id,
+      revoked_at: null,
+    });
+    const columns = await db.query(
+      "SELECT * FROM information_schema.columns WHERE table_schema=$1 AND table_name='enrollments'",
+      [schema],
+    );
+    assert.ok(columns.some((column) => column.column_name === 'revoked_at'));
+    assert.equal(
+      columns.find((column) => column.column_name === 'id').column_default.includes('uuid_generate_v4'),
+      true,
+    );
+    assert.equal(
+      columns.find((column) => column.column_name === 'enrolled_at').is_nullable,
+      'NO',
+    );
+
+    const indexes = await db.query(
+      "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='enrollments'",
+      [schema],
+    );
+    assert.ok(indexes.some((index) => index.indexname === 'enrollments_user_idx'));
+    assert.ok(indexes.some((index) => index.indexname === 'enrollments_course_idx'));
+    assert.ok(
+      indexes.some(
+        (index) => index.indexname === 'enrollments_user_id_course_id_key',
+      ),
+    );
+    const foreignKeys = await db.query(
+      "SELECT conname,confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f' ORDER BY conname",
+    );
+    assert.deepEqual(
+      foreignKeys.map((key) => [key.conname, key.confdeltype]),
+      [
+        ['FK_enrollments_course', 'c'],
+        ['FK_enrollments_user', 'c'],
+      ],
+    );
+
+    const users = db.getRepository(User);
+    const courses = db.getRepository(Course);
+    const enrollments = db.getRepository(Enrollment);
+    const loaded = await enrollments.findOneOrFail({
+      where: { id: existing.id },
+      relations: { user: true, course: true },
+    });
+    assert.equal(loaded.user.id, user.id);
+    assert.equal(loaded.course.id, course.id);
+    assert.ok(loaded.enrolledAt instanceof Date);
+    const userWithEnrollments = await users.findOneOrFail({
+      where: { id: user.id },
+      relations: { enrollments: true },
+    });
+    const courseWithEnrollments = await courses.findOneOrFail({
+      where: { id: course.id },
+      relations: { enrollments: true },
+    });
+    assert.equal(userWithEnrollments.enrollments[0].id, existing.id);
+    assert.equal(courseWithEnrollments.enrollments[0].id, existing.id);
+    await rejectsCode(
+      () => enrollments.insert({ userId: user.id, courseId: course.id }),
+      '23505',
+      'enrollments_user_id_course_id_key',
+    );
+
+    await courses.delete(course.id);
+    assert.equal(await enrollments.countBy({ userId: user.id }), 0);
+    const anotherCourse = await courses.save(
+      courses.create({ title: 'Cascade course', slug: 'cascade-course' }),
+    );
+    await enrollments.save(
+      enrollments.create({ userId: user.id, courseId: anotherCourse.id }),
+    );
+    await users.delete(user.id);
+    assert.equal(await enrollments.count(), 0);
+
+    await migrateDatabase(db, { revert: true });
+    const revertedKeys = await db.query(
+      "SELECT conname,confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f' ORDER BY conname",
+    );
+    assert.deepEqual(
+      revertedKeys.map((key) => [key.conname, key.confdeltype]),
+      [
+        ['enrollments_course_id_fkey', 'r'],
+        ['enrollments_user_id_fkey', 'r'],
+      ],
+    );
+    assert.equal(
+      (await db.query("SELECT to_regclass('enrollments_user_idx') AS name"))[0]
+        .name,
+      null,
+    );
     assert.equal((await migrateDatabase(db)).length, 1);
+    const reappliedKeys = await db.query(
+      "SELECT confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f'",
+    );
+    assert.ok(reappliedKeys.every((key) => key.confdeltype === 'c'));
+  }));
+
+test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', async () =>
+  isolated(async (db, schema) => {
+    await migrateDatabase(db);
+    const columns = await db.query(
+      "SELECT * FROM information_schema.columns WHERE table_schema=$1 AND table_name='chapters'",
+      [schema],
+    );
+    const column = (name) => columns.find((entry) => entry.column_name === name);
+    assert.equal(column('id').column_default.includes('uuid_generate_v4'), true);
+    assert.equal(column('course_id').is_nullable, 'NO');
+    assert.equal(column('title').character_maximum_length, 255);
+    assert.equal(column('description').is_nullable, 'YES');
+    assert.equal(column('position').is_nullable, 'NO');
+    assert.equal(column('created_at').data_type, 'timestamp with time zone');
+    assert.equal(column('updated_at').data_type, 'timestamp with time zone');
+
+    const indexes = await db.query(
+      "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='chapters'",
+      [schema],
+    );
+    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_id_idx'));
+    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_position_idx'));
+    const foreignKey = await db.query(
+      "SELECT confdeltype FROM pg_constraint WHERE conrelid='chapters'::regclass AND conname='FK_chapters_course'",
+    );
+    assert.equal(foreignKey[0].confdeltype, 'c');
+
+    const courses = db.getRepository(Course);
+    const course = await courses.save(
+      courses.create({ title: 'Chapter course', slug: 'chapter-course' }),
+    );
+    const chapters = db.getRepository(Chapter);
+    const chapter = await chapters.save(
+      chapters.create({
+        courseId: course.id,
+        title: 'First chapter',
+        position: 0,
+      }),
+    );
+    const loaded = await courses.findOneOrFail({
+      where: { id: course.id },
+      relations: { chapters: true },
+    });
+    assert.equal(loaded.chapters[0].id, chapter.id);
+    assert.ok(loaded.chapters[0].createdAt instanceof Date);
+    await rejectsCode(
+      () => chapters.insert({ courseId: course.id, title: 'Invalid', position: -1 }),
+      '23514',
+      'chapters_position_check',
+    );
+    await rejectsCode(
+      () => chapters.insert({ courseId: randomUUID(), title: 'Orphan', position: 0 }),
+      '23503',
+      'FK_chapters_course',
+    );
+    await courses.delete(course.id);
+    assert.equal(await chapters.count(), 0);
+
+    await migrateDatabase(db, { revert: true });
+    await migrateDatabase(db, { revert: true });
+    assert.equal(
+      (await db.query("SELECT to_regclass('chapters') AS name"))[0].name,
+      null,
+    );
+    assert.equal((await migrateDatabase(db)).length, 2);
   }));
 
 test('legacy adoption: explicit, contiguous, unlocked history required; rejected adoption is atomic', async () =>
@@ -129,7 +321,7 @@ test('legacy adoption: explicit, contiguous, unlocked history required; rejected
     await assert.rejects(() => migrateDatabase(db, { adoptLegacy: true }), /avatar_key/);
     assert.equal((await db.query("SELECT to_regclass('typeorm_migrations') AS name"))[0].name, null);
     await db.query('ALTER TABLE users RENAME COLUMN missing_avatar_key TO avatar_key');
-    assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 1);
+    assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 3);
     assert.deepEqual(await migrateDatabase(db), []);
   }));
 
@@ -263,6 +455,8 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
       'FK_courses_instructor',
     );
     await migrateDatabase(db, { revert: true });
+    await migrateDatabase(db, { revert: true });
+    await migrateDatabase(db, { revert: true });
     assert.equal(
       (await db.query('SELECT * FROM courses WHERE id=$1', [created.id]))[0]
         .description,
@@ -288,7 +482,7 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
         ]),
       '23514',
     );
-    assert.equal((await migrateDatabase(db)).length, 1);
+    assert.equal((await migrateDatabase(db)).length, 3);
   }));
 
 test('already-applied C2 is adopted without replaying SQL', async () =>
@@ -297,7 +491,7 @@ test('already-applied C2 is adopted without replaying SQL', async () =>
     await db.query(
       "INSERT INTO courses(title,slug,short_description) VALUES ('Keep','keep','Preserved')",
     );
-    assert.deepEqual(await migrateDatabase(db, { adoptLegacy: true }), []);
+    assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 2);
     assert.equal(
       (
         await db.query(
@@ -307,7 +501,8 @@ test('already-applied C2 is adopted without replaying SQL', async () =>
       'Preserved',
     );
     await migrateDatabase(db, { revert: true });
-    assert.equal((await migrateDatabase(db)).length, 1);
+    await migrateDatabase(db, { revert: true });
+    assert.equal((await migrateDatabase(db)).length, 2);
   }));
 
 test('seeds are idempotent and do not reset an existing administrator password', async () =>

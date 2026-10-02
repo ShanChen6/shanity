@@ -5,10 +5,10 @@ transactions, migrations, seeds and database tests. Knex is removed from the API
 dependencies. `DatabaseService.dataSource` and the exported Nest `DataSource`
 provider share one pool, opened/closed with application lifecycle hooks.
 
-Entities cover `User`, `Course`, `Role`, `UserRole`, `AuthSession`, `AuthIdentity`,
-`OAuthRequest` and `AuthRateLimit`. Repositories and QueryBuilder handle account,
-session and identity access, user listing/statistics, row locks, and atomic OAuth
-request consumption. Parameterized SQL through TypeORM is retained for
+Entities cover `User`, `Course`, `Chapter`, `Enrollment`, `Role`, `UserRole`,
+`AuthSession`, `AuthIdentity`, `OAuthRequest` and `AuthRateLimit`. Repositories and
+QueryBuilder handle account, session and identity access, user listing/statistics,
+row locks, and atomic OAuth request consumption. Parameterized SQL through TypeORM is retained for
 PostgreSQL-specific advisory locks, the atomic rate-limit upsert, migration-history
 validation and health checks. Unused content/community tables remain managed by
 migrations; this change adds no endpoints for them.
@@ -16,7 +16,10 @@ migrations; this change adds no endpoints for them.
 Passwords, refresh-token rotation, admin authorization and avatar replacement
 retain their transaction boundaries and lock ordering. Every query inside a
 transaction uses that transaction's manager. No automatic schema synchronization,
-migration-on-start, extension installation, or cascade account deletion is enabled.
+migration-on-start, or automatic extension installation is enabled. The explicit
+C3 migration installs `uuid-ossp` for chapter/enrollment UUID defaults. C4 updates
+the existing enrollment foreign keys and preserves legacy `revoked_at` and the
+composite key used by `lesson_progress`.
 See [TypeORM migration execution](https://typeorm.io/docs/migrations/executing/).
 
 ## New databases
@@ -33,8 +36,12 @@ pnpm --filter api db:verify
 
 These scripts compile the API first. Docker already compiles at build time and
 executes `node database/cli.mjs migrate` followed by `node database/cli.mjs seed`.
-Fresh databases run all seven migrations. Repeating migration/seed commands is
-safe; seed does not overwrite an existing administrator's password.
+Fresh databases run all nine migrations. C3 installs the trusted `uuid-ossp`
+extension when needed for chapter and enrollment UUID defaults; the extension is
+retained on Down because it may be shared by other schema objects. C4 upgrades the
+legacy enrollments table without removing `revoked_at` or the composite key used by
+`lesson_progress`. Repeating migration/seed commands is safe; seed does not
+overwrite an existing administrator's password.
 
 ## Existing databases with Knex history
 

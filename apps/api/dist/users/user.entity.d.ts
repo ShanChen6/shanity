@@ -1,3 +1,4 @@
+import { Enrollment } from '../courses/enrollment.entity.js';
 export declare class User {
     id: string;
     email: string;
@@ -7,4 +8,5 @@ export declare class User {
     avatarKey: string | null;
     createdAt: Date;
     updatedAt: Date;
+    enrollments: Enrollment[];
 }

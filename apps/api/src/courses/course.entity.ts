@@ -4,9 +4,12 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../users/user.entity.js';
+import { Chapter } from './chapter.entity.js';
+import { Enrollment } from './enrollment.entity.js';
 import { CourseStatus } from './course-status.js';
 
 @Entity('courses')
@@ -62,4 +65,10 @@ export class Course {
   // PostgreSQL's trigger updates this for ORM and direct SQL writes.
   @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
+
+  @OneToMany(() => Chapter, (chapter) => chapter.course)
+  chapters: Chapter[];
+
+  @OneToMany(() => Enrollment, (enrollment) => enrollment.course)
+  enrollments: Enrollment[];
 }

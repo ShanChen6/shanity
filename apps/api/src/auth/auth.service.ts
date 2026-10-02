@@ -456,27 +456,28 @@ export class AuthService {
     });
   }
   async userStatistics() {
-    // One statement gives a consistent snapshot. Aggregate each table separately
-    // so users with several roles do not inflate total/active counts.
+    // Count distinct users after the role join so multi-role accounts are not inflated.
     const counts = await this.database.dataSource
-      .createQueryBuilder()
-      .select('(SELECT count(*) FROM "users")', 'total_users')
+      .getRepository(User)
+      .createQueryBuilder('user')
+      .select('COUNT(DISTINCT user.id)', 'total_users')
       .addSelect(
-        '(SELECT count(*) FROM "users" WHERE "status" = \'active\')',
+        "COUNT(DISTINCT user.id) FILTER (WHERE user.status = 'active')",
         'active_users',
       )
       .addSelect(
-        '(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'student\')',
+        "COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'student')",
         'students',
       )
       .addSelect(
-        '(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'instructor\')',
+        "COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'instructor')",
         'instructors',
       )
       .addSelect(
-        '(SELECT count(*) FROM "user_roles" WHERE "role_code" = \'admin\')',
+        "COUNT(DISTINCT role.user_id) FILTER (WHERE role.role_code = 'admin')",
         'admins',
       )
+      .leftJoin(UserRole, 'role', 'role.user_id = user.id')
       .getRawOne<{
         total_users: string;
         active_users: string;
