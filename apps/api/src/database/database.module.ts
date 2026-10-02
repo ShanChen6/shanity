@@ -1,22 +1,32 @@
-import { Controller, Get, Injectable, Module, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Injectable,
+  Module,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
-import knex, { type Knex } from 'knex';
-import { databaseConfig } from './config.js';
+import { DataSource } from 'typeorm';
+import { createAppDataSource } from './typeorm.js';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
-  readonly client: Knex = knex(databaseConfig());
+  readonly dataSource = createAppDataSource();
 
   async onModuleInit() {
     try {
-      await this.client.raw('SELECT 1');
+      await this.dataSource.initialize();
     } catch {
-      await this.client.destroy();
-      throw new Error('PostgreSQL unavailable; check database configuration and readiness');
+      if (this.dataSource.isInitialized) await this.dataSource.destroy();
+      throw new Error(
+        'PostgreSQL unavailable; check database configuration and readiness',
+      );
     }
   }
 
-  async onApplicationShutdown() { await this.client.destroy(); }
+  async onApplicationShutdown() {
+    if (this.dataSource.isInitialized) await this.dataSource.destroy();
+  }
 }
 
 @Controller('health')
@@ -26,7 +36,10 @@ export class DatabaseHealthController {
   @Get('db')
   async check() {
     try {
-      await this.database.client.raw('SELECT 1').timeout(5000);
+      await this.database.dataSource.transaction(async (manager) => {
+        await manager.query("SET LOCAL statement_timeout = '5s'");
+        await manager.query('SELECT 1');
+      });
       return { status: 'ok' };
     } catch {
       throw new ServiceUnavailableException('Database unavailable');
@@ -34,5 +47,16 @@ export class DatabaseHealthController {
   }
 }
 
-@Module({ providers: [DatabaseService], controllers: [DatabaseHealthController], exports: [DatabaseService] })
+@Module({
+  providers: [
+    DatabaseService,
+    {
+      provide: DataSource,
+      inject: [DatabaseService],
+      useFactory: (database: DatabaseService) => database.dataSource,
+    },
+  ],
+  controllers: [DatabaseHealthController],
+  exports: [DatabaseService, DataSource],
+})
 export class DatabaseModule {}

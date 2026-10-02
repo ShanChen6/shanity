@@ -1,5 +1,8 @@
-export async function up(db) {
-  await db.raw(`
+import type { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class Auth1790467200004 implements MigrationInterface {
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
     ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active'
       CHECK(status IN ('active', 'disabled'));
     CREATE TABLE auth_sessions (
@@ -28,9 +31,10 @@ export async function up(db) {
     );
     CREATE INDEX auth_rate_limits_expiry_idx ON auth_rate_limits(expires_at);
   `);
-}
-export async function down() {
-  throw new Error(
-    'Use a reviewed forward migration; auth data must not be dropped.',
-  );
+  }
+  async down(_queryRunner: QueryRunner): Promise<void> {
+    throw new Error(
+      'Use a reviewed forward migration; auth data must not be dropped.',
+    );
+  }
 }

@@ -1,5 +1,8 @@
-export async function up(db) {
-  await db.raw(`
+import type { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class UserUpdateAt1790812800001 implements MigrationInterface {
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
     ALTER TABLE users ADD COLUMN update_at timestamptz;
     -- Historical update times are unknown; creation is the baseline.
     UPDATE users SET update_at = created_at;
@@ -10,7 +13,10 @@ export async function up(db) {
     CREATE TRIGGER users_update_at BEFORE UPDATE ON users
       FOR EACH ROW EXECUTE FUNCTION touch_user_update_at();
   `);
-}
-export async function down() {
-  throw new Error('Destructive rollback disabled. Use a reviewed forward migration.');
+  }
+  async down(_queryRunner: QueryRunner): Promise<void> {
+    throw new Error(
+      'Destructive rollback disabled. Use a reviewed forward migration.',
+    );
+  }
 }

@@ -1,5 +1,8 @@
-export async function up(db) {
-  await db.raw(`
+import type { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class Community1790467200002 implements MigrationInterface {
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
     CREATE TABLE categories (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       slug text NOT NULL UNIQUE,
@@ -50,7 +53,10 @@ export async function up(db) {
     CREATE INDEX messages_history_idx ON messages(room_id, created_at DESC, id);
     CREATE INDEX messages_sender_idx ON messages(room_id, sender_id);
   `);
-}
-export async function down() {
-  throw new Error('Destructive rollback disabled. Use a reviewed forward migration.');
+  }
+  async down(_queryRunner: QueryRunner): Promise<void> {
+    throw new Error(
+      'Destructive rollback disabled. Use a reviewed forward migration.',
+    );
+  }
 }

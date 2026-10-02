@@ -21,7 +21,7 @@ const tokenCookie = (values: string[], kind: string) =>
 
 describe('Auth + User with PostgreSQL', () => {
   let app: INestApplication;
-  let db: DatabaseService['client'];
+  let db: DatabaseService['dataSource']['manager'];
   let origin: string;
   const emails = Array.from(
     { length: 4 },
@@ -46,7 +46,7 @@ describe('Auth + User with PostgreSQL', () => {
     });
     configureApp(app);
     await app.init();
-    db = app.get(DatabaseService).client;
+    db = app.get(DatabaseService).dataSource.manager;
     origin = app.get(AuthConfig).origin;
   });
   afterAll(async () => {
@@ -66,7 +66,9 @@ describe('Auth + User with PostgreSQL', () => {
     const otherSession = cookies(
       await post('/auth/login').send({ email, password }).expect(200),
     );
-    const before = await db('users').where({ email }).first();
+    const before = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [email])
+      .then((rows) => rows[0]);
     const newPassword = 'Changed-long-password-43';
     const change = (body: object, auth = session, requestOrigin = origin) =>
       request(app.getHttpServer())
@@ -85,17 +87,21 @@ describe('Auth + User with PostgreSQL', () => {
       400,
     );
     await change({ ...body, newPassword: password }).expect(400);
-    expect((await db('users').where({ email }).first()).password_hash).toBe(
-      before.password_hash,
-    );
+    expect(
+      (
+        await db
+          .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [email])
+          .then((rows) => rows[0])
+      ).password_hash,
+    ).toBe(before.password_hash);
     const changed = await change(body).expect(204);
-    expect(changed.headers['set-cookie'].join(';')).toContain(
-      'shanity_access=;',
-    );
-    expect(changed.headers['set-cookie'].join(';')).toContain(
+    expect(String(changed.headers['set-cookie'])).toContain('shanity_access=;');
+    expect(String(changed.headers['set-cookie'])).toContain(
       'shanity_refresh=;',
     );
-    const after = await db('users').where({ email }).first();
+    const after = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [email])
+      .then((rows) => rows[0]);
     expect(after.password_hash).not.toBe(before.password_hash);
     expect(after.password_hash).not.toBe(newPassword);
     const { password_hash: _old, update_at: _oldTime, ...oldFields } = before;
@@ -119,7 +125,12 @@ describe('Auth + User with PostgreSQL', () => {
   it('rejects OAuth-only password changes and throttles attempts', async () => {
     const email = `${randomUUID()}@example.invalid`;
     const session = cookies(await register(email));
-    await db('users').where({ email }).update({ password_hash: null });
+    await db
+      .query('UPDATE "users" SET "password_hash" = $2 WHERE "email" = $1', [
+        email,
+        null,
+      ])
+      .then(([, count]) => count);
     const profile = await request(app.getHttpServer())
       .get('/users/me')
       .set('Cookie', session)
@@ -147,7 +158,11 @@ describe('Auth + User with PostgreSQL', () => {
       })
       .expect(429);
     expect(
-      (await db('users').where({ email }).first()).password_hash,
+      (
+        await db
+          .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [email])
+          .then((rows) => rows[0])
+      ).password_hash,
     ).toBeNull();
   });
 
@@ -163,7 +178,7 @@ describe('Auth + User with PostgreSQL', () => {
     const registered = await register(` ${emails[0]!.toUpperCase()} `);
     const session = cookies(registered);
     expect(registered.body).toEqual({ authenticated: true });
-    expect(registered.headers['set-cookie'].join(';')).toContain('HttpOnly');
+    expect(String(registered.headers['set-cookie'])).toContain('HttpOnly');
     await registerDuplicate();
     const profile = await request(app.getHttpServer())
       .get('/users/me')
@@ -201,15 +216,23 @@ describe('Auth + User with PostgreSQL', () => {
       .post('/auth/login')
       .send({ email: emails[0], password })
       .expect(403);
-    const [row] = await db('users').where({ email: emails[0] });
-    await db('user_roles').insert({ user_id: row.id, role_code: 'admin' });
+    const [row] = await db.query('SELECT * FROM "users" WHERE "email" = $1', [
+      emails[0],
+    ]);
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [row.id, 'admin'],
+    );
     await request(app.getHttpServer())
       .get('/users/admin-check')
       .set('Cookie', session)
       .expect(200);
-    await db('user_roles')
-      .where({ user_id: row.id, role_code: 'admin' })
-      .delete();
+    await db
+      .query(
+        'DELETE FROM "user_roles" WHERE "user_id" = $1 AND "role_code" = $2',
+        [row.id, 'admin'],
+      )
+      .then(([, count]) => count);
     await request(app.getHttpServer())
       .get('/users/admin-check')
       .set('Cookie', session)
@@ -233,9 +256,12 @@ describe('Auth + User with PostgreSQL', () => {
       .send({ email: emails[0], password })
       .expect(200);
     const session = cookies(logged);
-    await db('users')
-      .where({ email: emails[0] })
-      .update({ status: 'disabled' });
+    await db
+      .query('UPDATE "users" SET "status" = $2 WHERE "email" = $1', [
+        emails[0],
+        'disabled',
+      ])
+      .then(([, count]) => count);
     await post('/auth/login').send({ email: emails[0], password }).expect(401);
     await post('/auth/refresh').set('Cookie', session).expect(401);
     await request(app.getHttpServer())
@@ -259,9 +285,12 @@ describe('Auth + User with PostgreSQL', () => {
       tokenCookie(original, 'refresh'),
     );
     const raw = tokenCookie(rotated, 'refresh').split('=')[1]!;
-    const stored = await db('auth_sessions')
-      .where({ refresh_hash: digest(raw) })
-      .first();
+    const stored = await db
+      .query(
+        'SELECT * FROM "auth_sessions" WHERE "refresh_hash" = $1 LIMIT 1',
+        [digest(raw)],
+      )
+      .then((rows) => rows[0]);
     expect(stored.refresh_hash).not.toEqual(raw);
     await post('/auth/refresh').set('Cookie', original).expect(401);
     await post('/auth/logout').set('Cookie', rotated).expect(204);
@@ -278,9 +307,12 @@ describe('Auth + User with PostgreSQL', () => {
       .expect(200);
     const session = cookies(logged);
     const raw = tokenCookie(session, 'refresh').split('=')[1]!;
-    const stored = await db('auth_sessions')
-      .where({ refresh_hash: digest(raw) })
-      .first();
+    const stored = await db
+      .query(
+        'SELECT * FROM "auth_sessions" WHERE "refresh_hash" = $1 LIMIT 1',
+        [digest(raw)],
+      )
+      .then((rows) => rows[0]);
     const expired = await new SignJWT({ sid: stored.id })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(stored.user_id)
@@ -296,9 +328,12 @@ describe('Auth + User with PostgreSQL', () => {
       .get('/users/me')
       .set('Cookie', 'shanity_access=invalid-token')
       .expect(401);
-    await db('auth_sessions')
-      .where({ id: stored.id })
-      .update({ expires_at: new Date(Date.now() - 1000) });
+    await db
+      .query('UPDATE "auth_sessions" SET "expires_at" = $2 WHERE "id" = $1', [
+        stored.id,
+        new Date(Date.now() - 1000),
+      ])
+      .then(([, count]) => count);
     await post('/auth/refresh').set('Cookie', session).expect(401);
     await request(app.getHttpServer())
       .get('/users/me')
@@ -331,7 +366,12 @@ describe('Auth + User with PostgreSQL', () => {
       .expect(302)
       .expect('Location', `${origin}/auth/callback?error=account_conflict`);
     expect(
-      await db('auth_identities').where({ provider_subject: sub }).first(),
+      await db
+        .query(
+          'SELECT * FROM "auth_identities" WHERE "provider_subject" = $1 LIMIT 1',
+          [sub],
+        )
+        .then((rows) => rows[0]),
     ).toBeUndefined();
     const link = await post('/auth/google/link')
       .set('Cookie', first)
@@ -406,19 +446,26 @@ describe('Auth + User with PostgreSQL', () => {
     const studentEmail = `${randomUUID()}@example.invalid`;
     const adminSession = cookies(await register(adminEmail));
     const studentSession = cookies(await register(studentEmail));
-    const admin = await db('users').where({ email: adminEmail }).first();
-    const student = await db('users').where({ email: studentEmail }).first();
-    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const admin = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [adminEmail])
+      .then((rows) => rows[0]);
+    const student = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [studentEmail])
+      .then((rows) => rows[0]);
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [admin.id, 'admin'],
+    );
     const stats = (session?: string[]) => {
       const req = request(app.getHttpServer()).get('/users/stats');
       return session ? req.set('Cookie', session) : req;
     };
     await stats().expect(401);
     await stats(studentSession).expect(403);
-    await db('user_roles').insert({
-      user_id: student.id,
-      role_code: 'instructor',
-    });
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [student.id, 'instructor'],
+    );
     await stats(studentSession).expect(403);
     const before = await stats(adminSession).expect(200);
     expect(before.headers['cache-control']).toBe('no-store');
@@ -433,31 +480,33 @@ describe('Auth + User with PostgreSQL', () => {
       expect(typeof value).toBe('number');
       expect(Number.isInteger(value)).toBe(true);
     }
-    const [multi, instructor, noRole] = await db('users')
-      .insert([
-        {
-          email: `${randomUUID()}@example.invalid`,
-          display_name: 'Multi-role',
-          status: 'disabled',
-        },
-        {
-          email: `${randomUUID()}@example.invalid`,
-          display_name: 'Instructor',
-          status: 'active',
-        },
-        {
-          email: `${randomUUID()}@example.invalid`,
-          display_name: 'No role',
-          status: 'active',
-        },
-      ])
-      .returning('id');
-    await db('user_roles').insert([
-      { user_id: multi.id, role_code: 'student' },
-      { user_id: multi.id, role_code: 'instructor' },
-      { user_id: multi.id, role_code: 'admin' },
-      { user_id: instructor.id, role_code: 'instructor' },
-    ]);
+    const [multi, instructor, noRole] = await db.query(
+      'INSERT INTO "users" ("email", "display_name", "status") VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9) RETURNING "id"',
+      [
+        `${randomUUID()}@example.invalid`,
+        'Multi-role',
+        'disabled',
+        `${randomUUID()}@example.invalid`,
+        'Instructor',
+        'active',
+        `${randomUUID()}@example.invalid`,
+        'No role',
+        'active',
+      ],
+    );
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8)',
+      [
+        multi.id,
+        'student',
+        multi.id,
+        'instructor',
+        multi.id,
+        'admin',
+        instructor.id,
+        'instructor',
+      ],
+    );
     expect(noRole.id).toBeDefined();
     const after = await stats(adminSession).expect(200);
     expect(after.body).toEqual({
@@ -489,9 +538,12 @@ describe('Auth + User with PostgreSQL', () => {
       instructors: after.body.instructors - 1,
       admins: after.body.admins - 1,
     });
-    await db('user_roles')
-      .where({ user_id: admin.id, role_code: 'admin' })
-      .delete();
+    await db
+      .query(
+        'DELETE FROM "user_roles" WHERE "user_id" = $1 AND "role_code" = $2',
+        [admin.id, 'admin'],
+      )
+      .then(([, count]) => count);
     await stats(adminSession).expect(403);
   });
 
@@ -502,10 +554,19 @@ describe('Auth + User with PostgreSQL', () => {
     const adminSession = cookies(await register(adminEmail));
     const peerSession = cookies(await register(peerEmail));
     const targetSession = cookies(await register(targetEmail));
-    const admin = await db('users').where({ email: adminEmail }).first();
-    const peer = await db('users').where({ email: peerEmail }).first();
-    const target = await db('users').where({ email: targetEmail }).first();
-    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const admin = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [adminEmail])
+      .then((rows) => rows[0]);
+    const peer = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [peerEmail])
+      .then((rows) => rows[0]);
+    const target = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [targetEmail])
+      .then((rows) => rows[0]);
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [admin.id, 'admin'],
+    );
     const patch = (id: string, session?: string[], source = origin) => {
       const req = request(app.getHttpServer())
         .patch(`/users/${id}/status`)
@@ -516,10 +577,10 @@ describe('Auth + User with PostgreSQL', () => {
     await patch(admin.id, targetSession)
       .send({ status: 'DISABLED' })
       .expect(403);
-    await db('user_roles').insert({
-      user_id: peer.id,
-      role_code: 'instructor',
-    });
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [peer.id, 'instructor'],
+    );
     await patch(target.id, peerSession)
       .send({ status: 'DISABLED' })
       .expect(403);
@@ -595,10 +656,15 @@ describe('Auth + User with PostgreSQL', () => {
       .get('/users/me')
       .set('Cookie', targetSession)
       .expect(200);
-    const stored = await db('users').where({ id: target.id }).first();
+    const stored = await db
+      .query('SELECT * FROM "users" WHERE "id" = $1 LIMIT 1', [target.id])
+      .then((rows) => rows[0]);
     expect(stored.password_hash).toBe(target.password_hash);
     expect(stored.created_at).toEqual(target.created_at);
-    await db('user_roles').insert({ user_id: peer.id, role_code: 'admin' });
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [peer.id, 'admin'],
+    );
     const results = await Promise.all([
       patch(admin.id, peerSession).send({ status: 'DISABLED' }),
       request(app.getHttpServer())
@@ -611,10 +677,10 @@ describe('Auth + User with PostgreSQL', () => {
     expect(
       results.filter((result) => [401, 403].includes(result.status)),
     ).toHaveLength(1);
-    const activeAdmins = await db('users as u')
-      .join('user_roles as r', 'r.user_id', 'u.id')
-      .whereIn('u.id', [admin.id, peer.id])
-      .where({ 'u.status': 'active', 'r.role_code': 'admin' });
+    const activeAdmins = await db.query(
+      'SELECT * FROM "users" AS "u" JOIN "user_roles" AS "r" ON "r"."user_id" = "u"."id" WHERE "u"."id" = ANY($1) AND "u"."status" = $2 AND "r"."role_code" = $3',
+      [[admin.id, peer.id], 'active', 'admin'],
+    );
     expect(activeAdmins).toHaveLength(1);
   });
 
@@ -625,10 +691,19 @@ describe('Auth + User with PostgreSQL', () => {
     const adminSession = cookies(await register(adminEmail));
     const peerSession = cookies(await register(peerEmail));
     const targetSession = cookies(await register(targetEmail));
-    const admin = await db('users').where({ email: adminEmail }).first();
-    const peer = await db('users').where({ email: peerEmail }).first();
-    const target = await db('users').where({ email: targetEmail }).first();
-    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const admin = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [adminEmail])
+      .then((rows) => rows[0]);
+    const peer = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [peerEmail])
+      .then((rows) => rows[0]);
+    const target = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [targetEmail])
+      .then((rows) => rows[0]);
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [admin.id, 'admin'],
+    );
     const patch = (id: string, session?: string[], source = origin) => {
       const req = request(app.getHttpServer())
         .patch(`/users/${id}/role`)
@@ -663,10 +738,14 @@ describe('Auth + User with PostgreSQL', () => {
       .expect(409);
     expect(
       (
-        await db('user_roles')
-          .where({ user_id: admin.id })
-          .pluck<string[]>('role_code')
-      ).sort((a, b) => a.localeCompare(b)),
+        await db
+          .query('SELECT "role_code" FROM "user_roles" WHERE "user_id" = $1', [
+            admin.id,
+          ])
+          .then((rows) =>
+            rows.map((row: { role_code: string }) => row.role_code),
+          )
+      ).sort((a: string, b: string) => a.localeCompare(b)),
     ).toEqual(['admin', 'student']);
     const instructor = await patch(target.id, adminSession)
       .send({ role: 'INSTRUCTOR' })
@@ -700,16 +779,22 @@ describe('Auth + User with PostgreSQL', () => {
       .set('Cookie', targetSession)
       .expect(403);
     // Profile writes also advance the database-managed timestamp.
-    const before = await db('users')
-      .where({ id: target.id })
-      .first('update_at');
+    const before = await db
+      .query('SELECT "update_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
+        target.id,
+      ])
+      .then((rows) => rows[0]);
     await request(app.getHttpServer())
       .patch('/users/me')
       .set('Origin', origin)
       .set('Cookie', targetSession)
       .send({ displayName: 'Updated profile' })
       .expect(200);
-    const after = await db('users').where({ id: target.id }).first('update_at');
+    const after = await db
+      .query('SELECT "update_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
+        target.id,
+      ])
+      .then((rows) => rows[0]);
     expect(after.update_at.getTime()).toBeGreaterThan(
       before.update_at.getTime(),
     );
@@ -721,9 +806,10 @@ describe('Auth + User with PostgreSQL', () => {
     expect(
       results.map((result) => result.status).sort((a, b) => a - b),
     ).toEqual([200, 403]);
-    const remaining = await db('user_roles')
-      .whereIn('user_id', [admin.id, peer.id])
-      .where({ role_code: 'admin' });
+    const remaining = await db.query(
+      'SELECT * FROM "user_roles" WHERE "user_id" = ANY($1) AND "role_code" = $2',
+      [[admin.id, peer.id], 'admin'],
+    );
     expect(remaining).toHaveLength(1);
   });
 
@@ -732,19 +818,26 @@ describe('Auth + User with PostgreSQL', () => {
     const targetEmail = `${randomUUID()}@example.invalid`;
     const adminSession = cookies(await register(adminEmail));
     const targetSession = cookies(await register(targetEmail));
-    const admin = await db('users').where({ email: adminEmail }).first();
-    const target = await db('users').where({ email: targetEmail }).first();
+    const admin = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [adminEmail])
+      .then((rows) => rows[0]);
+    const target = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [targetEmail])
+      .then((rows) => rows[0]);
     const detail = (id: string, session?: string[]) => {
       const req = request(app.getHttpServer()).get(`/users/${id}`);
       return session ? req.set('Cookie', session) : req;
     };
-    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [admin.id, 'admin'],
+    );
     await detail(target.id).expect(401);
     await detail(target.id, targetSession).expect(403);
-    await db('user_roles').insert({
-      user_id: target.id,
-      role_code: 'instructor',
-    });
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [target.id, 'instructor'],
+    );
     await detail(target.id, targetSession).expect(403);
     const result = await detail(target.id, adminSession).expect(200);
     expect(result.headers['cache-control']).toBe('no-store');
@@ -757,7 +850,12 @@ describe('Auth + User with PostgreSQL', () => {
       createdAt: target.created_at.toISOString(),
       updatedAt: target.update_at.toISOString(),
     });
-    await db('users').where({ id: target.id }).update({ status: 'disabled' });
+    await db
+      .query('UPDATE "users" SET "status" = $2 WHERE "id" = $1', [
+        target.id,
+        'disabled',
+      ])
+      .then(([, count]) => count);
     expect(
       (await detail(target.id, adminSession).expect(200)).body.status,
     ).toBe('disabled');
@@ -769,9 +867,12 @@ describe('Auth + User with PostgreSQL', () => {
     expect(
       (await detail('admin-check', adminSession).expect(200)).body,
     ).toEqual({ authorized: true });
-    await db('user_roles')
-      .where({ user_id: admin.id, role_code: 'admin' })
-      .delete();
+    await db
+      .query(
+        'DELETE FROM "user_roles" WHERE "user_id" = $1 AND "role_code" = $2',
+        [admin.id, 'admin'],
+      )
+      .then(([, count]) => count);
     await detail(target.id, adminSession).expect(403);
   });
 
@@ -782,13 +883,22 @@ describe('Auth + User with PostgreSQL', () => {
     const adminSession = cookies(await register(adminEmail));
     const studentSession = cookies(await register(studentEmail));
     const instructorSession = cookies(await register(instructorEmail));
-    const [adminRow] = await db('users').where({ email: adminEmail });
-    const [instructorRow] = await db('users').where({ email: instructorEmail });
-    await db('user_roles').insert({ user_id: adminRow.id, role_code: 'admin' });
-    await db('user_roles').insert({
-      user_id: instructorRow.id,
-      role_code: 'instructor',
-    });
+    const [adminRow] = await db.query(
+      'SELECT * FROM "users" WHERE "email" = $1',
+      [adminEmail],
+    );
+    const [instructorRow] = await db.query(
+      'SELECT * FROM "users" WHERE "email" = $1',
+      [instructorEmail],
+    );
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [adminRow.id, 'admin'],
+    );
+    await db.query(
+      'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
+      [instructorRow.id, 'instructor'],
+    );
 
     await request(app.getHttpServer()).get('/users').expect(401);
     await request(app.getHttpServer())
@@ -836,18 +946,26 @@ describe('Auth + User with PostgreSQL', () => {
       (await filtered({ search: adminEmail, status: 'disabled' }).expect(200))
         .body.total,
     ).toBe(0);
-    await db('users')
-      .where({ id: instructorRow.id })
-      .update({ display_name: 'Filter_Name%Unique', status: 'disabled' });
+    const nameSuffix = randomUUID();
+    await db
+      .query(
+        'UPDATE "users" SET "display_name" = $2, "status" = $3 WHERE "id" = $1',
+        [instructorRow.id, `Filter_Name%Unique-${nameSuffix}`, 'disabled'],
+      )
+      .then(([, count]) => count);
     const byName = await filtered({
-      search: 'name%unique',
+      search: `name%unique-${nameSuffix}`,
       status: 'disabled',
       role: 'instructor',
     }).expect(200);
     expect(byName.body.total).toBe(1);
     expect(byName.body.items[0].id).toBe(instructorRow.id);
     expect(
-      (await filtered({ search: 'Filter_Name_Unique' }).expect(200)).body.total,
+      (
+        await filtered({ search: `Filter_Name_Unique-${nameSuffix}` }).expect(
+          200,
+        )
+      ).body.total,
     ).toBe(0);
     for (const query of [
       { role: 'owner' },

@@ -33,7 +33,7 @@ Auth + User đã có API email/JWT/Google OAuth và hồ sơ cá nhân: xem [c�
 | Workspace | pnpm 11.24.0, dùng chung một lockfile |
 | Kiểm thử | Vitest cho API, đã có cấu hình e2e và test mẫu |
 | Đóng gói | Dockerfile nhiều giai đoạn; Docker Compose cho web và API |
-| Cơ sở dữ liệu | PostgreSQL 17, Knex + pg, migration và seed; xem [hướng dẫn](docs/database.md) |
+| Cơ sở dữ liệu | PostgreSQL 17, TypeORM + pg, migration và seed; xem [hướng dẫn chuyển đổi](docs/typeorm.md) |
 
 ### 1.2. Cấu trúc thư mục
 

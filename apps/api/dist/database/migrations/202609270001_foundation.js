@@ -1,6 +1,6 @@
-export async function up(db) {
-  // Intentionally fail on existing names; never silently adopt an unknown schema.
-  await db.raw(`
+export class Foundation1790467200001 {
+    async up(queryRunner) {
+        await queryRunner.query(`
     CREATE TABLE users (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       email text NOT NULL CHECK (email = lower(btrim(email)) AND email <> ''),
@@ -86,8 +86,9 @@ export async function up(db) {
     CREATE TRIGGER lesson_progress_updated BEFORE UPDATE ON lesson_progress
       FOR EACH ROW EXECUTE FUNCTION touch_lesson_progress();
   `);
+    }
+    async down(_queryRunner) {
+        throw new Error('Destructive rollback disabled. Restore a backup or write a reviewed forward migration.');
+    }
 }
-
-export async function down() {
-  throw new Error('Destructive rollback disabled. Restore a backup or write a reviewed forward migration.');
-}
+//# sourceMappingURL=202609270001_foundation.js.map

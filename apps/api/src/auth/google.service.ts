@@ -1,4 +1,12 @@
 import {
+  OAuthRequest,
+  AuthSession,
+  AuthIdentity,
+  UserRole,
+} from './auth.entities.js';
+
+import { User } from '../users/user.entity.js';
+import {
   ConflictException,
   Injectable,
   ServiceUnavailableException,
@@ -7,7 +15,7 @@ import {
 import { OAuth2Client } from 'google-auth-library';
 import { createHash } from 'node:crypto';
 import { AuthConfig } from './auth.config.js';
-import { AuthService, uniqueViolation, type UserRow } from './auth.service.js';
+import { AuthService, uniqueViolation } from './auth.service.js';
 import { digest, randomToken } from './password.js';
 
 export interface GoogleIdentity {
@@ -75,14 +83,17 @@ export class GoogleService {
       browser = randomToken(),
       nonce = randomToken(),
       verifier = randomToken();
-    await this.auth.database.client('oauth_requests').insert({
-      state_hash: digest(state),
-      browser_hash: digest(browser),
-      nonce,
-      verifier,
-      link_session_id: linkSessionId ?? null,
-      expires_at: new Date(Date.now() + 600000),
-    });
+    await this.auth.database.dataSource.manager
+      .getRepository(OAuthRequest)
+      .insert({
+        state_hash: digest(state),
+        browser_hash: digest(browser),
+        nonce: nonce,
+        verifier: verifier,
+        link_session_id: linkSessionId ?? null,
+        expires_at: new Date(Date.now() + 600000),
+      })
+      .then((result) => result.raw);
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({
       client_id: this.auth.config.googleId,
@@ -112,12 +123,19 @@ export class GoogleService {
     )
       throw new UnauthorizedException('Invalid OAuth state');
     // Atomic one-time consume; an error/cancellation also consumes the request.
-    const [flow] = await this.auth.database
-      .client('oauth_requests')
-      .where({ state_hash: digest(state), browser_hash: digest(browser) })
-      .where('expires_at', '>', new Date())
-      .delete()
-      .returning('*');
+    const flow = (
+      await this.auth.database.dataSource
+        .createQueryBuilder()
+        .delete()
+        .from(OAuthRequest)
+        .where('state_hash = :stateHash', { stateHash: digest(state) })
+        .andWhere('browser_hash = :browserHash', {
+          browserHash: digest(browser),
+        })
+        .andWhere('expires_at > :now', { now: new Date() })
+        .returning('*')
+        .execute()
+    ).raw[0] as OAuthRequest | undefined;
     if (!flow) throw new UnauthorizedException('Invalid OAuth state');
     if (
       providerError ||
@@ -139,18 +157,19 @@ export class GoogleService {
       flow.nonce as string,
     );
     try {
-      return await this.auth.database.client.transaction(async (trx) => {
+      return await this.auth.database.dataSource.transaction(async (trx) => {
         // Serialize login/link for the same identity across API instances.
         // The existing UNIQUE constraint remains the final integrity boundary.
-        await trx.raw('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [
-          `google:${identity.sub}`,
-        ]);
+        await trx.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [`google:${identity.sub}`],
+        );
         let userId: string;
         if (flow.link_session_id) {
-          const session = await trx('auth_sessions')
-            .where({ id: flow.link_session_id })
-            .forUpdate()
-            .first();
+          const session = await trx.getRepository(AuthSession).findOne({
+            where: { id: flow.link_session_id },
+            lock: { mode: 'pessimistic_write' },
+          });
           if (
             !session ||
             session.revoked_at ||
@@ -158,55 +177,65 @@ export class GoogleService {
           )
             throw new UnauthorizedException();
           userId = session.user_id as string;
-          const user = await trx<UserRow>('users')
-            .where({ id: userId })
-            .forUpdate()
-            .first();
+          const user = await trx.getRepository(User).findOne({
+            where: { id: userId },
+            select: { id: true, status: true },
+            lock: { mode: 'pessimistic_write' },
+          });
           if (user?.status !== 'active') throw new UnauthorizedException();
-          const existing = await trx('auth_identities')
-            .where({ provider: 'google', provider_subject: identity.sub })
-            .first();
+          const existing = await trx.getRepository(AuthIdentity).findOne({
+            where: { provider: 'google', provider_subject: identity.sub },
+          });
           if (existing && existing.user_id !== userId)
             throw new ConflictException('Google account already linked');
           if (!existing)
-            await trx('auth_identities').insert({
-              provider: 'google',
-              provider_subject: identity.sub,
-              user_id: userId,
-            });
+            await trx
+              .getRepository(AuthIdentity)
+              .insert({
+                provider: 'google',
+                provider_subject: identity.sub,
+                user_id: userId,
+              })
+              .then((result) => result.raw);
           return { linked: true as const };
         }
-        const existing = await trx('auth_identities')
-          .where({ provider: 'google', provider_subject: identity.sub })
-          .first();
+        const existing = await trx.getRepository(AuthIdentity).findOne({
+          where: { provider: 'google', provider_subject: identity.sub },
+        });
         if (existing) userId = existing.user_id as string;
         else {
           // Never attach an identity based only on matching email.
-          const match = await trx('users')
-            .where({ email: identity.email })
-            .first('id');
+          const match = await trx.getRepository(User).findOne({
+            where: { email: identity.email },
+            select: { id: true },
+          });
           if (match)
             throw new ConflictException(
               'Sign in to your existing account to link Google',
             );
-          const [user] = await trx('users')
-            .insert({ email: identity.email, display_name: identity.name })
-            .returning('id');
+          const [user] = await trx
+            .getRepository(User)
+            .insert({ email: identity.email, displayName: identity.name })
+            .then((result) => result.raw);
           userId = user.id as string;
-          await trx('user_roles').insert({
-            user_id: userId,
-            role_code: 'student',
-          });
-          await trx('auth_identities').insert({
-            provider: 'google',
-            provider_subject: identity.sub,
-            user_id: userId,
-          });
+          await trx
+            .getRepository(UserRole)
+            .insert({ user_id: userId, role_code: 'student' })
+            .then((result) => result.raw);
+          await trx
+            .getRepository(AuthIdentity)
+            .insert({
+              provider: 'google',
+              provider_subject: identity.sub,
+              user_id: userId,
+            })
+            .then((result) => result.raw);
         }
-        const user = await trx<UserRow>('users')
-          .where({ id: userId })
-          .forUpdate()
-          .first();
+        const user = await trx.getRepository(User).findOne({
+          where: { id: userId },
+          select: { id: true, status: true },
+          lock: { mode: 'pessimistic_write' },
+        });
         if (user?.status !== 'active') throw new UnauthorizedException();
         return {
           linked: false as const,

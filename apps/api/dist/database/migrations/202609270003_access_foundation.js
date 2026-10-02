@@ -1,5 +1,6 @@
-export async function up(db) {
-  await db.raw(`
+export class AccessFoundation1790467200003 {
+    async up(queryRunner) {
+        await queryRunner.query(`
     CREATE TABLE roles (
       code text PRIMARY KEY,
       name text NOT NULL
@@ -32,8 +33,9 @@ export async function up(db) {
     ALTER TABLE posts ADD CONSTRAINT posts_status_check
       CHECK(status IN ('draft', 'review', 'published', 'hidden', 'archived'));
   `);
+    }
+    async down(_queryRunner) {
+        throw new Error('Destructive rollback disabled. Use a reviewed forward migration.');
+    }
 }
-
-export async function down() {
-  throw new Error('Destructive rollback disabled. Use a reviewed forward migration.');
-}
+//# sourceMappingURL=202609270003_access_foundation.js.map

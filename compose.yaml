@@ -37,7 +37,7 @@ services:
       [
         "sh",
         "-c",
-        "node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs migrate:latest && node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs seed:run",
+        "node database/cli.mjs migrate && node database/cli.mjs seed",
       ]
     depends_on:
       postgres:
