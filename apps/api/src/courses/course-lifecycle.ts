@@ -2,7 +2,7 @@ import { CourseStatus } from './course-status.js';
 
 const allowedTransitions: Partial<Record<CourseStatus, CourseStatus[]>> = {
   [CourseStatus.DRAFT]: [CourseStatus.PUBLISHED, CourseStatus.ARCHIVED],
-  [CourseStatus.PUBLISHED]: [CourseStatus.ARCHIVED],
+  [CourseStatus.PUBLISHED]: [CourseStatus.DRAFT, CourseStatus.ARCHIVED],
   [CourseStatus.ARCHIVED]: [],
 };
 

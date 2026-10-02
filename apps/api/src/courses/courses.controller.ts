@@ -71,6 +71,15 @@ export class CoursesController {
     return this.courses.publish(id);
   }
 
+  @Post(':id/unpublish')
+  @Roles('instructor', 'admin')
+  @UseGuards(CourseOwnershipGuard)
+  @RequireCourseOwnership({ resource: 'course', param: 'id' })
+  @Header('Cache-Control', 'no-store')
+  unpublish(@Param('id') id: string) {
+    return this.courses.unpublish(id);
+  }
+
   @Post(':id/archive')
   @Roles('instructor', 'admin')
   @UseGuards(CourseOwnershipGuard)

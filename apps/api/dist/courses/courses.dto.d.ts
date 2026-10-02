@@ -1,4 +1,8 @@
 export declare class CreateCourseDto {
+    category?: string;
+    level?: string;
+    language?: string;
+    price?: number;
     title: string;
     slug: string;
     description?: string | null;
@@ -6,6 +10,10 @@ export declare class CreateCourseDto {
     thumbnail?: string | null;
 }
 export declare class UpdateCourseDto {
+    category?: string;
+    level?: string;
+    language?: string;
+    price?: number;
     title?: string;
     slug?: string;
     description?: string | null;

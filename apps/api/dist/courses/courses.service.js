@@ -27,6 +27,11 @@ let CoursesService = class CoursesService {
         const repository = this.database.dataSource.getRepository(Course);
         try {
             return await repository.save(repository.create({
+                category: dto.category,
+                level: dto.level,
+                language: dto.language,
+                price: dto.price,
+                instructorId: principal.id,
                 title: dto.title,
                 slug: dto.slug,
                 description: dto.description,
@@ -45,7 +50,9 @@ let CoursesService = class CoursesService {
     async update(course, dto) {
         const repository = this.database.dataSource.getRepository(Course);
         try {
-            return await repository.save(repository.merge(course, dto));
+            if (Object.keys(dto).length)
+                await repository.update({ id: course.id }, dto);
+            return await repository.findOneByOrFail({ id: course.id });
         }
         catch (error) {
             if (uniqueViolation(error))
@@ -64,14 +71,14 @@ let CoursesService = class CoursesService {
                 throw new NotFoundException('Course not found');
             this.assertTransition(course.status, CourseStatus.PUBLISHED);
             const [facts] = await manager.query(`SELECT
-          (SELECT count(*) FROM course_sections WHERE course_id = $1)::integer AS section_count,
+          ((SELECT count(*) FROM course_sections WHERE course_id = $1) + (SELECT count(*) FROM chapters WHERE course_id = $1))::integer AS section_count,
           (SELECT count(*) FROM course_sections AS section
             WHERE section.course_id = $1
               AND NOT EXISTS (
                 SELECT 1 FROM lessons
                 WHERE lessons.section_id = section.id
                   AND lessons.course_id = section.course_id
-              ))::integer AS sections_without_lessons,
+              ))::integer + (SELECT count(*) FROM chapters c WHERE c.course_id = $1 AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.chapter_id = c.id))::integer AS sections_without_lessons,
           (SELECT count(*) FROM lessons WHERE course_id = $1)::integer AS lesson_count,
           (SELECT count(*) FROM lessons
             WHERE course_id = $1
@@ -90,6 +97,21 @@ let CoursesService = class CoursesService {
                 });
             course.status = CourseStatus.PUBLISHED;
             course.publishedAt = new Date();
+            return repository.save(course);
+        });
+    }
+    async unpublish(id) {
+        return this.database.dataSource.transaction(async (manager) => {
+            const repository = manager.getRepository(Course);
+            const course = await repository.findOne({
+                where: { id },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!course)
+                throw new NotFoundException('Course not found');
+            this.assertTransition(course.status, CourseStatus.DRAFT);
+            course.status = CourseStatus.DRAFT;
+            course.publishedAt = null;
             return repository.save(course);
         });
     }
@@ -245,7 +267,9 @@ let CoursesService = class CoursesService {
             query.where('course.ownerId = :ownerId', { ownerId: principal.id });
         }
         else {
-            query.where('course.status = :status', { status: CourseStatus.PUBLISHED });
+            query.where('course.status = :status', {
+                status: CourseStatus.PUBLISHED,
+            });
         }
         return query
             .orderBy('course.createdAt', 'DESC')

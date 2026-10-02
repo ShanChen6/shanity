@@ -19,8 +19,13 @@ describe('course lifecycle transitions', () => {
     ).not.toThrow();
   });
 
+  it('allows unpublishing', () => {
+    expect(() =>
+      assertCourseTransition(CourseStatus.PUBLISHED, CourseStatus.DRAFT),
+    ).not.toThrow();
+  });
+
   it.each([
-    [CourseStatus.PUBLISHED, CourseStatus.DRAFT],
     [CourseStatus.ARCHIVED, CourseStatus.DRAFT],
     [CourseStatus.ARCHIVED, CourseStatus.PUBLISHED],
     [CourseStatus.ARCHIVED, CourseStatus.ARCHIVED],

@@ -15,6 +15,7 @@ export declare class CoursesController {
         course: Course;
     }, _id: string, dto: UpdateCourseDto): Promise<Course>;
     publish(id: string): Promise<Course>;
+    unpublish(id: string): Promise<Course>;
     archive(id: string): Promise<Course>;
 }
 export declare class PublicCoursesController {

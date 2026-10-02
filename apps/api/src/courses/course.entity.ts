@@ -34,6 +34,18 @@ export class Course {
   @Column({ type: 'text', nullable: true })
   thumbnail: string | null;
 
+  @Column({ type: 'text', default: 'General' })
+  category: string;
+
+  @Column({ type: 'text', default: 'Beginner' })
+  level: string;
+
+  @Column({ type: 'text', default: 'vi' })
+  language: string;
+
+  @Column({ type: 'integer', default: 0 })
+  price: number;
+
   @Column({
     type: 'enum',
     enum: CourseStatus,

@@ -11,6 +11,7 @@ export declare class CoursesService {
     create(principal: Principal, dto: CreateCourseDto): Promise<Course>;
     update(course: Course, dto: UpdateCourseDto): Promise<Course>;
     publish(id: string): Promise<Course>;
+    unpublish(id: string): Promise<Course>;
     archive(id: string): Promise<Course>;
     listPublic({ page, limit, search, instructorId, sortBy, sortOrder, }: PublicCourseQueryDto): Promise<{
         data: {

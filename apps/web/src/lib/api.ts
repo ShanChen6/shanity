@@ -44,12 +44,14 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   const data = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new ApiError(
-      response.status,
-      Array.isArray(data.message)
+    throw new ApiError(response.status, [
+      ...(Array.isArray(data.message)
         ? data.message
-        : [data.message ?? "Yêu cầu không thành công."],
-    );
+        : [data.message ?? "Yêu cầu không thành công."]),
+      ...(Array.isArray(data.errors)
+        ? data.errors.filter((item: unknown) => typeof item === "string")
+        : []),
+    ]);
   return data as T;
 }
 

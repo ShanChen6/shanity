@@ -1,7 +1,7 @@
 import { CourseStatus } from './course-status.js';
 const allowedTransitions = {
     [CourseStatus.DRAFT]: [CourseStatus.PUBLISHED, CourseStatus.ARCHIVED],
-    [CourseStatus.PUBLISHED]: [CourseStatus.ARCHIVED],
+    [CourseStatus.PUBLISHED]: [CourseStatus.DRAFT, CourseStatus.ARCHIVED],
     [CourseStatus.ARCHIVED]: [],
 };
 export class InvalidCourseTransitionError extends Error {

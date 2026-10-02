@@ -1,3 +1,7 @@
+import {
+  InstructorContentController,
+  CourseMediaController,
+} from './instructor-content.controller.js';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
@@ -10,7 +14,12 @@ import { CoursePublishabilityValidator } from './course-publishability.validator
 
 @Module({
   imports: [AuthModule, DatabaseModule],
-  controllers: [CoursesController, PublicCoursesController],
+  controllers: [
+    CoursesController,
+    PublicCoursesController,
+    InstructorContentController,
+    CourseMediaController,
+  ],
   providers: [
     CoursesService,
     CoursePublishabilityValidator,

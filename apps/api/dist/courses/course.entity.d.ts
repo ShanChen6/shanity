@@ -9,6 +9,10 @@ export declare class Course {
     description: string | null;
     shortDescription: string | null;
     thumbnail: string | null;
+    category: string;
+    level: string;
+    language: string;
+    price: number;
     status: CourseStatus;
     instructorId: string | null;
     instructor: User | null;

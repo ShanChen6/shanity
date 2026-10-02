@@ -36,6 +36,9 @@ let CoursesController = class CoursesController {
     publish(id) {
         return this.courses.publish(id);
     }
+    unpublish(id) {
+        return this.courses.unpublish(id);
+    }
     archive(id) {
         return this.courses.archive(id);
     }
@@ -94,6 +97,17 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], CoursesController.prototype, "publish", null);
+__decorate([
+    Post(':id/unpublish'),
+    Roles('instructor', 'admin'),
+    UseGuards(CourseOwnershipGuard),
+    RequireCourseOwnership({ resource: 'course', param: 'id' }),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Param('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "unpublish", null);
 __decorate([
     Post(':id/archive'),
     Roles('instructor', 'admin'),

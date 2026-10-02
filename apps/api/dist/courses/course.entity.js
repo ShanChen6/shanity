@@ -19,6 +19,10 @@ let Course = class Course {
     description;
     shortDescription;
     thumbnail;
+    category;
+    level;
+    language;
+    price;
     status;
     instructorId;
     instructor;
@@ -53,6 +57,22 @@ __decorate([
     Column({ type: 'text', nullable: true }),
     __metadata("design:type", Object)
 ], Course.prototype, "thumbnail", void 0);
+__decorate([
+    Column({ type: 'text', default: 'General' }),
+    __metadata("design:type", String)
+], Course.prototype, "category", void 0);
+__decorate([
+    Column({ type: 'text', default: 'Beginner' }),
+    __metadata("design:type", String)
+], Course.prototype, "level", void 0);
+__decorate([
+    Column({ type: 'text', default: 'vi' }),
+    __metadata("design:type", String)
+], Course.prototype, "language", void 0);
+__decorate([
+    Column({ type: 'integer', default: 0 }),
+    __metadata("design:type", Number)
+], Course.prototype, "price", void 0);
 __decorate([
     Column({
         type: 'enum',

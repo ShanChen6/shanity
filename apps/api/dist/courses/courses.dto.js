@@ -8,15 +8,45 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsOptional, ValidateIf, IsString, Length, Matches, IsIn, IsInt, Min, Max, } from 'class-validator';
 const trimString = ({ value }) => typeof value === 'string' ? value.trim() : value;
 export class CreateCourseDto {
+    category;
+    level;
+    language;
+    price;
     title;
     slug;
     description;
     shortDescription;
     thumbnail;
 }
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsString(),
+    Transform(trimString),
+    Length(1, 100),
+    __metadata("design:type", String)
+], CreateCourseDto.prototype, "category", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsIn(['Beginner', 'Intermediate', 'Advanced']),
+    __metadata("design:type", String)
+], CreateCourseDto.prototype, "level", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsString(),
+    Transform(trimString),
+    Length(2, 35),
+    __metadata("design:type", String)
+], CreateCourseDto.prototype, "language", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsInt(),
+    Min(0),
+    Max(2147483647),
+    __metadata("design:type", Number)
+], CreateCourseDto.prototype, "price", void 0);
 __decorate([
     Transform(trimString),
     IsString(),
@@ -47,12 +77,42 @@ __decorate([
     __metadata("design:type", Object)
 ], CreateCourseDto.prototype, "thumbnail", void 0);
 export class UpdateCourseDto {
+    category;
+    level;
+    language;
+    price;
     title;
     slug;
     description;
     shortDescription;
     thumbnail;
 }
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsString(),
+    Transform(trimString),
+    Length(1, 100),
+    __metadata("design:type", String)
+], UpdateCourseDto.prototype, "category", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsIn(['Beginner', 'Intermediate', 'Advanced']),
+    __metadata("design:type", String)
+], UpdateCourseDto.prototype, "level", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsString(),
+    Transform(trimString),
+    Length(2, 35),
+    __metadata("design:type", String)
+], UpdateCourseDto.prototype, "language", void 0);
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    IsInt(),
+    Min(0),
+    Max(2147483647),
+    __metadata("design:type", Number)
+], UpdateCourseDto.prototype, "price", void 0);
 __decorate([
     Transform(trimString),
     IsOptional(),
