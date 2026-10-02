@@ -10,9 +10,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Get, Header, Patch, Param, Post, Query, Req, UseGuards, } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, Req, UseGuards, } from '@nestjs/common';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
-import { CourseOwnershipGuard, RequireCourseOwnership } from './course-ownership.guard.js';
+import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
 import { CreateCourseDto, UpdateCourseDto } from './courses.dto.js';
 import { PublicCourseQueryDto } from './public-courses.dto.js';
 import { CoursesService } from './courses.service.js';
@@ -119,6 +119,9 @@ let PublicCoursesController = class PublicCoursesController {
     list(query) {
         return this.courses.listPublic(query);
     }
+    detail(slug) {
+        return this.courses.getPublicBySlug(slug);
+    }
 };
 __decorate([
     Get(),
@@ -128,6 +131,14 @@ __decorate([
     __metadata("design:paramtypes", [PublicCourseQueryDto]),
     __metadata("design:returntype", void 0)
 ], PublicCoursesController.prototype, "list", null);
+__decorate([
+    Get(':slug'),
+    Header('Cache-Control', 'public, max-age=60'),
+    __param(0, Param('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicCoursesController.prototype, "detail", null);
 PublicCoursesController = __decorate([
     Controller('public/courses'),
     __metadata("design:paramtypes", [CoursesService])

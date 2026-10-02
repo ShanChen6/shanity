@@ -11,6 +11,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
+import { Chapter } from './chapter.entity.js';
 import { assertCourseTransition, InvalidCourseTransitionError, } from './course-lifecycle.js';
 import { DatabaseService } from '../database/database.module.js';
 import { User } from '../users/user.entity.js';
@@ -158,6 +159,66 @@ let CoursesService = class CoursesService {
             page,
             limit,
             totalPages: Math.ceil(total / limit),
+        };
+    }
+    async getPublicBySlug(slug) {
+        const rows = await this.database.dataSource
+            .getRepository(Course)
+            .createQueryBuilder('course')
+            .leftJoin(User, 'instructor', 'instructor.id = COALESCE(course.instructorId, course.ownerId)')
+            .leftJoin(Chapter, 'chapter', 'chapter.courseId = course.id')
+            .select('course.id', 'courseId')
+            .addSelect('course.title', 'title')
+            .addSelect('course.slug', 'slug')
+            .addSelect('course.description', 'description')
+            .addSelect('course.shortDescription', 'shortDescription')
+            .addSelect('course.thumbnail', 'thumbnail')
+            .addSelect('course.publishedAt', 'publishedAt')
+            .addSelect('instructor.id', 'instructorId')
+            .addSelect('instructor.displayName', 'instructorDisplayName')
+            .addSelect('instructor.avatarKey', 'instructorAvatarKey')
+            .addSelect('chapter.id', 'chapterId')
+            .addSelect('chapter.title', 'chapterTitle')
+            .addSelect('chapter.description', 'chapterDescription')
+            .addSelect('chapter.position', 'chapterPosition')
+            .where('course.slug = :slug', { slug })
+            .andWhere('course.status = :publishedStatus', {
+            publishedStatus: CourseStatus.PUBLISHED,
+        })
+            .orderBy('chapter.position', 'ASC')
+            .addOrderBy('chapter.id', 'ASC')
+            .getRawMany();
+        if (!rows.length)
+            throw new NotFoundException('Course not found');
+        const course = rows[0];
+        return {
+            course: {
+                id: course.courseId,
+                title: course.title,
+                slug: course.slug,
+                description: course.description,
+                shortDescription: course.shortDescription,
+                thumbnail: course.thumbnail,
+                publishedAt: course.publishedAt,
+            },
+            instructor: course.instructorId
+                ? {
+                    id: course.instructorId,
+                    displayName: course.instructorDisplayName,
+                    avatar: course.instructorAvatarKey
+                        ? `/avatars/${course.instructorAvatarKey}`
+                        : null,
+                    bio: null,
+                }
+                : null,
+            curriculum: rows
+                .filter((row) => row.chapterId !== null)
+                .map((row) => ({
+                id: row.chapterId,
+                title: row.chapterTitle,
+                description: row.chapterDescription,
+                orderIndex: row.chapterPosition,
+            })),
         };
     }
     assertTransition(current, next) {

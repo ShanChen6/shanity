@@ -432,4 +432,105 @@ describe('Courses with PostgreSQL', () => {
       .query({ limit: 51 })
       .expect(400);
   });
+
+  it('serves published course detail and ordered chapter curriculum without private data', async () => {
+    const instructor = await account('instructor');
+    const create = (slug: string) =>
+      request(app.getHttpServer())
+        .post('/courses')
+        .set('Origin', origin)
+        .set('Cookie', instructor.session)
+        .send({
+          title: 'Course detail',
+          slug,
+          description: 'Full course description',
+          shortDescription: 'Short detail',
+          thumbnail: 'detail.webp',
+        });
+    const draft = await create('detail-draft').expect(201);
+    await request(app.getHttpServer())
+      .get(`/public/courses/${draft.body.slug}`)
+      .expect(404);
+
+    const published = await create('detail-published').expect(201);
+    const [section] = await db.query(
+      'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+      [published.body.id, 'Course section'],
+    );
+    await db.query(
+      'INSERT INTO lessons(course_id,section_id,title,body,position) VALUES ($1,$2,$3,$4,0)',
+      [published.body.id, section.id, 'Course lesson', 'Lesson content'],
+    );
+    await request(app.getHttpServer())
+      .post(`/courses/${published.body.id}/publish`)
+      .set('Origin', origin)
+      .set('Cookie', instructor.session)
+      .expect(201);
+    const [later] = await db.query(
+      'INSERT INTO chapters(course_id,title,description,position) VALUES ($1,$2,$3,5) RETURNING id',
+      [published.body.id, 'Later chapter', 'Later summary'],
+    );
+    const [earlier] = await db.query(
+      'INSERT INTO chapters(course_id,title,description,position) VALUES ($1,$2,$3,1) RETURNING id',
+      [published.body.id, 'First chapter', 'First summary'],
+    );
+
+    const detail = await request(app.getHttpServer())
+      .get('/public/courses/detail-published')
+      .expect(200);
+    expect(Object.keys(detail.body).sort()).toEqual(
+      ['course', 'instructor', 'curriculum'].sort(),
+    );
+    expect(detail.body.course).toMatchObject({
+      id: published.body.id,
+      title: 'Course detail',
+      slug: 'detail-published',
+      description: 'Full course description',
+      shortDescription: 'Short detail',
+      thumbnail: 'detail.webp',
+    });
+    expect(Object.keys(detail.body.course).sort()).toEqual(
+      [
+        'id',
+        'title',
+        'slug',
+        'description',
+        'shortDescription',
+        'thumbnail',
+        'publishedAt',
+      ].sort(),
+    );
+    expect(detail.body.instructor).toEqual({
+      id: instructor.id,
+      displayName: 'instructor',
+      avatar: null,
+      bio: null,
+    });
+    expect(detail.body.instructor).not.toHaveProperty('email');
+    expect(detail.body.instructor).not.toHaveProperty('roles');
+    expect(
+      detail.body.curriculum.map((chapter: { id: string }) => chapter.id),
+    ).toEqual([earlier.id, later.id]);
+    expect(detail.body.curriculum[0]).toEqual({
+      id: earlier.id,
+      title: 'First chapter',
+      description: 'First summary',
+      orderIndex: 1,
+    });
+    expect(detail.body.curriculum[1].orderIndex).toBe(5);
+    expect(detail.body).not.toHaveProperty('lessons');
+
+    const archived = await create('detail-archived').expect(201);
+    await request(app.getHttpServer())
+      .post(`/courses/${archived.body.id}/archive`)
+      .set('Origin', origin)
+      .set('Cookie', instructor.session)
+      .expect(201);
+    await request(app.getHttpServer())
+      .get('/public/courses/detail-archived')
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/public/courses/not-a-real-course')
+      .expect(404);
+  });
 });

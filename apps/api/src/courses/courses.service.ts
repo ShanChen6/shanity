@@ -7,6 +7,7 @@ import {
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
+import { Chapter } from './chapter.entity.js';
 import {
   assertCourseTransition,
   InvalidCourseTransitionError,
@@ -27,6 +28,23 @@ interface PublicCourseRow {
   instructorId: string | null;
   instructorDisplayName: string | null;
   instructorAvatarKey: string | null;
+}
+
+interface PublicCourseDetailRow {
+  courseId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  shortDescription: string | null;
+  thumbnail: string | null;
+  publishedAt: Date | null;
+  instructorId: string | null;
+  instructorDisplayName: string | null;
+  instructorAvatarKey: string | null;
+  chapterId: string | null;
+  chapterTitle: string | null;
+  chapterDescription: string | null;
+  chapterPosition: number | null;
 }
 
 const uniqueViolation = (error: unknown) =>
@@ -198,6 +216,70 @@ export class CoursesService {
     };
   }
 
+  async getPublicBySlug(slug: string) {
+    const rows = await this.database.dataSource
+      .getRepository(Course)
+      .createQueryBuilder('course')
+      .leftJoin(
+        User,
+        'instructor',
+        'instructor.id = COALESCE(course.instructorId, course.ownerId)',
+      )
+      .leftJoin(Chapter, 'chapter', 'chapter.courseId = course.id')
+      .select('course.id', 'courseId')
+      .addSelect('course.title', 'title')
+      .addSelect('course.slug', 'slug')
+      .addSelect('course.description', 'description')
+      .addSelect('course.shortDescription', 'shortDescription')
+      .addSelect('course.thumbnail', 'thumbnail')
+      .addSelect('course.publishedAt', 'publishedAt')
+      .addSelect('instructor.id', 'instructorId')
+      .addSelect('instructor.displayName', 'instructorDisplayName')
+      .addSelect('instructor.avatarKey', 'instructorAvatarKey')
+      .addSelect('chapter.id', 'chapterId')
+      .addSelect('chapter.title', 'chapterTitle')
+      .addSelect('chapter.description', 'chapterDescription')
+      .addSelect('chapter.position', 'chapterPosition')
+      .where('course.slug = :slug', { slug })
+      .andWhere('course.status = :publishedStatus', {
+        publishedStatus: CourseStatus.PUBLISHED,
+      })
+      .orderBy('chapter.position', 'ASC')
+      .addOrderBy('chapter.id', 'ASC')
+      .getRawMany<PublicCourseDetailRow>();
+
+    if (!rows.length) throw new NotFoundException('Course not found');
+    const course = rows[0]!;
+    return {
+      course: {
+        id: course.courseId,
+        title: course.title,
+        slug: course.slug,
+        description: course.description,
+        shortDescription: course.shortDescription,
+        thumbnail: course.thumbnail,
+        publishedAt: course.publishedAt,
+      },
+      instructor: course.instructorId
+        ? {
+            id: course.instructorId,
+            displayName: course.instructorDisplayName,
+            avatar: course.instructorAvatarKey
+              ? `/avatars/${course.instructorAvatarKey}`
+              : null,
+            bio: null,
+          }
+        : null,
+      curriculum: rows
+        .filter((row) => row.chapterId !== null)
+        .map((row) => ({
+          id: row.chapterId,
+          title: row.chapterTitle,
+          description: row.chapterDescription,
+          orderIndex: row.chapterPosition,
+        })),
+    };
+  }
   private assertTransition(current: CourseStatus, next: CourseStatus) {
     try {
       assertCourseTransition(current, next);

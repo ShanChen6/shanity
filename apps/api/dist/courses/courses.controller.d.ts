@@ -39,4 +39,27 @@ export declare class PublicCoursesController {
         limit: number;
         totalPages: number;
     }>;
+    detail(slug: string): Promise<{
+        course: {
+            id: string;
+            title: string;
+            slug: string;
+            description: string | null;
+            shortDescription: string | null;
+            thumbnail: string | null;
+            publishedAt: Date | null;
+        };
+        instructor: {
+            id: string;
+            displayName: string | null;
+            avatar: string | null;
+            bio: null;
+        } | null;
+        curriculum: {
+            id: string | null;
+            title: string | null;
+            description: string | null;
+            orderIndex: number | null;
+        }[];
+    }>;
 }

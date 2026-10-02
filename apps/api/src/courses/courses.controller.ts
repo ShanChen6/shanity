@@ -3,8 +3,8 @@ import {
   Controller,
   Get,
   Header,
-  Patch,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import type { AuthRequest } from '../auth/auth.guards.js';
-import { CourseOwnershipGuard, RequireCourseOwnership } from './course-ownership.guard.js';
+import {
+  CourseOwnershipGuard,
+  RequireCourseOwnership,
+} from './course-ownership.guard.js';
 import { Course } from './course.entity.js';
 import { CreateCourseDto, UpdateCourseDto } from './courses.dto.js';
 import { PublicCourseQueryDto } from './public-courses.dto.js';
@@ -42,9 +45,7 @@ export class CoursesController {
   @UseGuards(CourseOwnershipGuard)
   @RequireCourseOwnership({ resource: 'course', param: 'id' })
   @Header('Cache-Control', 'no-store')
-  get(
-    @Req() req: AuthRequest & { course: Course },
-  ) {
+  get(@Req() req: AuthRequest & { course: Course }) {
     return req.course;
   }
 
@@ -88,5 +89,11 @@ export class PublicCoursesController {
   @Header('Cache-Control', 'public, max-age=60')
   list(@Query() query: PublicCourseQueryDto) {
     return this.courses.listPublic(query);
+  }
+
+  @Get(':slug')
+  @Header('Cache-Control', 'public, max-age=60')
+  detail(@Param('slug') slug: string) {
+    return this.courses.getPublicBySlug(slug);
   }
 }
