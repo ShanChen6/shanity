@@ -105,3 +105,71 @@ Không sửa Login/Register, frontend auth infrastructure hoặc backend source 
 ## Recommended Next Task
 
 Thiết kế và triển khai API **đọc danh sách người dùng cho admin**: thống nhất DTO không chứa password/token, pagination/search/filter/sort, bảo vệ bằng RBAC hiện có và test guest/non-admin/admin. Sau khi hợp đồng ổn định mới nối bảng Users ở frontend. Chưa thực hiện task tiếp theo.
+
+## Task 04 — Search, filters and pagination
+
+- `GET /users` (admin only): `page` (default 1), `limit` (default 20, max 100), optional `search` (trimmed, max 254), `role` (`student|instructor|admin`), `status` (`active|disabled`). Invalid API parameters return 400.
+- Search matches name/email case-insensitively as a literal substring. Filters combine with AND. Role membership does not duplicate users; results retain all roles. Count and page use the same filters, ordered by created date and ID descending.
+- `/admin/users?page=2&search=shan&role=student&status=active`: URL-backed form and previous/next navigation, 20 users per page. Apply resets to page 1; clear removes filters. Reload/back/forward restore applied filters. Loading, retry, no matches and out-of-range pages have explicit states.
+- No user detail or role update functionality added.
+
+## Task 05 — User Detail API
+
+- `GET /users/:id`: requires an authenticated user with the `admin` role, checked from the database by SessionGuard. Guest: 401; non-admin: 403; malformed UUID: 400; missing user: 404.
+- Response allowlist: `id`, `email`, `displayName`, `status`, `roles`, `createdAt`. Explicit SQL selection and response mapping exclude password hashes, identities and session/token data. Response uses `Cache-Control: no-store`.
+- Admin can read active or disabled accounts. Static `/users/me` and `/users/admin-check` routes remain ahead of `/:id`. No update endpoint or frontend detail UI added.
+
+## Task 06 — Read-only User Detail UI
+
+- `/admin/users/[id]` checks admin authorization and loads `GET /users/:id` through the existing authenticated API client. Shows display name, email, all roles, status, creation timestamp (Vietnam timezone), and user ID. The user schema has no `updated_at`; no synthetic updated date or new schema fields are introduced.
+- Desktop/mobile list links open the detail page; the return link preserves page/search/role/status. Detail breadcrumb, loading, missing user, malformed ID, forbidden and retry states are provided. No editing controls or mutation requests added.
+
+## Task 07 — Update timestamp and Change User Role
+
+- Migration `202610010001_user_update_at.mjs` adds `users.update_at` (timestamptz, required, default now). Existing rows start at `created_at` because historical update times were not recorded. A database trigger advances the timestamp for user updates; role changes explicitly touch the user inside the same transaction. List/detail/mutation responses expose `updatedAt`, displayed on the detail page.
+- `PATCH /users/:id/role`, body exactly `{ "role": "STUDENT" | "INSTRUCTOR" | "ADMIN" }`. Values map to existing lowercase database role codes. The operation replaces all existing roles with the selected single role. Reassigning an identical single role is a no-op, preserving its timestamp.
+- Requires a valid session, admin role and trusted Origin. Extra properties (including status), missing/invalid/lowercase roles and malformed UUIDs return 400. Missing user returns 404. Self-demotion returns 409; the service also checks that another active admin remains before removing admin from a target.
+- Role mutations use a transaction-scoped advisory lock and recheck the actor's active/admin state after acquiring the lock. Competing admin demotions cannot both succeed. Reads of authorization continue to use database roles, so the changed permissions take effect on subsequent requests. This lock coordinates this endpoint; manual SQL or future mutation paths must respect the same invariant.
+- Detail UI adds a select and native modal confirmation showing the account, old roles and replacement role. Cancel/Escape send no request; in-flight submissions are guarded, errors remain in the dialog, successful responses update roles and timestamp. Self-demotion choices are disabled as a convenience; backend enforces the policy independently.
+- No account-status editing added. Apply the migration before deploying the API: `pnpm --filter api db:migrate`.
+
+Validation for Task 07: isolated PostgreSQL migration and 3 admin API integration tests passed (including competing demotions); 2 browser scenarios passed (detail regression and role confirmation/cancel/persistence/error/self safeguards); 7 unit tests passed; API build, frontend typecheck and both lints passed. Migration has not been applied to the application database.
+
+## Task 08 — Account Status Management
+
+- Uses the existing `users.status` constraint (`active|disabled`, migration `202609270004_auth.mjs`); no new status model, status migration or delete endpoint.
+- `PATCH /users/:id/status` accepts exactly `{ "status": "ACTIVE" | "DISABLED" }`, mapped to the existing lowercase database values. Extra properties (including role), missing/invalid status and malformed UUID return 400; missing user returns 404. Requires session, admin and trusted Origin; response is the safe user detail with `Cache-Control: no-store`.
+- Status and role changes share a transaction advisory lock and recheck the actor's active/admin state after acquiring it. Self-disable returns 409, and disabling an admin requires another active admin. Concurrent disable/demotion cannot remove all active admins through these endpoints.
+- Changes preserve roles, profile, credentials and related records. The existing `update_at` trigger advances the timestamp only when the status changes; repeated requests for the current status are no-ops.
+- Existing authentication already rejects disabled accounts on password/Google login, refresh and protected API requests. Disabling blocks existing sessions while the account is disabled; activation restores access, including still-valid sessions. This task does not introduce permanent session revocation or change the auth lifecycle.
+- User detail includes a Disable/Activate button and confirmation dialog, cancel/Escape, pending protection, success/error states and updated status/timestamp. Self-disable is unavailable in the UI as well as rejected by the API. No hard-delete functionality.
+
+Task 08 validation: 2 PostgreSQL API integration tests (status security/session gating and role concurrency regression), 2 Chromium browser scenarios (status flow and role regression), 7 unit tests, API build, frontend typecheck, both lints and diff whitespace checks passed. Test servers/database were removed; application database was not modified.
+
+## Task 09 — Admin Overview
+
+- `GET /users/stats` requires SessionGuard + admin and returns only five numeric counts: `totalUsers`, `students`, `instructors`, `admins`, `activeUsers`. Static route is registered before `/users/:id`; response has `Cache-Control: no-store`.
+- One PostgreSQL statement aggregates `users` and `user_roles` separately and combines their single-row results, giving a consistent snapshot without transferring users to the API/browser for counting. Total counts each user once, including disabled and roleless users; active means status `active`. Role counts include disabled accounts and overlap for multi-role users, with each membership counted once by the existing composite primary key. Empty counts are zero.
+- `/admin` shows five responsive statistic cards with loading skeletons, error/retry and explicit forbidden states, using the existing authenticated API client. No chart, new dependency or schema migration. Counts are fetched when the overview mounts (including page reload); they are not a live subscription.
+
+Task 09 validation: PostgreSQL integration coverage passed for access control, exact response fields, overlapping roles, roleless/disabled users and updates after role/status changes; Chromium overview test passed for real counts, loading/retry/zero states, 320px layout and no full-list API requests. API build/typecheck, frontend typecheck and both lints passed. Isolated test services were removed.
+
+## Task 10 — Admin UX Polish
+
+- UX-only changes; backend source and schema remain byte-for-byte unchanged from the start of this task. No new business feature, dependency or permission policy.
+- Admin mutations now use a shared dismissible success toast, preserved across admin navigation. It does not auto-dismiss, so keyboard/screen-reader users can read and close it. Errors remain in the relevant confirmation dialog.
+- Confirmation dialogs keep native modal semantics, explicit Tab/Shift+Tab wrapping, Cancel-first focus, Escape handling, pending submission guards and background scroll locking. Closing restores focus to the trigger; after a role change disables the trigger, focus returns to the role select. Error text receives focus. Toast dismissal returns focus to the main content.
+- Added admin route loading/error recovery. List errors distinguish forbidden access from retryable failures; empty states distinguish an empty system, no filter matches and an out-of-range page, with relevant recovery links. Retry keeps focus on a stable content container.
+- User list shows the visible result range and pagination at both ends, 44px controls, explicit unavailable previous/next states and pending navigation feedback. Filter/page navigation preserves URL state and moves focus to the loaded results. Detail breadcrumbs retain list filters/page when returning.
+- Desktop/tablet table has a focusable horizontal scroll region and fixed column widths; long names/emails wrap instead of stretching the page. Mobile cards show complete wrapped values. Empty roles are labelled. Detail/dialog names handle unbroken strings. Both table dates and detail dates use Vietnam time.
+- Mobile navigation remains a disclosure rather than a modal: Escape closes and returns focus, links close it, browser history closes it, desktop resizing resets it and moves focus out of controls that become hidden. Sidebar/mobile menu can scroll in short viewports.
+
+Task 10 validation: 10 existing admin browser scenarios passed; the 2 new UX scenarios passed after fixing tablet overflow and dialog focus wrapping. Coverage includes 320/768/1440px, long unbroken text, keyboard table scrolling, filter/page return state, empty/forbidden states, confirmation cancellation/pending/errors, focus restoration, toast dismissal and mobile-menu resize behavior. Production web build, typecheck, lint and diff whitespace checks passed. Backend/schema hashes match the start of the task. Isolated test services were cleaned up.
+
+## Separate Admin Login
+
+The existing Admin Tasks 1–10 remain intact. Admin now enters through `/admin/login`; the User Portal keeps `/login`. See [the implementation, security and validation report](admin-login.md).
+
+## User creation and editing
+
+See [Admin user CRUD](admin-user-crud.md) for creation/edit APIs, dashboard dialogs, retained Disable Account behavior and validation.

@@ -1,20 +1,56 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { AdminLogout } from "@/features/admin/auth/admin-logout";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Avatar } from "@/components/ui/avatar";
+import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
 import { useSession } from "@/features/auth/session-provider";
 import { getAdminSection } from "@/features/admin/navigation";
 import { AdminMobileNavigation } from "./admin-mobile-navigation";
 
 export function AdminHeader() {
   const pathname = usePathname();
+  const search = useSearchParams();
   const { user } = useSession();
-  const [open, setOpen] = useState(false);
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  const open = openedOn === pathname;
+  const setOpen = (value: boolean) => setOpenedOn(value ? pathname : null);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const reset = () => {
+      if (desktop.matches) {
+        const focused = document.activeElement;
+        if (
+          focused instanceof HTMLElement &&
+          (focused.closest("#admin-mobile-navigation") ||
+            focused === toggle.current)
+        ) {
+          document
+            .getElementById("admin-content")
+            ?.focus({ preventScroll: true });
+        }
+        setOpenedOn(null);
+      }
+    };
+    const close = () => setOpenedOn(null);
+    desktop.addEventListener("change", reset);
+    window.addEventListener("popstate", close);
+    return () => {
+      desktop.removeEventListener("change", reset);
+      window.removeEventListener("popstate", close);
+    };
+  }, []);
   const toggle = useRef<HTMLButtonElement>(null);
   const section = getAdminSection(pathname);
+  const isDetail =
+    section?.href === "/admin/users" && pathname !== section.href;
+  const usersQuery = new URLSearchParams();
+  for (const name of ["page", "search", "role", "status"]) {
+    const value = search.get(name);
+    if (value) usersQuery.set(name, value);
+  }
   return (
     <header
       className="border-b border-border bg-surface"
@@ -56,9 +92,31 @@ export function AdminHeader() {
                 <li aria-hidden="true" className="text-muted">
                   /
                 </li>
-                <li aria-current="page" className="font-medium">
-                  {section.label}
+                <li
+                  aria-current={isDetail ? undefined : "page"}
+                  className="font-medium"
+                >
+                  {isDetail ? (
+                    <Link
+                      href={`${section.href}?${usersQuery}`}
+                      className="text-muted hover:text-primary"
+                    >
+                      {section.label}
+                    </Link>
+                  ) : (
+                    section.label
+                  )}
                 </li>
+                {isDetail && (
+                  <>
+                    <li aria-hidden="true" className="text-muted">
+                      /
+                    </li>
+                    <li aria-current="page" className="font-medium">
+                      Chi tiết người dùng
+                    </li>
+                  </>
+                )}
               </>
             )}
           </ol>
@@ -68,10 +126,7 @@ export function AdminHeader() {
           className="flex min-h-11 max-w-[45%] min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-hover"
           aria-label="Hồ sơ của bạn"
         >
-          <Avatar
-            name={user?.displayName || "Quản trị viên"}
-            className="size-9"
-          />
+          <CurrentUserAvatar className="size-9" />
           <span className="hidden min-w-0 sm:block">
             <span className="block truncate font-medium">
               {user?.displayName}
@@ -79,6 +134,7 @@ export function AdminHeader() {
             <span className="block text-xs text-muted">Quản trị viên</span>
           </span>
         </Link>
+        <AdminLogout />
       </div>
       <AdminMobileNavigation
         open={open}

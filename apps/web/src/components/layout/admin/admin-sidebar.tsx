@@ -3,7 +3,7 @@ import { AdminNavigation } from "./admin-navigation";
 
 export function AdminSidebar() {
   return (
-    <aside className="sticky top-0 hidden h-dvh flex-col border-r border-border bg-surface p-5 lg:flex">
+    <aside className="sticky top-0 hidden h-dvh overflow-y-auto flex-col border-r border-border bg-surface p-5 lg:flex">
       <Link
         href="/admin"
         className="mb-1 inline-flex min-h-11 items-center text-2xl font-bold tracking-tight"

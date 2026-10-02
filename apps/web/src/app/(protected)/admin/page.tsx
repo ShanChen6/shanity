@@ -1,3 +1,4 @@
+import { AdminOverview } from "@/features/admin/admin-overview";
 import { PageHeader } from "@/components/layout/page-header";
 import Link from "next/link";
 import { requireRole } from "@/lib/server-session";
@@ -12,8 +13,11 @@ export default async function AdminPage() {
       </p>
       <PageHeader
         title="Khu vực quản trị"
-        description="Chọn một mục trong menu để bắt đầu."
+        description="Tổng quan tài khoản trong hệ thống."
       />
+      <div className="mt-6">
+        <AdminOverview />
+      </div>
       <Card className="mt-8 max-w-xl">
         <Icon name="users" className="mb-4 size-7 text-primary" />
         <h2 className="text-lg font-semibold">Người dùng</h2>

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
-import { ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto } from './auth.dto.js';
+import { CreateUserDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto } from './auth.dto.js';
 import { type AuthRequest } from './auth.guards.js';
 import { GoogleService } from './google.service.js';
 export declare class AuthController {
@@ -35,25 +35,80 @@ export declare class UsersController {
             status: string;
             roles: string[];
             createdAt: Date;
+            updatedAt: Date;
         }[];
         page: number;
         limit: number;
         total: number;
         totalPages: number;
     }>;
+    create(req: AuthRequest, dto: CreateUserDto): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        status: string;
+        roles: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
     me(req: AuthRequest): Promise<{
         id: any;
         email: any;
         displayName: any;
+        avatarUrl: string | null;
         roles: any[];
     }>;
     update(req: AuthRequest, dto: ProfileDto): Promise<{
         id: any;
         email: any;
         displayName: any;
+        avatarUrl: string | null;
         roles: any[];
     }>;
     adminCheck(): {
         authorized: boolean;
     };
+    changeRole(req: AuthRequest, id: string, dto: ChangeUserRoleDto): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        status: string;
+        roles: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    changeStatus(req: AuthRequest, id: string, dto: ChangeUserStatusDto): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        status: string;
+        roles: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    statistics(): Promise<{
+        totalUsers: number;
+        students: number;
+        instructors: number;
+        admins: number;
+        activeUsers: number;
+    }>;
+    edit(req: AuthRequest, id: string, dto: UpdateUserDto): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        status: string;
+        roles: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    detail(id: string): Promise<{
+        id: string;
+        email: string;
+        displayName: string;
+        status: string;
+        roles: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
 }

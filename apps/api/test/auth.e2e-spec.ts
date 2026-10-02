@@ -28,14 +28,18 @@ describe('Auth + User with PostgreSQL', () => {
     () => `${randomUUID()}@example.invalid`,
   );
   const googleVerify = vi.fn();
+  let testIp: string;
+  beforeEach(() => {
+    testIp = `e2e-${randomUUID()}`;
+  });
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(GoogleProvider)
       .useValue({ client: () => ({}), verify: googleVerify })
       .compile();
     app = module.createNestApplication();
-    // Give this test run its own rate-limit identity without deleting database rows.
-    const testIp = `e2e-${randomUUID()}`;
+    // Keep the rate-limit test from exhausting subsequent tests
+    // while retaining the real limiter and database rows.
     app.use((req: Request, _res: Response, next: NextFunction) => {
       Object.defineProperty(req, 'ip', { value: testIp });
       next();
@@ -306,6 +310,380 @@ describe('Auth + User with PostgreSQL', () => {
     expect(status).toBe(429);
   });
 
+  it('aggregates user statistics for admin without double-counting multiple roles', async () => {
+    const adminEmail = `${randomUUID()}@example.invalid`;
+    const studentEmail = `${randomUUID()}@example.invalid`;
+    const adminSession = cookies(await register(adminEmail));
+    const studentSession = cookies(await register(studentEmail));
+    const admin = await db('users').where({ email: adminEmail }).first();
+    const student = await db('users').where({ email: studentEmail }).first();
+    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const stats = (session?: string[]) => {
+      const req = request(app.getHttpServer()).get('/users/stats');
+      return session ? req.set('Cookie', session) : req;
+    };
+    await stats().expect(401);
+    await stats(studentSession).expect(403);
+    await db('user_roles').insert({
+      user_id: student.id,
+      role_code: 'instructor',
+    });
+    await stats(studentSession).expect(403);
+    const before = await stats(adminSession).expect(200);
+    expect(before.headers['cache-control']).toBe('no-store');
+    expect(Object.keys(before.body).sort()).toEqual([
+      'activeUsers',
+      'admins',
+      'instructors',
+      'students',
+      'totalUsers',
+    ]);
+    for (const value of Object.values(before.body)) {
+      expect(typeof value).toBe('number');
+      expect(Number.isInteger(value)).toBe(true);
+    }
+    const [multi, instructor, noRole] = await db('users')
+      .insert([
+        {
+          email: `${randomUUID()}@example.invalid`,
+          display_name: 'Multi-role',
+          status: 'disabled',
+        },
+        {
+          email: `${randomUUID()}@example.invalid`,
+          display_name: 'Instructor',
+          status: 'active',
+        },
+        {
+          email: `${randomUUID()}@example.invalid`,
+          display_name: 'No role',
+          status: 'active',
+        },
+      ])
+      .returning('id');
+    await db('user_roles').insert([
+      { user_id: multi.id, role_code: 'student' },
+      { user_id: multi.id, role_code: 'instructor' },
+      { user_id: multi.id, role_code: 'admin' },
+      { user_id: instructor.id, role_code: 'instructor' },
+    ]);
+    expect(noRole.id).toBeDefined();
+    const after = await stats(adminSession).expect(200);
+    expect(after.body).toEqual({
+      totalUsers: before.body.totalUsers + 3,
+      activeUsers: before.body.activeUsers + 2,
+      students: before.body.students + 1,
+      instructors: before.body.instructors + 2,
+      admins: before.body.admins + 1,
+    });
+    await request(app.getHttpServer())
+      .patch(`/users/${multi.id}/status`)
+      .set('Origin', origin)
+      .set('Cookie', adminSession)
+      .send({ status: 'ACTIVE' })
+      .expect(200);
+    expect((await stats(adminSession).expect(200)).body).toEqual({
+      ...after.body,
+      activeUsers: after.body.activeUsers + 1,
+    });
+    await request(app.getHttpServer())
+      .patch(`/users/${multi.id}/role`)
+      .set('Origin', origin)
+      .set('Cookie', adminSession)
+      .send({ role: 'STUDENT' })
+      .expect(200);
+    expect((await stats(adminSession).expect(200)).body).toEqual({
+      ...after.body,
+      activeUsers: after.body.activeUsers + 1,
+      instructors: after.body.instructors - 1,
+      admins: after.body.admins - 1,
+    });
+    await db('user_roles')
+      .where({ user_id: admin.id, role_code: 'admin' })
+      .delete();
+    await stats(adminSession).expect(403);
+  });
+
+  it('manages account status securely without deleting users or changing roles', async () => {
+    const adminEmail = `${randomUUID()}@example.invalid`;
+    const peerEmail = `${randomUUID()}@example.invalid`;
+    const targetEmail = `${randomUUID()}@example.invalid`;
+    const adminSession = cookies(await register(adminEmail));
+    const peerSession = cookies(await register(peerEmail));
+    const targetSession = cookies(await register(targetEmail));
+    const admin = await db('users').where({ email: adminEmail }).first();
+    const peer = await db('users').where({ email: peerEmail }).first();
+    const target = await db('users').where({ email: targetEmail }).first();
+    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const patch = (id: string, session?: string[], source = origin) => {
+      const req = request(app.getHttpServer())
+        .patch(`/users/${id}/status`)
+        .set('Origin', source);
+      return session ? req.set('Cookie', session) : req;
+    };
+    await patch(target.id).send({ status: 'DISABLED' }).expect(401);
+    await patch(admin.id, targetSession)
+      .send({ status: 'DISABLED' })
+      .expect(403);
+    await db('user_roles').insert({
+      user_id: peer.id,
+      role_code: 'instructor',
+    });
+    await patch(target.id, peerSession)
+      .send({ status: 'DISABLED' })
+      .expect(403);
+    await patch(target.id, adminSession, 'https://untrusted.invalid')
+      .send({ status: 'DISABLED' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/users/${target.id}/status`)
+      .set('Cookie', adminSession)
+      .send({ status: 'DISABLED' })
+      .expect(403);
+    for (const body of [
+      {},
+      { status: 'disabled' },
+      { status: 'DELETED' },
+      { status: null },
+      { status: ['ACTIVE'] },
+      { status: 'ACTIVE', role: 'ADMIN' },
+    ]) {
+      await patch(target.id, adminSession).send(body).expect(400);
+    }
+    await patch('invalid', adminSession).send({ status: 'ACTIVE' }).expect(400);
+    await patch(randomUUID(), adminSession)
+      .send({ status: 'ACTIVE' })
+      .expect(404);
+    await patch(admin.id, adminSession)
+      .send({ status: 'DISABLED' })
+      .expect(409);
+    const disabled = await patch(target.id, adminSession)
+      .send({ status: 'DISABLED' })
+      .expect(200);
+    expect(disabled.headers['cache-control']).toBe('no-store');
+    expect(disabled.body).toEqual({
+      id: target.id,
+      email: targetEmail,
+      displayName: 'Student',
+      status: 'disabled',
+      roles: ['student'],
+      createdAt: target.created_at.toISOString(),
+      updatedAt: expect.any(String),
+    });
+    expect(new Date(disabled.body.updatedAt).getTime()).toBeGreaterThan(
+      target.update_at.getTime(),
+    );
+    expect(
+      (
+        await patch(target.id, adminSession)
+          .send({ status: 'DISABLED' })
+          .expect(200)
+      ).body.updatedAt,
+    ).toBe(disabled.body.updatedAt);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', targetSession)
+      .expect(401);
+    await post('/auth/refresh').set('Cookie', targetSession).expect(401);
+    await post('/auth/login')
+      .send({ email: targetEmail, password })
+      .expect(401);
+    const activated = await patch(target.id, adminSession)
+      .send({ status: 'ACTIVE' })
+      .expect(200);
+    expect(activated.body.status).toBe('active');
+    expect(activated.body.roles).toEqual(['student']);
+    expect(new Date(activated.body.updatedAt).getTime()).toBeGreaterThan(
+      new Date(disabled.body.updatedAt).getTime(),
+    );
+    await post('/auth/login')
+      .send({ email: targetEmail, password })
+      .expect(200);
+    // Status gating preserves the existing session lifecycle: activation restores valid sessions.
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', targetSession)
+      .expect(200);
+    const stored = await db('users').where({ id: target.id }).first();
+    expect(stored.password_hash).toBe(target.password_hash);
+    expect(stored.created_at).toEqual(target.created_at);
+    await db('user_roles').insert({ user_id: peer.id, role_code: 'admin' });
+    const results = await Promise.all([
+      patch(admin.id, peerSession).send({ status: 'DISABLED' }),
+      request(app.getHttpServer())
+        .patch(`/users/${peer.id}/role`)
+        .set('Cookie', adminSession)
+        .set('Origin', origin)
+        .send({ role: 'STUDENT' }),
+    ]);
+    expect(results.filter((result) => result.status === 200)).toHaveLength(1);
+    expect(
+      results.filter((result) => [401, 403].includes(result.status)),
+    ).toHaveLength(1);
+    const activeAdmins = await db('users as u')
+      .join('user_roles as r', 'r.user_id', 'u.id')
+      .whereIn('u.id', [admin.id, peer.id])
+      .where({ 'u.status': 'active', 'r.role_code': 'admin' });
+    expect(activeAdmins).toHaveLength(1);
+  });
+
+  it('changes roles securely, updates timestamps and serializes competing admins', async () => {
+    const adminEmail = `${randomUUID()}@example.invalid`;
+    const peerEmail = `${randomUUID()}@example.invalid`;
+    const targetEmail = `${randomUUID()}@example.invalid`;
+    const adminSession = cookies(await register(adminEmail));
+    const peerSession = cookies(await register(peerEmail));
+    const targetSession = cookies(await register(targetEmail));
+    const admin = await db('users').where({ email: adminEmail }).first();
+    const peer = await db('users').where({ email: peerEmail }).first();
+    const target = await db('users').where({ email: targetEmail }).first();
+    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    const patch = (id: string, session?: string[], source = origin) => {
+      const req = request(app.getHttpServer())
+        .patch(`/users/${id}/role`)
+        .set('Origin', source);
+      return session ? req.set('Cookie', session) : req;
+    };
+    await patch(target.id).send({ role: 'ADMIN' }).expect(401);
+    await patch(admin.id, targetSession).send({ role: 'ADMIN' }).expect(403);
+    await patch(target.id, adminSession, 'https://untrusted.invalid')
+      .send({ role: 'ADMIN' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/users/${target.id}/role`)
+      .set('Cookie', adminSession)
+      .send({ role: 'ADMIN' })
+      .expect(403);
+    for (const body of [
+      {},
+      { role: 'admin' },
+      { role: 'OWNER' },
+      { role: ['ADMIN'] },
+      { role: null },
+      { role: 'ADMIN', status: 'disabled' },
+    ]) {
+      await patch(target.id, adminSession).send(body).expect(400);
+    }
+    await patch('bad-id', adminSession).send({ role: 'ADMIN' }).expect(400);
+    await patch(randomUUID(), adminSession).send({ role: 'ADMIN' }).expect(404);
+    await patch(admin.id, adminSession).send({ role: 'STUDENT' }).expect(409);
+    await patch(admin.id, adminSession)
+      .send({ role: 'INSTRUCTOR' })
+      .expect(409);
+    expect(
+      (
+        await db('user_roles')
+          .where({ user_id: admin.id })
+          .pluck<string[]>('role_code')
+      ).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(['admin', 'student']);
+    const instructor = await patch(target.id, adminSession)
+      .send({ role: 'INSTRUCTOR' })
+      .expect(200);
+    expect(instructor.headers['cache-control']).toBe('no-store');
+    expect(instructor.body).toEqual({
+      id: target.id,
+      email: targetEmail,
+      displayName: 'Student',
+      roles: ['instructor'],
+      status: 'active',
+      createdAt: target.created_at.toISOString(),
+      updatedAt: expect.any(String),
+    });
+    expect(new Date(instructor.body.updatedAt).getTime()).toBeGreaterThan(
+      target.update_at.getTime(),
+    );
+    await patch(peer.id, targetSession).send({ role: 'ADMIN' }).expect(403);
+    const repeated = await patch(target.id, adminSession)
+      .send({ role: 'INSTRUCTOR' })
+      .expect(200);
+    expect(repeated.body.updatedAt).toBe(instructor.body.updatedAt);
+    await patch(target.id, adminSession).send({ role: 'ADMIN' }).expect(200);
+    await request(app.getHttpServer())
+      .get('/users/admin-check')
+      .set('Cookie', targetSession)
+      .expect(200);
+    await patch(target.id, adminSession).send({ role: 'STUDENT' }).expect(200);
+    await request(app.getHttpServer())
+      .get('/users/admin-check')
+      .set('Cookie', targetSession)
+      .expect(403);
+    // Profile writes also advance the database-managed timestamp.
+    const before = await db('users')
+      .where({ id: target.id })
+      .first('update_at');
+    await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Origin', origin)
+      .set('Cookie', targetSession)
+      .send({ displayName: 'Updated profile' })
+      .expect(200);
+    const after = await db('users').where({ id: target.id }).first('update_at');
+    expect(after.update_at.getTime()).toBeGreaterThan(
+      before.update_at.getTime(),
+    );
+    await patch(peer.id, adminSession).send({ role: 'ADMIN' }).expect(200);
+    const results = await Promise.all([
+      patch(peer.id, adminSession).send({ role: 'STUDENT' }),
+      patch(admin.id, peerSession).send({ role: 'INSTRUCTOR' }),
+    ]);
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([200, 403]);
+    const remaining = await db('user_roles')
+      .whereIn('user_id', [admin.id, peer.id])
+      .where({ role_code: 'admin' });
+    expect(remaining).toHaveLength(1);
+  });
+
+  it('reads user detail for admin only with safe fields and preserves static routes', async () => {
+    const adminEmail = `${randomUUID()}@example.invalid`;
+    const targetEmail = `${randomUUID()}@example.invalid`;
+    const adminSession = cookies(await register(adminEmail));
+    const targetSession = cookies(await register(targetEmail));
+    const admin = await db('users').where({ email: adminEmail }).first();
+    const target = await db('users').where({ email: targetEmail }).first();
+    const detail = (id: string, session?: string[]) => {
+      const req = request(app.getHttpServer()).get(`/users/${id}`);
+      return session ? req.set('Cookie', session) : req;
+    };
+    await db('user_roles').insert({ user_id: admin.id, role_code: 'admin' });
+    await detail(target.id).expect(401);
+    await detail(target.id, targetSession).expect(403);
+    await db('user_roles').insert({
+      user_id: target.id,
+      role_code: 'instructor',
+    });
+    await detail(target.id, targetSession).expect(403);
+    const result = await detail(target.id, adminSession).expect(200);
+    expect(result.headers['cache-control']).toBe('no-store');
+    expect(result.body).toEqual({
+      id: target.id,
+      email: targetEmail,
+      displayName: 'Student',
+      status: 'active',
+      roles: ['instructor', 'student'],
+      createdAt: target.created_at.toISOString(),
+      updatedAt: target.update_at.toISOString(),
+    });
+    await db('users').where({ id: target.id }).update({ status: 'disabled' });
+    expect(
+      (await detail(target.id, adminSession).expect(200)).body.status,
+    ).toBe('disabled');
+    await detail(randomUUID(), adminSession).expect(404);
+    await detail('invalid-uuid', adminSession).expect(400);
+    expect((await detail('me', adminSession).expect(200)).body.id).toBe(
+      admin.id,
+    );
+    expect(
+      (await detail('admin-check', adminSession).expect(200)).body,
+    ).toEqual({ authorized: true });
+    await db('user_roles')
+      .where({ user_id: admin.id, role_code: 'admin' })
+      .delete();
+    await detail(target.id, adminSession).expect(403);
+  });
+
   it('lists users for admin only, paginates and rejects invalid paging', async () => {
     const adminEmail = `${randomUUID()}@example.invalid`;
     const studentEmail = `${randomUUID()}@example.invalid`;
@@ -344,6 +722,49 @@ describe('Auth + User with PostgreSQL', () => {
       expect(item).not.toHaveProperty('password_hash');
       expect(item).not.toHaveProperty('passwordHash');
       expect(Array.isArray(item.roles)).toBe(true);
+    }
+
+    const filtered = (query: Record<string, string | number | undefined>) =>
+      request(app.getHttpServer())
+        .get('/users')
+        .query(query)
+        .set('Cookie', adminSession);
+    const match = await filtered({
+      search: adminEmail.toUpperCase(),
+      role: 'admin',
+      status: 'active',
+      limit: 1,
+    }).expect(200);
+    expect(match.body.total).toBe(1);
+    expect(match.body.items[0].roles.sort()).toEqual(['admin', 'student']);
+    expect(
+      (await filtered({ search: adminEmail, page: 2, limit: 1 }).expect(200))
+        .body.items,
+    ).toEqual([]);
+    expect(
+      (await filtered({ search: adminEmail, status: 'disabled' }).expect(200))
+        .body.total,
+    ).toBe(0);
+    await db('users')
+      .where({ id: instructorRow.id })
+      .update({ display_name: 'Filter_Name%Unique', status: 'disabled' });
+    const byName = await filtered({
+      search: 'name%unique',
+      status: 'disabled',
+      role: 'instructor',
+    }).expect(200);
+    expect(byName.body.total).toBe(1);
+    expect(byName.body.items[0].id).toBe(instructorRow.id);
+    expect(
+      (await filtered({ search: 'Filter_Name_Unique' }).expect(200)).body.total,
+    ).toBe(0);
+    for (const query of [
+      { role: 'owner' },
+      { status: 'pending' },
+      { search: 'x'.repeat(255) },
+      { page: 2147483648 },
+    ]) {
+      await filtered(query).expect(400);
     }
 
     const full = await request(app.getHttpServer())

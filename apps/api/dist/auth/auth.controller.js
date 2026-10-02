@@ -10,9 +10,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Get, Header, HttpCode, Patch, Post, Query, Req, Res, UseGuards, UseFilters, } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards, UseFilters, } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
-import { ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto, } from './auth.dto.js';
+import { CreateUserDto, UpdateUserDto, ChangeUserRoleDto, ChangeUserStatusDto, ListUsersQueryDto, LoginDto, ProfileDto, RegisterDto, } from './auth.dto.js';
 import { AuthRateGuard, cookie, OriginGuard, Roles, SessionGuard, } from './auth.guards.js';
 import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { GoogleService } from './google.service.js';
@@ -144,7 +144,10 @@ let UsersController = class UsersController {
         this.auth = auth;
     }
     list(query) {
-        return this.auth.listUsers(query.page, query.limit);
+        return this.auth.listUsers(query);
+    }
+    create(req, dto) {
+        return this.auth.createUser(req.principal, dto);
     }
     me(req) {
         return this.auth.profile(req.principal.id);
@@ -159,6 +162,21 @@ let UsersController = class UsersController {
     adminCheck() {
         return { authorized: true };
     }
+    changeRole(req, id, dto) {
+        return this.auth.changeUserRole(req.principal, id, dto.role);
+    }
+    changeStatus(req, id, dto) {
+        return this.auth.changeUserStatus(req.principal, id, dto.status);
+    }
+    statistics() {
+        return this.auth.userStatistics();
+    }
+    edit(req, id, dto) {
+        return this.auth.updateUser(req.principal, id, dto);
+    }
+    detail(id) {
+        return this.auth.userDetail(id);
+    }
 };
 __decorate([
     Get(),
@@ -169,6 +187,16 @@ __decorate([
     __metadata("design:paramtypes", [ListUsersQueryDto]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "list", null);
+__decorate([
+    Post(),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, CreateUserDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "create", null);
 __decorate([
     Get('me'),
     Header('Cache-Control', 'no-store'),
@@ -194,6 +222,56 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "adminCheck", null);
+__decorate([
+    Patch(':id/role'),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('id', new ParseUUIDPipe())),
+    __param(2, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, ChangeUserRoleDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "changeRole", null);
+__decorate([
+    Patch(':id/status'),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('id', new ParseUUIDPipe())),
+    __param(2, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, ChangeUserStatusDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "changeStatus", null);
+__decorate([
+    Get('stats'),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "statistics", null);
+__decorate([
+    Patch(':id'),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('id', new ParseUUIDPipe())),
+    __param(2, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, UpdateUserDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "edit", null);
+__decorate([
+    Get(':id'),
+    Roles('admin'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Param('id', new ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "detail", null);
 UsersController = __decorate([
     Controller('users'),
     UseGuards(OriginGuard, SessionGuard),
