@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  ParseUUIDPipe,
   Param,
   Patch,
   Post,
@@ -47,6 +48,26 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   get(@Req() req: AuthRequest & { course: Course }) {
     return req.course;
+  }
+
+  @Post(':courseId/enroll')
+  @Roles('student')
+  @Header('Cache-Control', 'no-store')
+  enroll(
+    @Req() req: AuthRequest,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+  ) {
+    return this.courses.enroll(req.principal.id, courseId);
+  }
+
+  @Get(':courseId/enrollment-status')
+  @Roles('student')
+  @Header('Cache-Control', 'no-store')
+  enrollmentStatus(
+    @Req() req: AuthRequest,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+  ) {
+    return this.courses.enrollmentStatus(req.principal.id, courseId);
   }
 
   @Patch(':id')

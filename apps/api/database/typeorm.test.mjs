@@ -12,6 +12,8 @@ import {
 import { Course } from '../dist/courses/course.entity.js';
 import { Chapter } from '../dist/courses/chapter.entity.js';
 import { Enrollment } from '../dist/courses/enrollment.entity.js';
+import { CoursesService } from '../dist/courses/courses.service.js';
+import { CourseAccessService } from '../dist/courses/course-access.service.js';
 import { User } from '../dist/users/user.entity.js';
 import { CourseStatus } from '../dist/courses/course-status.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
@@ -104,6 +106,78 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
       6,
     );
     assert.equal((await migrateDatabase(db)).length, 3);
+  }));
+
+test('C15 free enrollment is race-safe and lesson access honors previews', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({
+        email: 'c15@example.invalid',
+        displayName: 'C15 Student',
+      }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({
+        title: 'C15 Course',
+        slug: 'c15-course',
+        status: CourseStatus.PUBLISHED,
+        price: 0,
+      }),
+    );
+    const [chapter] = await db.query(
+      'INSERT INTO chapters(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+      [course.id, 'C15 Chapter'],
+    );
+    const [preview] = await db.query(
+      'INSERT INTO lessons(course_id,chapter_id,title,type,body,position,is_preview) VALUES ($1,$2,$3,$4,$5,0,true) RETURNING id',
+      [course.id, chapter.id, 'Preview', 'Article', 'Preview content'],
+    );
+    const [protectedLesson] = await db.query(
+      'INSERT INTO lessons(course_id,chapter_id,title,type,body,position,is_preview) VALUES ($1,$2,$3,$4,$5,1,false) RETURNING id',
+      [course.id, chapter.id, 'Protected', 'Article', 'Protected content'],
+    );
+    const access = new CourseAccessService({ dataSource: db });
+    assert.deepEqual(await access.canAccessLesson(undefined, preview.id), {
+      granted: true,
+    });
+    assert.deepEqual(
+      await access.canAccessLesson(undefined, protectedLesson.id),
+      { granted: false, reason: 'AUTHENTICATION_REQUIRED' },
+    );
+    assert.deepEqual(
+      await access.canAccessLesson(user.id, protectedLesson.id),
+      { granted: false, reason: 'ENROLLMENT_REQUIRED' },
+    );
+
+    const enrollments = new CoursesService({ dataSource: db }, {});
+    assert.deepEqual(await enrollments.enrollmentStatus(user.id, course.id), {
+      isEnrolled: false,
+    });
+    const results = await Promise.allSettled([
+      enrollments.enroll(user.id, course.id),
+      enrollments.enroll(user.id, course.id),
+    ]);
+    assert.equal(
+      results.filter((result) => result.status === 'fulfilled').length,
+      1,
+    );
+    const rejected = results.find((result) => result.status === 'rejected');
+    assert.equal(rejected.reason.getStatus(), 409);
+    assert.equal(
+      await db.getRepository(Enrollment).countBy({
+        userId: user.id,
+        courseId: course.id,
+      }),
+      1,
+    );
+    assert.equal(
+      (await enrollments.enrollmentStatus(user.id, course.id)).isEnrolled,
+      true,
+    );
+    assert.deepEqual(await access.canAccessLesson(user.id, protectedLesson.id), {
+      granted: true,
+    });
   }));
 
 test('C4 enrollment schema: preserves legacy rows, relations, constraints, cascades and Down/Up', async () =>

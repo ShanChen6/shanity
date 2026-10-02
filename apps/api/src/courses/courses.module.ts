@@ -11,6 +11,7 @@ import { CoursesController } from './courses.controller.js';
 import { PublicCoursesController } from './courses.controller.js';
 import { CoursesService } from './courses.service.js';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
+import { CourseAccessService } from './course-access.service.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -22,10 +23,12 @@ import { CoursePublishabilityValidator } from './course-publishability.validator
   ],
   providers: [
     CoursesService,
+    CourseAccessService,
     CoursePublishabilityValidator,
     OriginGuard,
     SessionGuard,
     CourseOwnershipGuard,
   ],
+  exports: [CourseAccessService],
 })
 export class CoursesModule {}

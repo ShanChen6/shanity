@@ -80,4 +80,6 @@ and real TypeORM relation loading. Each test removes only its own schema.
 
 API `typecheck` now includes production source and e2e tests. The previous
 Supertest type diagnostics have been fixed during the full TypeORM conversion.
-No CRUD or course endpoints are implemented.
+The free-enrollment endpoints and lesson-preview access policy are documented in
+[the database guide](./database.md). `CourseAccessService` is exported by
+`CoursesModule` for use by future lesson guards.

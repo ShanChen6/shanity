@@ -21,6 +21,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import {
   IsArray,
   ArrayUnique,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -47,13 +48,14 @@ class LessonDto {
   @IsIn(['Article', 'Video', 'Quiz']) type!: string;
   @IsOptional() @IsString() @Length(0, 100000) body?: string;
   @IsOptional() @IsString() @Matches(/^https?:\/\/[^\s]+$/) videoUrl?: string;
+  @IsOptional() @IsBoolean() isPreview?: boolean;
 }
 class LessonOrderDto {
   @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) ids!: string[];
 }
 type OwnedRequest = AuthRequest & { course: Course };
 const fields =
-  'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", position';
+  'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", is_preview AS "isPreview", position';
 
 @Controller('courses/:courseId')
 @UseGuards(OriginGuard, SessionGuard, CourseOwnershipGuard)
@@ -95,8 +97,8 @@ export class InstructorContentController {
     return this.database.transaction(async (manager) => {
       await this.chapter(manager, req.course.id, chapterId);
       const [lesson] = await manager.query(
-        `INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, position)
-        SELECT $1, $2, $3, $4, $5, $6, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`,
+        `INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, is_preview, position)
+        SELECT $1, $2, $3, $4, $5, $6, $7, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`,
         [
           req.course.id,
           chapterId,
@@ -104,6 +106,7 @@ export class InstructorContentController {
           dto.type,
           dto.body ?? '',
           dto.videoUrl ?? null,
+          dto.isPreview ?? false,
         ],
       );
       return lesson;
@@ -152,12 +155,13 @@ export class InstructorContentController {
         req.course.id,
       ]);
       const [lesson] = await manager.query(
-        `UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4 WHERE id = $5 AND course_id = $6 AND chapter_id IS NOT NULL RETURNING ${fields}`,
+        `UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4, is_preview = COALESCE($5, is_preview) WHERE id = $6 AND course_id = $7 AND chapter_id IS NOT NULL RETURNING ${fields}`,
         [
           dto.title.trim(),
           dto.type,
           dto.body ?? '',
           dto.videoUrl ?? null,
+          dto.isPreview ?? null,
           id,
           req.course.id,
         ],

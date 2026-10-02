@@ -1,4 +1,5 @@
 import { InstructorPortal1790899200005 } from './202610020005_instructor_portal.js';
+import { LessonPreview1790899200006 } from './202610020006_lesson_preview.js';
 import { Foundation1790467200001 } from './202609270001_foundation.js';
 import { Community1790467200002 } from './202609270002_community.js';
 import { AccessFoundation1790467200003 } from './202609270003_access_foundation.js';
@@ -69,6 +70,12 @@ export const migrationHistory = [
     name: 'InstructorPortal1790899200005',
     timestamp: 1790899200005,
     migration: InstructorPortal1790899200005,
+  },
+  {
+    legacy: null,
+    name: 'LessonPreview1790899200006',
+    timestamp: 1790899200006,
+    migration: LessonPreview1790899200006,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

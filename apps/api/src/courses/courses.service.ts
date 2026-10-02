@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { IsNull } from 'typeorm';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
 import { Chapter } from './chapter.entity.js';
+import { Enrollment } from './enrollment.entity.js';
 import {
   assertCourseTransition,
   InvalidCourseTransitionError,
@@ -49,6 +51,13 @@ interface PublicCourseDetailRow {
 
 const uniqueViolation = (error: unknown) =>
   (error as { code?: string })?.code === '23505';
+const isEnrollmentUniqueViolation = (error: unknown) => {
+  const databaseError = error as { code?: string; constraint?: string };
+  return (
+    databaseError.code === '23505' &&
+    databaseError.constraint === 'enrollments_user_id_course_id_key'
+  );
+};
 
 @Injectable()
 export class CoursesService {
@@ -56,6 +65,54 @@ export class CoursesService {
     private readonly database: DatabaseService,
     private readonly publishability: CoursePublishabilityValidator,
   ) {}
+
+  async enroll(userId: string, courseId: string) {
+    const course = await this.database.dataSource
+      .getRepository(Course)
+      .findOneBy({ id: courseId });
+    if (!course) throw new NotFoundException('Course not found');
+    if (course.status !== CourseStatus.PUBLISHED)
+      throw new ConflictException('Course is not published');
+    if (course.price !== 0)
+      throw new BadRequestException('Only free courses can be enrolled in');
+
+    const enrollments = this.database.dataSource.getRepository(Enrollment);
+    const existing = await enrollments.findOneBy({
+      userId,
+      courseId,
+      revokedAt: IsNull(),
+    });
+    if (existing) throw new ConflictException('Already enrolled');
+
+    try {
+      const enrollment = await enrollments.save(
+        enrollments.create({ userId, courseId }),
+      );
+      return {
+        message: 'Enrolled successfully',
+        enrollmentId: enrollment.id,
+        enrolledAt: enrollment.enrolledAt,
+      };
+    } catch (error) {
+      if (isEnrollmentUniqueViolation(error))
+        throw new ConflictException('Already enrolled');
+      throw error;
+    }
+  }
+
+  async enrollmentStatus(userId: string, courseId: string) {
+    const course = await this.database.dataSource
+      .getRepository(Course)
+      .findOneBy({ id: courseId });
+    if (!course) throw new NotFoundException('Course not found');
+
+    const enrollment = await this.database.dataSource
+      .getRepository(Enrollment)
+      .findOneBy({ userId, courseId, revokedAt: IsNull() });
+    return enrollment
+      ? { isEnrolled: true, enrolledAt: enrollment.enrolledAt }
+      : { isEnrolled: false };
+  }
 
   async create(principal: Principal, dto: CreateCourseDto) {
     const repository = this.database.dataSource.getRepository(Course);
