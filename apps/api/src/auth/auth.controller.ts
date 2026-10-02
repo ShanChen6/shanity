@@ -18,6 +18,7 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import {
   CreateUserDto,
+  ChangePasswordDto,
   UpdateUserDto,
   ChangeUserRoleDto,
   ChangeUserStatusDto,
@@ -181,6 +182,22 @@ export class UsersController {
       .where({ id: req.principal.id, status: 'active' })
       .update({ display_name: dto.displayName });
     return this.auth.profile(req.principal.id);
+  }
+  @Patch('me/password')
+  @UseGuards(AuthRateGuard)
+  @HttpCode(204)
+  @Header('Cache-Control', 'no-store')
+  async changePassword(
+    @Req() req: AuthRequest,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.auth.changePassword(req.principal, dto);
+    for (const kind of ['access', 'refresh'] as const)
+      res.clearCookie(
+        this.auth.config.cookieName(kind),
+        this.auth.config.cookieOptions(0),
+      );
   }
   @Get('admin-check')
   @Roles('admin')
