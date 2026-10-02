@@ -32,6 +32,10 @@ type Session = {
     data: SignInPayload,
   ) => Promise<User>;
   logout: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>;
   update: (name: string) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   removeAvatar: () => Promise<void>;
@@ -143,6 +147,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     reset();
     broadcast("logout");
   }
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await flight.current;
+    // Refresh before taking the lock: api's automatic refresh uses this same lock.
+    await getCurrentUser();
+    await sessionLock(async () => {
+      await api(
+        "/users/me/password",
+        {
+          method: "PATCH",
+          body: JSON.stringify({ currentPassword, newPassword }),
+        },
+        false,
+      );
+      reset();
+      setMessage("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
+      broadcast("logout");
+    });
+  }
   async function updateSelf(path: string, init: RequestInit, notice: string) {
     const current = generation.current;
     const profile = await api<User>(path, init);
@@ -196,6 +218,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         load,
         signIn,
         logout,
+        changePassword,
         update,
         uploadAvatar,
         removeAvatar,

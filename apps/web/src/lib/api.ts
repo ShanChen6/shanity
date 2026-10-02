@@ -10,6 +10,7 @@ export type User = {
   displayName: string;
   roles: Role[];
   avatarUrl: string | null;
+  hasPassword: boolean;
 };
 export class ApiError extends Error {
   constructor(

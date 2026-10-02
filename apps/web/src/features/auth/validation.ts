@@ -11,6 +11,11 @@ export function validateName(value: string) {
     ? undefined
     : "Tên hiển thị cần từ 1 đến 100 ký tự.";
 }
+export function validatePassword(value: string) {
+  return isLength(value, { min: 12, max: 128 })
+    ? undefined
+    : "Mật khẩu cần từ 12 đến 128 ký tự.";
+}
 export function validateCredentials(
   email: string,
   password: string,
@@ -22,8 +27,7 @@ export function validateCredentials(
     !isLength(email.trim(), { max: 254 })
   )
     errors.email = "Vui lòng nhập email hợp lệ, tối đa 254 ký tự.";
-  if (!isLength(password, { min: 12, max: 128 }))
-    errors.password = "Mật khẩu cần từ 12 đến 128 ký tự.";
+  errors.password = validatePassword(password);
   if (displayName !== undefined) errors.displayName = validateName(displayName);
   return errors;
 }

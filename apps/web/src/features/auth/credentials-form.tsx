@@ -22,6 +22,7 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
   const session = useSession();
   const router = useRouter();
   const destination = safeRedirect(useSearchParams().get("redirect"));
+  const passwordChanged = useSearchParams().get("passwordChanged") === "1";
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [displayName, setDisplayName] = useState(""),
@@ -114,6 +115,11 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
     return <Spinner label="Đang kiểm tra phiên đăng nhập" />;
   return (
     <div className="w-full max-w-[25rem]">
+      {!register && passwordChanged && (
+        <Alert tone="success">
+          Đổi mật khẩu thành công. Vui lòng đăng nhập lại.
+        </Alert>
+      )}
       <p className="mb-3 text-xs font-semibold tracking-widest text-primary">
         {register ? "BẮT ĐẦU CÙNG SHANITY" : "CHÀO MỪNG BẠN TRỞ LẠI"}
       </p>
