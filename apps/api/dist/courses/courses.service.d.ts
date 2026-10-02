@@ -8,6 +8,18 @@ export declare class CoursesService {
     private readonly database;
     private readonly publishability;
     constructor(database: DatabaseService, publishability: CoursePublishabilityValidator);
+    enroll(userId: string, courseId: string): Promise<{
+        message: string;
+        enrollmentId: string;
+        enrolledAt: Date;
+    }>;
+    enrollmentStatus(userId: string, courseId: string): Promise<{
+        isEnrolled: boolean;
+        enrolledAt: Date;
+    } | {
+        isEnrolled: boolean;
+        enrolledAt?: undefined;
+    }>;
     create(principal: Principal, dto: CreateCourseDto): Promise<Course>;
     update(course: Course, dto: UpdateCourseDto): Promise<Course>;
     publish(id: string): Promise<Course>;

@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Req, StreamableFile, UploadedFile, UseGuards, UseInterceptors, } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { IsArray, ArrayUnique, IsIn, IsOptional, IsString, IsUUID, Length, Matches, } from 'class-validator';
+import { IsArray, ArrayUnique, IsBoolean, IsIn, IsOptional, IsString, IsUUID, Length, Matches, } from 'class-validator';
 import { DataSource } from 'typeorm';
 import { OriginGuard, Roles, SessionGuard, } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
@@ -22,6 +22,7 @@ class LessonDto {
     type;
     body;
     videoUrl;
+    isPreview;
 }
 __decorate([
     IsString(),
@@ -45,6 +46,11 @@ __decorate([
     Matches(/^https?:\/\/[^\s]+$/),
     __metadata("design:type", String)
 ], LessonDto.prototype, "videoUrl", void 0);
+__decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], LessonDto.prototype, "isPreview", void 0);
 class LessonOrderDto {
     ids;
 }
@@ -54,7 +60,7 @@ __decorate([
     IsUUID('4', { each: true }),
     __metadata("design:type", Array)
 ], LessonOrderDto.prototype, "ids", void 0);
-const fields = 'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", position';
+const fields = 'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", is_preview AS "isPreview", position';
 let InstructorContentController = class InstructorContentController {
     database;
     constructor(database) {
@@ -74,14 +80,15 @@ let InstructorContentController = class InstructorContentController {
     create(req, chapterId, dto) {
         return this.database.transaction(async (manager) => {
             await this.chapter(manager, req.course.id, chapterId);
-            const [lesson] = await manager.query(`INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, position)
-        SELECT $1, $2, $3, $4, $5, $6, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`, [
+            const [lesson] = await manager.query(`INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, is_preview, position)
+        SELECT $1, $2, $3, $4, $5, $6, $7, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`, [
                 req.course.id,
                 chapterId,
                 dto.title.trim(),
                 dto.type,
                 dto.body ?? '',
                 dto.videoUrl ?? null,
+                dto.isPreview ?? false,
             ]);
             return lesson;
         });
@@ -103,11 +110,12 @@ let InstructorContentController = class InstructorContentController {
             await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
                 req.course.id,
             ]);
-            const [lesson] = await manager.query(`UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4 WHERE id = $5 AND course_id = $6 AND chapter_id IS NOT NULL RETURNING ${fields}`, [
+            const [lesson] = await manager.query(`UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4, is_preview = COALESCE($5, is_preview) WHERE id = $6 AND course_id = $7 AND chapter_id IS NOT NULL RETURNING ${fields}`, [
                 dto.title.trim(),
                 dto.type,
                 dto.body ?? '',
                 dto.videoUrl ?? null,
+                dto.isPreview ?? null,
                 id,
                 req.course.id,
             ]);

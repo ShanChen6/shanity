@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 export interface CourseOwnershipOptions {
-    resource?: 'course' | 'chapter';
+    resource?: 'course' | 'chapter' | 'lesson';
     param?: string;
 }
 export declare const RequireCourseOwnership: (options?: CourseOwnershipOptions) => import("@nestjs/common").CustomDecorator<string>;

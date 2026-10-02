@@ -4,10 +4,12 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Course } from './course.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 
 @Entity('chapters')
 @Index('chapters_course_id_idx', ['courseId'])
@@ -28,6 +30,9 @@ export class Chapter {
     foreignKeyConstraintName: 'FK_chapters_course',
   })
   course: Relation<Course>;
+
+  @OneToMany(() => Lesson, (lesson) => lesson.chapter)
+  lessons: Relation<Lesson[]>;
 
   @Column({ type: 'varchar', length: 255 })
   title: string;

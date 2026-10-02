@@ -14,6 +14,7 @@ import { CoursesController } from './courses.controller.js';
 import { PublicCoursesController } from './courses.controller.js';
 import { CoursesService } from './courses.service.js';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
+import { CourseAccessService } from './course-access.service.js';
 let CoursesModule = class CoursesModule {
 };
 CoursesModule = __decorate([
@@ -27,11 +28,13 @@ CoursesModule = __decorate([
         ],
         providers: [
             CoursesService,
+            CourseAccessService,
             CoursePublishabilityValidator,
             OriginGuard,
             SessionGuard,
             CourseOwnershipGuard,
         ],
+        exports: [CourseAccessService],
     })
 ], CoursesModule);
 export { CoursesModule };

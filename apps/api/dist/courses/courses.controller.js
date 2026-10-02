@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Get, Header, Param, Patch, Post, Query, Req, UseGuards, } from '@nestjs/common';
+import { Body, Controller, Get, Header, ParseUUIDPipe, Param, Patch, Post, Query, Req, UseGuards, } from '@nestjs/common';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
 import { CreateCourseDto, UpdateCourseDto } from './courses.dto.js';
@@ -29,6 +29,12 @@ let CoursesController = class CoursesController {
     }
     get(req) {
         return req.course;
+    }
+    enroll(req, courseId) {
+        return this.courses.enroll(req.principal.id, courseId);
+    }
+    enrollmentStatus(req, courseId) {
+        return this.courses.enrollmentStatus(req.principal.id, courseId);
     }
     update(req, _id, dto) {
         return this.courses.update(req.course, dto);
@@ -73,6 +79,26 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], CoursesController.prototype, "get", null);
+__decorate([
+    Post(':courseId/enroll'),
+    Roles('student'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('courseId', new ParseUUIDPipe({ version: '4' }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "enroll", null);
+__decorate([
+    Get(':courseId/enrollment-status'),
+    Roles('student'),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('courseId', new ParseUUIDPipe({ version: '4' }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "enrollmentStatus", null);
 __decorate([
     Patch(':id'),
     Roles('instructor', 'admin'),

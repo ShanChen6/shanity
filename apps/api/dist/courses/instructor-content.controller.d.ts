@@ -7,6 +7,7 @@ declare class LessonDto {
     type: string;
     body?: string;
     videoUrl?: string;
+    isPreview?: boolean;
 }
 declare class LessonOrderDto {
     ids: string[];

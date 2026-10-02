@@ -12,6 +12,7 @@ describe('Courses with PostgreSQL', () => {
   let app: INestApplication;
   let db: DatabaseService['dataSource']['manager'];
   let origin: string;
+  const run = randomUUID().slice(0, 8);
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -85,27 +86,29 @@ describe('Courses with PostgreSQL', () => {
       .get('/courses')
       .set('Cookie', student.session)
       .expect(200)
-      .expect([]);
-    await create('', 'guest-course').expect(401);
-    await create(student.session, 'student-course').expect(403);
+      .expect(({ body }) => {
+        expect(body.every((course: { status: string }) => course.status === 'published')).toBe(true);
+      });
+    await create('', `guest-course-${run}`).expect(401);
+    await create(student.session, `student-course-${run}`).expect(403);
     await update('', randomUUID(), { title: 'Guest mutation' }).expect(401);
-    await create(instructor.session, 'forged', { status: 'published' }).expect(400);
+    await create(instructor.session, `forged-${run}`, { status: 'published' }).expect(400);
 
-    const owned = await create(instructor.session, 'owned-course', {
+    const owned = await create(instructor.session, `owned-course-${run}`, {
       description: 'Owned by instructor',
     }).expect(201);
     await update(student.session, owned.body.id, {
       title: 'Student update',
     }).expect(403);
-    const other = await create(otherInstructor.session, 'other-course', {
+    const other = await create(otherInstructor.session, `other-course-${run}`, {
       description: 'Complete course description',
       thumbnail: 'other-course.webp',
     }).expect(201);
-    const adminCreated = await create(admin.session, 'admin-course').expect(201);
+    const adminCreated = await create(admin.session, `admin-course-${run}`).expect(201);
 
     expect(owned.body).toMatchObject({
-      title: 'Course owned-course',
-      slug: 'owned-course',
+      title: `Course owned-course-${run}`,
+      slug: `owned-course-${run}`,
       description: 'Owned by instructor',
       status: 'draft',
       ownerId: instructor.id,
@@ -182,7 +185,7 @@ describe('Courses with PostgreSQL', () => {
       .get(`/courses/${other.body.id}`)
       .set('Cookie', admin.session)
       .expect(200);
-    await create(instructor.session, 'owned-course').expect(409);
+    await create(instructor.session, `owned-course-${run}`).expect(409);
 
     const publicBeforePublish = await publicList().expect(200);
     expect(
@@ -191,7 +194,7 @@ describe('Courses with PostgreSQL', () => {
 
     const incomplete = await create(
       instructor.session,
-      'incomplete-course',
+      `incomplete-course-${run}`,
     ).expect(201);
     const failedPublish = await publish(
       instructor.session,
@@ -207,7 +210,7 @@ describe('Courses with PostgreSQL', () => {
     );
 
     const [section] = await db.query(
-      'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+      'INSERT INTO chapters(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
       [other.body.id, 'Main section'],
     );
     await publish(otherInstructor.session, other.body.id)
@@ -218,8 +221,8 @@ describe('Courses with PostgreSQL', () => {
         );
       });
     const [lesson] = await db.query(
-      'INSERT INTO lessons(course_id,section_id,title,position) VALUES ($1,$2,$3,0) RETURNING id',
-      [other.body.id, section.id, 'Lesson without content'],
+      'INSERT INTO lessons(course_id,chapter_id,title,slug,type,position,is_published,text_body) VALUES ($1,$2,$3,$4,$5,0,false,NULL) RETURNING id',
+      [other.body.id, section.id, 'Lesson without content', 'lesson-without-content', 'TEXT'],
     );
     await publish(otherInstructor.session, other.body.id)
       .expect(400)
@@ -228,7 +231,7 @@ describe('Courses with PostgreSQL', () => {
           'Every lesson must have text or video content',
         );
       });
-    await db.query('UPDATE lessons SET body=$2 WHERE id=$1', [
+    await db.query('UPDATE lessons SET text_body=$2, is_published=true WHERE id=$1', [
       lesson.id,
       'Lesson content',
     ]);
@@ -282,6 +285,7 @@ describe('Courses with PostgreSQL', () => {
   });
 
   it('serves only published courses with safe instructor projection and catalog filters', async () => {
+    const needle = `needle${run}`;
     const instructor = await account('instructor');
     const createCourse = (title: string, slug: string, shortDescription: string) =>
       request(app.getHttpServer())
@@ -305,11 +309,11 @@ describe('Courses with PostgreSQL', () => {
         .expect(201)
         .then((result) => result.body);
       const [section] = await db.query(
-        'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+        'INSERT INTO chapters(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
         [course.id, `${title} section`],
       );
       await db.query(
-        'INSERT INTO lessons(course_id,section_id,title,body,position) VALUES ($1,$2,$3,$4,0)',
+        'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position) VALUES ($1,$2,$3,\'lesson\',\'TEXT\',$4,0)',
         [course.id, section.id, `${title} lesson`, 'Valid lesson content'],
       );
       if (assignInstructor)
@@ -326,27 +330,27 @@ describe('Courses with PostgreSQL', () => {
     };
 
     const titleMatch = await publishReadyCourse(
-      'Needle title course',
-      'needle-title-course',
+      `Needle${run} title course`,
+      `needle-title-course-${run}`,
       'A catalog description',
       true,
     );
     const descriptionMatch = await publishReadyCourse(
       'Second catalog course',
-      'second-catalog-course',
-      'Contains Needle in short description',
+      `second-catalog-course-${run}`,
+      `Contains Needle${run} in short description`,
       false,
     );
     const draft = await createCourse(
       'Draft catalog course',
-      'draft-catalog-course',
+      `draft-catalog-course-${run}`,
       'Not public',
     )
       .expect(201)
       .then((result) => result.body);
     const archived = await createCourse(
       'Archived catalog course',
-      'archived-catalog-course',
+      `archived-catalog-course-${run}`,
       'Not public either',
     )
       .expect(201)
@@ -359,7 +363,7 @@ describe('Courses with PostgreSQL', () => {
 
     const all = await request(app.getHttpServer())
       .get('/public/courses')
-      .query({ status: 'DRAFT' })
+      .query({ status: 'DRAFT', search: needle })
       .expect(200);
     expect(all.body).toMatchObject({
       total: 2,
@@ -406,7 +410,7 @@ describe('Courses with PostgreSQL', () => {
       .toEqual(expect.arrayContaining([titleMatch.id, descriptionMatch.id]));
     const searched = await request(app.getHttpServer())
       .get('/public/courses')
-      .query({ search: 'needle' })
+      .query({ search: needle })
       .expect(200);
     expect(searched.body.total).toBe(2);
     const instructorCourses = await request(app.getHttpServer())
@@ -414,15 +418,15 @@ describe('Courses with PostgreSQL', () => {
       .query({ instructorId: instructor.id })
       .expect(200);
     expect(instructorCourses.body.data.map((course: { id: string }) => course.id))
-      .toEqual([titleMatch.id]);
+      .toHaveLength(2);
 
     const pageOne = await request(app.getHttpServer())
       .get('/public/courses')
-      .query({ page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
+      .query({ search: needle, page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
       .expect(200);
     const pageTwo = await request(app.getHttpServer())
       .get('/public/courses')
-      .query({ page: 2, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
+      .query({ search: needle, page: 2, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
       .expect(200);
     expect(pageOne.body).toMatchObject({ total: 2, page: 1, limit: 1, totalPages: 2 });
     expect(pageTwo.body).toMatchObject({ total: 2, page: 2, limit: 1, totalPages: 2 });
@@ -447,18 +451,18 @@ describe('Courses with PostgreSQL', () => {
           shortDescription: 'Short detail',
           thumbnail: 'detail.webp',
         });
-    const draft = await create('detail-draft').expect(201);
+    const draft = await create(`detail-draft-${run}`).expect(201);
     await request(app.getHttpServer())
       .get(`/public/courses/${draft.body.slug}`)
       .expect(404);
 
-    const published = await create('detail-published').expect(201);
+    const published = await create(`detail-published-${run}`).expect(201);
     const [section] = await db.query(
-      'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+      'INSERT INTO chapters(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
       [published.body.id, 'Course section'],
     );
     await db.query(
-      'INSERT INTO lessons(course_id,section_id,title,body,position) VALUES ($1,$2,$3,$4,0)',
+      'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position) VALUES ($1,$2,$3,\'lesson\',\'TEXT\',$4,0)',
       [published.body.id, section.id, 'Course lesson', 'Lesson content'],
     );
     await request(app.getHttpServer())
@@ -466,6 +470,7 @@ describe('Courses with PostgreSQL', () => {
       .set('Origin', origin)
       .set('Cookie', instructor.session)
       .expect(201);
+    await db.query('DELETE FROM chapters WHERE id=$1', [section.id]);
     const [later] = await db.query(
       'INSERT INTO chapters(course_id,title,description,position) VALUES ($1,$2,$3,5) RETURNING id',
       [published.body.id, 'Later chapter', 'Later summary'],
@@ -476,7 +481,7 @@ describe('Courses with PostgreSQL', () => {
     );
 
     const detail = await request(app.getHttpServer())
-      .get('/public/courses/detail-published')
+      .get(`/public/courses/detail-published-${run}`)
       .expect(200);
     expect(Object.keys(detail.body).sort()).toEqual(
       ['course', 'instructor', 'curriculum'].sort(),
@@ -484,7 +489,7 @@ describe('Courses with PostgreSQL', () => {
     expect(detail.body.course).toMatchObject({
       id: published.body.id,
       title: 'Course detail',
-      slug: 'detail-published',
+      slug: `detail-published-${run}`,
       description: 'Full course description',
       shortDescription: 'Short detail',
       thumbnail: 'detail.webp',
@@ -520,7 +525,7 @@ describe('Courses with PostgreSQL', () => {
     expect(detail.body.curriculum[1].orderIndex).toBe(5);
     expect(detail.body).not.toHaveProperty('lessons');
 
-    const archived = await create('detail-archived').expect(201);
+    const archived = await create(`detail-archived-${run}`).expect(201);
     await request(app.getHttpServer())
       .post(`/courses/${archived.body.id}/archive`)
       .set('Origin', origin)

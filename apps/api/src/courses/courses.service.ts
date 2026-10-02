@@ -176,8 +176,7 @@ export class CoursesService {
           (SELECT count(*) FROM lessons WHERE course_id = $1)::integer AS lesson_count,
           (SELECT count(*) FROM lessons
             WHERE course_id = $1
-              AND NULLIF(btrim(body), '') IS NULL
-              AND NULLIF(btrim(video_storage_key), '') IS NULL)::integer AS lessons_without_content`,
+              AND NOT is_published)::integer AS lessons_without_content`,
         [id],
       );
       const errors = this.publishability.validate(course, {

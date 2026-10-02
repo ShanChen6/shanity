@@ -13,6 +13,7 @@ import { isUUID } from 'class-validator';
 import { DataSource } from 'typeorm';
 import { Chapter } from './chapter.entity.js';
 import { Course } from './course.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 import { CourseStatus } from './course-status.js';
 const COURSE_OWNERSHIP = 'courseOwnership';
 export const RequireCourseOwnership = (options = {}) => SetMetadata(COURSE_OWNERSHIP, options);
@@ -43,6 +44,15 @@ let CourseOwnershipGuard = class CourseOwnershipGuard {
                 throw new NotFoundException('Chapter not found');
             courseId = chapter.courseId;
         }
+        if (options.resource === 'lesson') {
+            const lesson = await this.dataSource.getRepository(Lesson).findOne({
+                where: { id: resourceId },
+                select: { id: true, courseId: true },
+            });
+            if (!lesson)
+                throw new NotFoundException('Lesson not found');
+            courseId = lesson.courseId;
+        }
         const course = await this.dataSource
             .getRepository(Course)
             .findOne({ where: { id: courseId } });
@@ -67,12 +77,14 @@ let CourseOwnershipGuard = class CourseOwnershipGuard {
         const params = request.params;
         const candidates = options.resource === 'chapter'
             ? [options.param && params[options.param], params.chapterId, params.id]
-            : [
-                options.param && params[options.param],
-                params.id,
-                params.courseId,
-                body?.courseId,
-            ];
+            : options.resource === 'lesson'
+                ? [options.param && params[options.param], params.id]
+                : [
+                    options.param && params[options.param],
+                    params.id,
+                    params.courseId,
+                    body?.courseId,
+                ];
         return candidates.find((value) => typeof value === 'string');
     }
 };

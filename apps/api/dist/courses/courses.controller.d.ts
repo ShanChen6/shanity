@@ -11,6 +11,18 @@ export declare class CoursesController {
     get(req: AuthRequest & {
         course: Course;
     }): Course;
+    enroll(req: AuthRequest, courseId: string): Promise<{
+        message: string;
+        enrollmentId: string;
+        enrolledAt: Date;
+    }>;
+    enrollmentStatus(req: AuthRequest, courseId: string): Promise<{
+        isEnrolled: boolean;
+        enrolledAt: Date;
+    } | {
+        isEnrolled: boolean;
+        enrolledAt?: undefined;
+    }>;
     update(req: AuthRequest & {
         course: Course;
     }, _id: string, dto: UpdateCourseDto): Promise<Course>;

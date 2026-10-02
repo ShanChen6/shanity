@@ -13,12 +13,13 @@ import { DataSource } from 'typeorm';
 import type { AuthRequest } from '../auth/auth.guards.js';
 import { Chapter } from './chapter.entity.js';
 import { Course } from './course.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 import { CourseStatus } from './course-status.js';
 
 const COURSE_OWNERSHIP = 'courseOwnership';
 
 export interface CourseOwnershipOptions {
-  resource?: 'course' | 'chapter';
+  resource?: 'course' | 'chapter' | 'lesson';
   param?: string;
 }
 
@@ -57,6 +58,15 @@ export class CourseOwnershipGuard implements CanActivate {
       courseId = chapter.courseId;
     }
 
+    if (options.resource === 'lesson') {
+      const lesson = await this.dataSource.getRepository(Lesson).findOne({
+        where: { id: resourceId },
+        select: { id: true, courseId: true },
+      });
+      if (!lesson) throw new NotFoundException('Lesson not found');
+      courseId = lesson.courseId;
+    }
+
     const course = await this.dataSource
       .getRepository(Course)
       .findOne({ where: { id: courseId } });
@@ -90,7 +100,9 @@ export class CourseOwnershipGuard implements CanActivate {
     const candidates =
       options.resource === 'chapter'
         ? [options.param && params[options.param], params.chapterId, params.id]
-        : [
+        : options.resource === 'lesson'
+          ? [options.param && params[options.param], params.id]
+          : [
             options.param && params[options.param],
             params.id,
             params.courseId,

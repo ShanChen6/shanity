@@ -12,6 +12,7 @@ describe('Chapters with PostgreSQL', () => {
   let app: INestApplication;
   let db: DatabaseService['dataSource']['manager'];
   let origin: string;
+  const run = randomUUID().slice(0, 8);
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -61,10 +62,10 @@ describe('Chapters with PostgreSQL', () => {
         .set('Origin', origin)
         .set('Cookie', session)
         .send({ title: slug, slug });
-    const course = await createCourse(owner.session, 'chapter-owner-course')
+    const course = await createCourse(owner.session, `chapter-owner-${run}`)
       .expect(201)
       .then((result) => result.body);
-    const otherCourse = await createCourse(other.session, 'chapter-other-course')
+    const otherCourse = await createCourse(other.session, `chapter-other-${run}`)
       .expect(201)
       .then((result) => result.body);
     const foreignChapter = await request(app.getHttpServer())

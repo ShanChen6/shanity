@@ -17,6 +17,7 @@ let Enrollment = class Enrollment {
     courseId;
     course;
     enrolledAt;
+    revokedAt;
 };
 __decorate([
     PrimaryGeneratedColumn('uuid'),
@@ -56,6 +57,10 @@ __decorate([
     Column({ name: 'enrolled_at', type: 'timestamptz', default: () => 'now()' }),
     __metadata("design:type", Date)
 ], Enrollment.prototype, "enrolledAt", void 0);
+__decorate([
+    Column({ name: 'revoked_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], Enrollment.prototype, "revokedAt", void 0);
 Enrollment = __decorate([
     Entity('enrollments'),
     Unique('enrollments_user_id_course_id_key', ['userId', 'courseId']),

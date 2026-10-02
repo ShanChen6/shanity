@@ -7,12 +7,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, } from 'typeorm';
 import { Course } from './course.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 let Chapter = class Chapter {
     id;
     courseId;
     course;
+    lessons;
     title;
     description;
     position;
@@ -38,6 +40,10 @@ __decorate([
     }),
     __metadata("design:type", Object)
 ], Chapter.prototype, "course", void 0);
+__decorate([
+    OneToMany(() => Lesson, (lesson) => lesson.chapter),
+    __metadata("design:type", Object)
+], Chapter.prototype, "lessons", void 0);
 __decorate([
     Column({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)

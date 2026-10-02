@@ -8,20 +8,72 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { BadRequestException, ConflictException, Injectable, NotFoundException, } from '@nestjs/common';
+import { IsNull } from 'typeorm';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
 import { Chapter } from './chapter.entity.js';
+import { Enrollment } from './enrollment.entity.js';
 import { assertCourseTransition, InvalidCourseTransitionError, } from './course-lifecycle.js';
 import { DatabaseService } from '../database/database.module.js';
 import { User } from '../users/user.entity.js';
 const uniqueViolation = (error) => error?.code === '23505';
+const isEnrollmentUniqueViolation = (error) => {
+    const databaseError = error;
+    return (databaseError.code === '23505' &&
+        databaseError.constraint === 'enrollments_user_id_course_id_key');
+};
 let CoursesService = class CoursesService {
     database;
     publishability;
     constructor(database, publishability) {
         this.database = database;
         this.publishability = publishability;
+    }
+    async enroll(userId, courseId) {
+        const course = await this.database.dataSource
+            .getRepository(Course)
+            .findOneBy({ id: courseId });
+        if (!course)
+            throw new NotFoundException('Course not found');
+        if (course.status !== CourseStatus.PUBLISHED)
+            throw new ConflictException('Course is not published');
+        if (course.price !== 0)
+            throw new BadRequestException('Only free courses can be enrolled in');
+        const enrollments = this.database.dataSource.getRepository(Enrollment);
+        const existing = await enrollments.findOneBy({
+            userId,
+            courseId,
+            revokedAt: IsNull(),
+        });
+        if (existing)
+            throw new ConflictException('Already enrolled');
+        try {
+            const enrollment = await enrollments.save(enrollments.create({ userId, courseId }));
+            return {
+                message: 'Enrolled successfully',
+                enrollmentId: enrollment.id,
+                enrolledAt: enrollment.enrolledAt,
+            };
+        }
+        catch (error) {
+            if (isEnrollmentUniqueViolation(error))
+                throw new ConflictException('Already enrolled');
+            throw error;
+        }
+    }
+    async enrollmentStatus(userId, courseId) {
+        const course = await this.database.dataSource
+            .getRepository(Course)
+            .findOneBy({ id: courseId });
+        if (!course)
+            throw new NotFoundException('Course not found');
+        const enrollment = await this.database.dataSource
+            .getRepository(Enrollment)
+            .findOneBy({ userId, courseId, revokedAt: IsNull() });
+        return enrollment
+            ? { isEnrolled: true, enrolledAt: enrollment.enrolledAt }
+            : { isEnrolled: false };
     }
     async create(principal, dto) {
         const repository = this.database.dataSource.getRepository(Course);
@@ -82,8 +134,7 @@ let CoursesService = class CoursesService {
           (SELECT count(*) FROM lessons WHERE course_id = $1)::integer AS lesson_count,
           (SELECT count(*) FROM lessons
             WHERE course_id = $1
-              AND NULLIF(btrim(body), '') IS NULL
-              AND NULLIF(btrim(video_storage_key), '') IS NULL)::integer AS lessons_without_content`, [id]);
+              AND NOT is_published)::integer AS lessons_without_content`, [id]);
             const errors = this.publishability.validate(course, {
                 sectionCount: Number(facts.section_count),
                 sectionsWithoutLessons: Number(facts.sections_without_lessons),

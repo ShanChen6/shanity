@@ -5,9 +5,10 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { CoursesModule } from './courses/courses.module.js';
 import { ChaptersModule } from './courses/chapters.module.js';
+import { LessonsModule } from './modules/lessons/lessons.module.js';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, CoursesModule, ChaptersModule],
+  imports: [DatabaseModule, AuthModule, CoursesModule, ChaptersModule, LessonsModule],
   controllers: [AppController],
   providers: [AppService],
 })

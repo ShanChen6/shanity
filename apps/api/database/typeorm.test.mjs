@@ -12,6 +12,10 @@ import {
 import { Course } from '../dist/courses/course.entity.js';
 import { Chapter } from '../dist/courses/chapter.entity.js';
 import { Enrollment } from '../dist/courses/enrollment.entity.js';
+import {
+  Lesson,
+  LessonType,
+} from '../dist/modules/lessons/entities/lesson.entity.js';
 import { CoursesService } from '../dist/courses/courses.service.js';
 import { CourseAccessService } from '../dist/courses/course-access.service.js';
 import { User } from '../dist/users/user.entity.js';
@@ -88,13 +92,12 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
       migrateDatabase(db),
       migrateDatabase(db),
     ]);
-    assert.equal(completed.flat().length, 9);
+    assert.equal(completed.flat().length, migrations.length);
     assert.deepEqual(await migrateDatabase(db), []);
     assert.equal(
       (await db.query('SELECT * FROM typeorm_migrations')).length,
-      9,
+      migrations.length,
     );
-    await migrateDatabase(db, { revert: true });
     await migrateDatabase(db, { revert: true });
     await migrateDatabase(db, { revert: true });
     await assert.rejects(
@@ -103,9 +106,67 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
     );
     assert.equal(
       (await db.query('SELECT * FROM typeorm_migrations')).length,
-      6,
+      migrations.length - 2,
     );
-    assert.equal((await migrateDatabase(db)).length, 3);
+    assert.equal((await migrateDatabase(db)).length, 2);
+  }));
+
+test('L2 lesson schema enforces uniqueness, cascades chapters and rolls back cleanly', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({
+        title: 'Lesson schema course',
+        slug: 'lesson-schema-course',
+      }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({
+        courseId: course.id,
+        title: 'Lesson schema chapter',
+        position: 0,
+      }),
+    );
+    const lessons = db.getRepository(Lesson);
+    const lesson = await lessons.save(
+      lessons.create({
+        courseId: course.id,
+        chapterId: chapter.id,
+        title: 'Introduction',
+        slug: 'introduction',
+        type: LessonType.TEXT,
+        position: 0,
+        textBody: '# Introduction',
+      }),
+    );
+    assert.equal(lesson.isPreview, false);
+    assert.equal(lesson.isPublished, true);
+    await rejectsCode(
+      () =>
+        lessons.insert({
+          courseId: course.id,
+          chapterId: chapter.id,
+          title: 'Duplicate position',
+          slug: 'duplicate-position',
+          type: LessonType.TEXT,
+          position: 0,
+          textBody: 'Body',
+        }),
+      '23505',
+      'UQ_lessons_chapter_position',
+    );
+    await db.getRepository(Chapter).delete(chapter.id);
+    assert.equal(await lessons.countBy({ chapterId: chapter.id }), 0);
+
+    await migrateDatabase(db, { revert: true });
+    assert.equal(
+      (await db.query('SELECT to_regtype(\'"LessonType"\') AS name'))[0].name,
+      null,
+    );
+    assert.notEqual(
+      (await db.query("SELECT to_regclass('lessons') AS name"))[0].name,
+      null,
+    );
   }));
 
 test('C15 free enrollment is race-safe and lesson access honors previews', async () =>
@@ -130,12 +191,12 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
       [course.id, 'C15 Chapter'],
     );
     const [preview] = await db.query(
-      'INSERT INTO lessons(course_id,chapter_id,title,type,body,position,is_preview) VALUES ($1,$2,$3,$4,$5,0,true) RETURNING id',
-      [course.id, chapter.id, 'Preview', 'Article', 'Preview content'],
+      'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position,is_preview) VALUES ($1,$2,$3,$4,$5,$6,0,true) RETURNING id',
+      [course.id, chapter.id, 'Preview', 'preview', 'TEXT', 'Preview content'],
     );
     const [protectedLesson] = await db.query(
-      'INSERT INTO lessons(course_id,chapter_id,title,type,body,position,is_preview) VALUES ($1,$2,$3,$4,$5,1,false) RETURNING id',
-      [course.id, chapter.id, 'Protected', 'Article', 'Protected content'],
+      'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position,is_preview) VALUES ($1,$2,$3,$4,$5,$6,1,false) RETURNING id',
+      [course.id, chapter.id, 'Protected', 'protected', 'TEXT', 'Protected content'],
     );
     const access = new CourseAccessService({ dataSource: db });
     assert.deepEqual(await access.canAccessLesson(undefined, preview.id), {

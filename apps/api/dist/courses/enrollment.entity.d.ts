@@ -8,4 +8,5 @@ export declare class Enrollment {
     courseId: string;
     course: Relation<Course>;
     enrolledAt: Date;
+    revokedAt: Date | null;
 }
