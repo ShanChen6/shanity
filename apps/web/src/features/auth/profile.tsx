@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EditProfile } from "./edit-profile";
+import { ChangePassword } from "./change-password";
 import { UserHeader } from "./user-header";
 import { useSession } from "./session-provider";
 
@@ -92,22 +93,12 @@ export function Profile() {
         <Card>
           <h2 className="text-lg font-semibold">Tùy chọn hồ sơ</h2>
           <p id="profile-actions-note" className="mt-2 text-sm text-muted">
-            Bạn có thể chỉnh sửa tên hiển thị và ảnh đại diện. Đổi mật khẩu sẽ
-            được bổ sung sau.
+            Bạn có thể chỉnh sửa tên hiển thị, ảnh đại diện và đổi mật khẩu.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <EditProfile key={user.id} />
             <AvatarManager key={`avatar-${user.id}`} />
-            {["Đổi mật khẩu"].map((label) => (
-              <Button
-                key={label}
-                variant="secondary"
-                disabled
-                aria-describedby="profile-actions-note"
-              >
-                {label}
-              </Button>
-            ))}
+            <ChangePassword key={`password-${user.id}`} />
           </div>
         </Card>
       </main>

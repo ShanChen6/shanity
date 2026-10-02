@@ -11,6 +11,12 @@ import {
   Matches,
   Min,
 } from 'class-validator';
+// Shared by registration, login and password changes.
+const passwordLength = () => Length(12, 128);
+export class ChangePasswordDto {
+  @IsString() @passwordLength() currentPassword!: string;
+  @IsString() @passwordLength() newPassword!: string;
+}
 export class LoginDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
@@ -18,7 +24,7 @@ export class LoginDto {
   @IsEmail()
   @MaxLength(254)
   email!: string;
-  @IsString() @Length(12, 128) password!: string;
+  @IsString() @passwordLength() password!: string;
 }
 export class RegisterDto extends LoginDto {
   @Transform(({ value }: { value: unknown }) =>

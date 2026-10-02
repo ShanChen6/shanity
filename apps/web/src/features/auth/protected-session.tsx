@@ -27,12 +27,18 @@ export function ProtectedSession({
   useEffect(() => {
     if (denied) router.replace("/forbidden");
     else if (session.status === "anonymous") {
+      if (
+        session.message === "Đổi mật khẩu thành công. Vui lòng đăng nhập lại."
+      ) {
+        router.replace("/login?passwordChanged=1");
+        return;
+      }
       const query = search.toString();
       router.replace(
         loginUrl(pathname + (query ? `?${query}` : "") + window.location.hash),
       );
     }
-  }, [denied, session.status, router, pathname, search]);
+  }, [denied, session.status, session.message, router, pathname, search]);
   if (session.status === "error")
     return (
       <main className="container py-16">

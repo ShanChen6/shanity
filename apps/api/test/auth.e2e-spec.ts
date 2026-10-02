@@ -60,6 +60,97 @@ describe('Auth + User with PostgreSQL', () => {
       .expect(201);
   }
 
+  it('changes only the authenticated user password and revokes the current session', async () => {
+    const email = `${randomUUID()}@example.invalid`;
+    const session = cookies(await register(email));
+    const otherSession = cookies(
+      await post('/auth/login').send({ email, password }).expect(200),
+    );
+    const before = await db('users').where({ email }).first();
+    const newPassword = 'Changed-long-password-43';
+    const change = (body: object, auth = session, requestOrigin = origin) =>
+      request(app.getHttpServer())
+        .patch('/users/me/password')
+        .set('Origin', requestOrigin)
+        .set('Cookie', auth)
+        .send(body);
+    const body = { currentPassword: password, newPassword };
+    await change(body, []).expect(401);
+    await change(body, session, 'https://evil.example').expect(403);
+    await change({ ...body, userId: randomUUID() }).expect(400);
+    await change({ ...body, newPassword: 'short' }).expect(400);
+    await change({ ...body, newPassword: 'a'.repeat(129) }).expect(400);
+    await change({ newPassword }).expect(400);
+    await change({ ...body, currentPassword: 'incorrect-password' }).expect(
+      400,
+    );
+    await change({ ...body, newPassword: password }).expect(400);
+    expect((await db('users').where({ email }).first()).password_hash).toBe(
+      before.password_hash,
+    );
+    const changed = await change(body).expect(204);
+    expect(changed.headers['set-cookie'].join(';')).toContain(
+      'shanity_access=;',
+    );
+    expect(changed.headers['set-cookie'].join(';')).toContain(
+      'shanity_refresh=;',
+    );
+    const after = await db('users').where({ email }).first();
+    expect(after.password_hash).not.toBe(before.password_hash);
+    expect(after.password_hash).not.toBe(newPassword);
+    const { password_hash: _old, update_at: _oldTime, ...oldFields } = before;
+    const { password_hash: _new, update_at: _newTime, ...newFields } = after;
+    expect(newFields).toEqual(oldFields);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', session)
+      .expect(401);
+    await post('/auth/refresh').set('Cookie', session).expect(401);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', otherSession)
+      .expect(200);
+    await post('/auth/login').send({ email, password }).expect(401);
+    await post('/auth/login')
+      .send({ email, password: newPassword })
+      .expect(200);
+  });
+
+  it('rejects OAuth-only password changes and throttles attempts', async () => {
+    const email = `${randomUUID()}@example.invalid`;
+    const session = cookies(await register(email));
+    await db('users').where({ email }).update({ password_hash: null });
+    const profile = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', session)
+      .expect(200);
+    expect(profile.body.hasPassword).toBe(false);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const result = await request(app.getHttpServer())
+        .patch('/users/me/password')
+        .set('Origin', origin)
+        .set('Cookie', session)
+        .send({
+          currentPassword: password,
+          newPassword: 'Changed-long-password-43',
+        })
+        .expect(400);
+      expect(result.body.message).toContain('Google');
+    }
+    await request(app.getHttpServer())
+      .patch('/users/me/password')
+      .set('Origin', origin)
+      .set('Cookie', session)
+      .send({
+        currentPassword: password,
+        newPassword: 'Changed-long-password-43',
+      })
+      .expect(429);
+    expect(
+      (await db('users').where({ email }).first()).password_hash,
+    ).toBeNull();
+  });
+
   it('validates registration, normalizes email, assigns only student, restricts profile/admin and CSRF', async () => {
     await post('/auth/register')
       .send({

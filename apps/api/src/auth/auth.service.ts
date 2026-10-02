@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -16,6 +17,7 @@ import {
   verifyPassword,
 } from './password.js';
 import type {
+  ChangePasswordDto,
   CreateUserDto,
   UpdateUserDto,
   RegisterDto,
@@ -139,6 +141,44 @@ export class AuthService {
       return this.issue(trx, user.id);
     });
   }
+  async changePassword(actor: Principal, dto: ChangePasswordDto) {
+    await this.database.client.transaction(async (trx) => {
+      // Match refresh's session -> user lock order; revoke atomically with the write.
+      const session = await trx('auth_sessions')
+        .where({ id: actor.sessionId, user_id: actor.id })
+        .forUpdate()
+        .first();
+      if (
+        !session ||
+        session.revoked_at ||
+        new Date(session.expires_at) <= new Date()
+      )
+        throw new UnauthorizedException();
+      const user = await trx<UserRow>('users')
+        .where({ id: actor.id })
+        .forUpdate()
+        .first();
+      if (!user || user.status !== 'active') throw new UnauthorizedException();
+      if (!user.password_hash)
+        throw new BadRequestException(
+          'Tài khoản này đăng nhập bằng Google và chưa có mật khẩu.',
+        );
+      if (!(await verifyPassword(dto.currentPassword, user.password_hash)))
+        throw new BadRequestException('Mật khẩu hiện tại không đúng.');
+      if (dto.newPassword === dto.currentPassword)
+        throw new BadRequestException(
+          'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        );
+      await trx('users')
+        .where({ id: actor.id })
+        .update({
+          password_hash: await hashPassword(dto.newPassword),
+        });
+      await trx('auth_sessions')
+        .where({ id: actor.sessionId })
+        .update({ revoked_at: trx.fn.now() });
+    });
+  }
   async issue(trx: Knex.Transaction, userId: string) {
     const refresh = randomToken();
     const [session] = await trx('auth_sessions')
@@ -231,11 +271,12 @@ export class AuthService {
   async profile(id: string, db: Knex = this.database.client) {
     const user = await db('users')
       .where({ id })
-      .first('id', 'email', 'display_name', 'avatar_key');
+      .first('id', 'email', 'display_name', 'avatar_key', 'password_hash');
     return {
       id: user.id,
       email: user.email,
       displayName: user.display_name,
+      hasPassword: Boolean(user.password_hash),
       avatarUrl: user.avatar_key ? `/avatars/${user.avatar_key}` : null,
       roles: await db('user_roles').where({ user_id: id }).pluck('role_code'),
     };

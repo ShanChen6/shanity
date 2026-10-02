@@ -53,6 +53,74 @@ async function login(page: Page, email: string, pass = password) {
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
 }
 
+test("change password validates, clears cancellation, logs out and accepts only the new password", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await page.getByRole("button", { name: "Đổi mật khẩu", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Đổi mật khẩu" });
+  const current = dialog.getByLabel("Mật khẩu hiện tại", { exact: true });
+  const next = dialog.getByLabel("Mật khẩu mới", { exact: true });
+  const confirm = dialog.getByLabel("Xác nhận mật khẩu mới", { exact: true });
+  const submit = dialog.getByRole("button", {
+    name: "Đổi mật khẩu",
+    exact: true,
+  });
+  await current.fill(password);
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await page.getByRole("button", { name: "Đổi mật khẩu", exact: true }).click();
+  await expect(current).toHaveValue("");
+  await current.fill(password);
+  await next.fill(password);
+  await confirm.fill(password);
+  await submit.click();
+  await expect(
+    dialog.getByText("Mật khẩu mới phải khác mật khẩu hiện tại."),
+  ).toBeVisible();
+  const replacement = "Browser-changed-password-43";
+  await next.fill(replacement);
+  await submit.click();
+  await expect(dialog.getByText("Mật khẩu xác nhận không khớp.")).toBeVisible();
+  await confirm.fill(replacement);
+  await current.fill("incorrect-password");
+  await submit.click();
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Mật khẩu hiện tại không đúng.",
+  );
+  await current.fill(password);
+  await submit.click();
+  await expect(page).toHaveURL(/\/login\?/);
+  await expect(
+    page.getByText("Đổi mật khẩu thành công. Vui lòng đăng nhập lại."),
+  ).toBeVisible();
+  await login(page, email);
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Email hoặc mật khẩu không đúng" }),
+  ).toBeVisible();
+  await login(page, email, replacement);
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+  ).toBeVisible();
+});
+
+test("OAuth-only profile disables change password", async ({ page }) => {
+  const email = await register(page);
+  await db.query("UPDATE users SET password_hash = NULL WHERE email = $1", [
+    email,
+  ]);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Đổi mật khẩu", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Tài khoản đăng nhập bằng Google chưa có mật khẩu để thay đổi.",
+    ),
+  ).toBeVisible();
+});
+
 test("register, profile, reload, logout, login and student permissions", async ({
   page,
   context,
