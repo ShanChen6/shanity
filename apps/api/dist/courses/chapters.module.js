@@ -5,28 +5,25 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { Module } from '@nestjs/common';
+import { OriginGuard, SessionGuard } from '../auth/auth.guards.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
-import { OriginGuard, SessionGuard } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard } from './course-ownership.guard.js';
-import { CoursesController } from './courses.controller.js';
-import { PublicCoursesController } from './courses.controller.js';
-import { CoursesService } from './courses.service.js';
-import { CoursePublishabilityValidator } from './course-publishability.validator.js';
-let CoursesModule = class CoursesModule {
+import { ChaptersController } from './chapters.controller.js';
+import { ChaptersService } from './chapters.service.js';
+let ChaptersModule = class ChaptersModule {
 };
-CoursesModule = __decorate([
+ChaptersModule = __decorate([
     Module({
         imports: [AuthModule, DatabaseModule],
-        controllers: [CoursesController, PublicCoursesController],
+        controllers: [ChaptersController],
         providers: [
-            CoursesService,
-            CoursePublishabilityValidator,
+            ChaptersService,
             OriginGuard,
             SessionGuard,
             CourseOwnershipGuard,
         ],
     })
-], CoursesModule);
-export { CoursesModule };
-//# sourceMappingURL=courses.module.js.map
+], ChaptersModule);
+export { ChaptersModule };
+//# sourceMappingURL=chapters.module.js.map

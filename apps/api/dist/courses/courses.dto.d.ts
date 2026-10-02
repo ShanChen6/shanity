@@ -5,3 +5,10 @@ export declare class CreateCourseDto {
     shortDescription?: string | null;
     thumbnail?: string | null;
 }
+export declare class UpdateCourseDto {
+    title?: string;
+    slug?: string;
+    description?: string | null;
+    shortDescription?: string | null;
+    thumbnail?: string | null;
+}

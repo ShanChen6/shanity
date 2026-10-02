@@ -10,9 +10,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Req, UseGuards, } from '@nestjs/common';
+import { Body, Controller, Get, Header, Patch, Param, Post, Query, Req, UseGuards, } from '@nestjs/common';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
-import { CreateCourseDto } from './courses.dto.js';
+import { CourseOwnershipGuard, RequireCourseOwnership } from './course-ownership.guard.js';
+import { CreateCourseDto, UpdateCourseDto } from './courses.dto.js';
+import { PublicCourseQueryDto } from './public-courses.dto.js';
 import { CoursesService } from './courses.service.js';
 let CoursesController = class CoursesController {
     courses;
@@ -25,12 +27,22 @@ let CoursesController = class CoursesController {
     list(req) {
         return this.courses.list(req.principal);
     }
-    get(req, id) {
-        return this.courses.get(req.principal, id);
+    get(req) {
+        return req.course;
+    }
+    update(req, _id, dto) {
+        return this.courses.update(req.course, dto);
+    }
+    publish(id) {
+        return this.courses.publish(id);
+    }
+    archive(id) {
+        return this.courses.archive(id);
     }
 };
 __decorate([
     Post(),
+    Roles('instructor', 'admin'),
     Header('Cache-Control', 'no-store'),
     __param(0, Req()),
     __param(1, Body()),
@@ -40,6 +52,7 @@ __decorate([
 ], CoursesController.prototype, "create", null);
 __decorate([
     Get(),
+    Roles('student', 'instructor', 'admin'),
     Header('Cache-Control', 'no-store'),
     __param(0, Req()),
     __metadata("design:type", Function),
@@ -48,18 +61,76 @@ __decorate([
 ], CoursesController.prototype, "list", null);
 __decorate([
     Get(':id'),
+    Roles('student', 'instructor', 'admin'),
+    UseGuards(CourseOwnershipGuard),
+    RequireCourseOwnership({ resource: 'course', param: 'id' }),
     Header('Cache-Control', 'no-store'),
     __param(0, Req()),
-    __param(1, Param('id', new ParseUUIDPipe())),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], CoursesController.prototype, "get", null);
+__decorate([
+    Patch(':id'),
+    Roles('instructor', 'admin'),
+    UseGuards(CourseOwnershipGuard),
+    RequireCourseOwnership({ resource: 'course', param: 'id' }),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Req()),
+    __param(1, Param('id')),
+    __param(2, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, UpdateCourseDto]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "update", null);
+__decorate([
+    Post(':id/publish'),
+    Roles('instructor', 'admin'),
+    UseGuards(CourseOwnershipGuard),
+    RequireCourseOwnership({ resource: 'course', param: 'id' }),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Param('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "publish", null);
+__decorate([
+    Post(':id/archive'),
+    Roles('instructor', 'admin'),
+    UseGuards(CourseOwnershipGuard),
+    RequireCourseOwnership({ resource: 'course', param: 'id' }),
+    Header('Cache-Control', 'no-store'),
+    __param(0, Param('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "archive", null);
 CoursesController = __decorate([
     Controller('courses'),
     UseGuards(OriginGuard, SessionGuard),
-    Roles('instructor', 'admin'),
     __metadata("design:paramtypes", [CoursesService])
 ], CoursesController);
 export { CoursesController };
+let PublicCoursesController = class PublicCoursesController {
+    courses;
+    constructor(courses) {
+        this.courses = courses;
+    }
+    list(query) {
+        return this.courses.listPublic(query);
+    }
+};
+__decorate([
+    Get(),
+    Header('Cache-Control', 'public, max-age=60'),
+    __param(0, Query()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [PublicCourseQueryDto]),
+    __metadata("design:returntype", void 0)
+], PublicCoursesController.prototype, "list", null);
+PublicCoursesController = __decorate([
+    Controller('public/courses'),
+    __metadata("design:paramtypes", [CoursesService])
+], PublicCoursesController);
+export { PublicCoursesController };
 //# sourceMappingURL=courses.controller.js.map

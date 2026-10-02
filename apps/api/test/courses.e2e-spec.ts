@@ -61,18 +61,46 @@ describe('Courses with PostgreSQL', () => {
         .set('Origin', origin)
         .set('Cookie', session)
         .send({ title: `Course ${slug}`, slug, ...extra });
+    const update = (session: string, id: string, body: object) =>
+      request(app.getHttpServer())
+        .patch(`/courses/${id}`)
+        .set('Origin', origin)
+        .set('Cookie', session)
+        .send(body);
+    const publish = (session: string, id: string) =>
+      request(app.getHttpServer())
+        .post(`/courses/${id}/publish`)
+        .set('Origin', origin)
+        .set('Cookie', session);
+    const archive = (session: string, id: string) =>
+      request(app.getHttpServer())
+        .post(`/courses/${id}/archive`)
+        .set('Origin', origin)
+        .set('Cookie', session);
+    const publicList = (query: Record<string, string> = {}) =>
+      request(app.getHttpServer()).get('/public/courses').query(query);
 
     await request(app.getHttpServer()).get('/courses').expect(401);
     await request(app.getHttpServer())
       .get('/courses')
       .set('Cookie', student.session)
-      .expect(403);
+      .expect(200)
+      .expect([]);
+    await create('', 'guest-course').expect(401);
+    await create(student.session, 'student-course').expect(403);
+    await update('', randomUUID(), { title: 'Guest mutation' }).expect(401);
     await create(instructor.session, 'forged', { status: 'published' }).expect(400);
 
     const owned = await create(instructor.session, 'owned-course', {
       description: 'Owned by instructor',
     }).expect(201);
-    const other = await create(otherInstructor.session, 'other-course').expect(201);
+    await update(student.session, owned.body.id, {
+      title: 'Student update',
+    }).expect(403);
+    const other = await create(otherInstructor.session, 'other-course', {
+      description: 'Complete course description',
+      thumbnail: 'other-course.webp',
+    }).expect(201);
     const adminCreated = await create(admin.session, 'admin-course').expect(201);
 
     expect(owned.body).toMatchObject({
@@ -90,6 +118,30 @@ describe('Courses with PostgreSQL', () => {
         'draft',
       ]),
     ).toHaveLength(1);
+    const instructorUpdate = await update(instructor.session, owned.body.id, {
+      title: 'Course A updated by owner',
+    }).expect(200);
+    expect(instructorUpdate.body).toMatchObject({
+      title: 'Course A updated by owner',
+      ownerId: instructor.id,
+      status: 'draft',
+    });
+    await update(otherInstructor.session, owned.body.id, {
+      title: 'Unauthorized update',
+    }).expect(403);
+    await update(instructor.session, owned.body.id, {
+      ownerId: otherInstructor.id,
+    }).expect(400);
+    await update(instructor.session, owned.body.id, {
+      status: 'published',
+    }).expect(400);
+    await update(admin.session, owned.body.id, {
+      title: 'Course A updated by admin',
+    })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ownerId).toBe(instructor.id);
+      });
 
     const instructorList = await request(app.getHttpServer())
       .get('/courses')
@@ -105,17 +157,279 @@ describe('Courses with PostgreSQL', () => {
     await request(app.getHttpServer())
       .get(`/courses/${other.body.id}`)
       .set('Cookie', instructor.session)
+      .expect(403);
+    await update(instructor.session, other.body.id, {
+      title: 'Not the owner',
+    }).expect(403);
+    const missingId = randomUUID();
+    await request(app.getHttpServer())
+      .get(`/courses/${missingId}`)
+      .set('Cookie', instructor.session)
       .expect(404);
+    await update(instructor.session, missingId, { title: 'Missing' }).expect(404);
 
     const adminList = await request(app.getHttpServer())
       .get('/courses')
       .set('Cookie', admin.session)
       .expect(200);
-    expect(adminList.body).toHaveLength(3);
+    const adminCourseIds = adminList.body.map(
+      (course: { id: string }) => course.id,
+    );
+    expect(adminCourseIds).toEqual(
+      expect.arrayContaining([owned.body.id, other.body.id, adminCreated.body.id]),
+    );
     await request(app.getHttpServer())
       .get(`/courses/${other.body.id}`)
       .set('Cookie', admin.session)
       .expect(200);
     await create(instructor.session, 'owned-course').expect(409);
+
+    const publicBeforePublish = await publicList().expect(200);
+    expect(
+      publicBeforePublish.body.data.map((course: { id: string }) => course.id),
+    ).not.toContain(other.body.id);
+
+    const incomplete = await create(
+      instructor.session,
+      'incomplete-course',
+    ).expect(201);
+    const failedPublish = await publish(
+      instructor.session,
+      incomplete.body.id,
+    ).expect(400);
+    expect(failedPublish.body.message).toBe('Course is not ready to publish');
+    expect(failedPublish.body.errors).toEqual(
+      expect.arrayContaining([
+        'Course description is required',
+        'Course thumbnail is required',
+        'At least one section is required',
+      ]),
+    );
+
+    const [section] = await db.query(
+      'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+      [other.body.id, 'Main section'],
+    );
+    await publish(otherInstructor.session, other.body.id)
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.errors).toContain(
+          'Every section must contain at least one lesson',
+        );
+      });
+    const [lesson] = await db.query(
+      'INSERT INTO lessons(course_id,section_id,title,position) VALUES ($1,$2,$3,0) RETURNING id',
+      [other.body.id, section.id, 'Lesson without content'],
+    );
+    await publish(otherInstructor.session, other.body.id)
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.errors).toContain(
+          'Every lesson must have text or video content',
+        );
+      });
+    await db.query('UPDATE lessons SET body=$2 WHERE id=$1', [
+      lesson.id,
+      'Lesson content',
+    ]);
+    await publish(instructor.session, other.body.id).expect(403);
+    const published = await publish(otherInstructor.session, other.body.id)
+      .expect(201);
+    expect(published.body).toMatchObject({
+      status: 'published',
+      publishedAt: expect.any(String),
+    });
+    await publish(otherInstructor.session, other.body.id).expect(409);
+    const publicAfterPublish = await publicList().expect(200);
+    expect(
+      publicAfterPublish.body.data.map((course: { id: string }) => course.id),
+    ).toContain(other.body.id);
+    expect(
+      publicAfterPublish.body.data.map((course: { id: string }) => course.id),
+    ).not.toContain(owned.body.id);
+
+    const studentList = await request(app.getHttpServer())
+      .get('/courses')
+      .set('Cookie', student.session)
+      .expect(200);
+    const studentCourseIds = studentList.body.map(
+      (course: { id: string }) => course.id,
+    );
+    expect(studentCourseIds).toContain(other.body.id);
+    expect(studentCourseIds).not.toContain(owned.body.id);
+    await request(app.getHttpServer())
+      .get(`/courses/${other.body.id}`)
+      .set('Cookie', student.session)
+      .expect(200);
+
+    const archived = await archive(otherInstructor.session, other.body.id)
+      .expect(201);
+    expect(archived.body.status).toBe('archived');
+    await archive(otherInstructor.session, other.body.id).expect(409);
+    await publish(otherInstructor.session, other.body.id).expect(409);
+    expect(
+      (await publicList().expect(200)).body.data.map(
+        (course: { id: string }) => course.id,
+      ),
+    ).not.toContain(other.body.id);
+    await archive(instructor.session, incomplete.body.id).expect(201);
+    await publish(instructor.session, incomplete.body.id).expect(409);
+    await archive(admin.session, adminCreated.body.id)
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.status).toBe('archived');
+      });
+  });
+
+  it('serves only published courses with safe instructor projection and catalog filters', async () => {
+    const instructor = await account('instructor');
+    const createCourse = (title: string, slug: string, shortDescription: string) =>
+      request(app.getHttpServer())
+        .post('/courses')
+        .set('Origin', origin)
+        .set('Cookie', instructor.session)
+        .send({
+          title,
+          slug,
+          description: 'Catalog course description',
+          shortDescription,
+          thumbnail: `${slug}.webp`,
+        });
+    const publishReadyCourse = async (
+      title: string,
+      slug: string,
+      shortDescription: string,
+      assignInstructor: boolean,
+    ) => {
+      const course = await createCourse(title, slug, shortDescription)
+        .expect(201)
+        .then((result) => result.body);
+      const [section] = await db.query(
+        'INSERT INTO course_sections(course_id,title,position) VALUES ($1,$2,0) RETURNING id',
+        [course.id, `${title} section`],
+      );
+      await db.query(
+        'INSERT INTO lessons(course_id,section_id,title,body,position) VALUES ($1,$2,$3,$4,0)',
+        [course.id, section.id, `${title} lesson`, 'Valid lesson content'],
+      );
+      if (assignInstructor)
+        await db.query('UPDATE courses SET instructor_id=$2 WHERE id=$1', [
+          course.id,
+          instructor.id,
+        ]);
+      await request(app.getHttpServer())
+        .post(`/courses/${course.id}/publish`)
+        .set('Origin', origin)
+        .set('Cookie', instructor.session)
+        .expect(201);
+      return course;
+    };
+
+    const titleMatch = await publishReadyCourse(
+      'Needle title course',
+      'needle-title-course',
+      'A catalog description',
+      true,
+    );
+    const descriptionMatch = await publishReadyCourse(
+      'Second catalog course',
+      'second-catalog-course',
+      'Contains Needle in short description',
+      false,
+    );
+    const draft = await createCourse(
+      'Draft catalog course',
+      'draft-catalog-course',
+      'Not public',
+    )
+      .expect(201)
+      .then((result) => result.body);
+    const archived = await createCourse(
+      'Archived catalog course',
+      'archived-catalog-course',
+      'Not public either',
+    )
+      .expect(201)
+      .then((result) => result.body);
+    await request(app.getHttpServer())
+      .post(`/courses/${archived.id}/archive`)
+      .set('Origin', origin)
+      .set('Cookie', instructor.session)
+      .expect(201);
+
+    const all = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ status: 'DRAFT' })
+      .expect(200);
+    expect(all.body).toMatchObject({
+      total: 2,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+    });
+    expect(all.body.data.map((course: { id: string }) => course.id)).toEqual(
+      expect.arrayContaining([titleMatch.id, descriptionMatch.id]),
+    );
+    expect(all.body.data.map((course: { id: string }) => course.id)).not.toContain(
+      draft.id,
+    );
+    expect(all.body.data.map((course: { id: string }) => course.id)).not.toContain(
+      archived.id,
+    );
+    const visible = all.body.data.find(
+      (course: { id: string }) => course.id === titleMatch.id,
+    );
+    expect(Object.keys(visible).sort()).toEqual(
+      [
+        'id',
+        'title',
+        'slug',
+        'shortDescription',
+        'thumbnail',
+        'publishedAt',
+        'instructor',
+      ].sort(),
+    );
+    expect(visible.instructor).toEqual({
+      id: instructor.id,
+      displayName: 'instructor',
+      avatar: null,
+    });
+    expect(visible.instructor).not.toHaveProperty('email');
+    expect(visible.instructor).not.toHaveProperty('roles');
+
+    const archivedFilter = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ status: 'ARCHIVED' })
+      .expect(200);
+    expect(archivedFilter.body.data.map((course: { id: string }) => course.id))
+      .toEqual(expect.arrayContaining([titleMatch.id, descriptionMatch.id]));
+    const searched = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ search: 'needle' })
+      .expect(200);
+    expect(searched.body.total).toBe(2);
+    const instructorCourses = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ instructorId: instructor.id })
+      .expect(200);
+    expect(instructorCourses.body.data.map((course: { id: string }) => course.id))
+      .toEqual([titleMatch.id]);
+
+    const pageOne = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
+      .expect(200);
+    const pageTwo = await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ page: 2, limit: 1, sortBy: 'createdAt', sortOrder: 'ASC' })
+      .expect(200);
+    expect(pageOne.body).toMatchObject({ total: 2, page: 1, limit: 1, totalPages: 2 });
+    expect(pageTwo.body).toMatchObject({ total: 2, page: 2, limit: 1, totalPages: 2 });
+    expect(pageOne.body.data[0].id).not.toBe(pageTwo.body.data[0].id);
+    await request(app.getHttpServer())
+      .get('/public/courses')
+      .query({ limit: 51 })
+      .expect(400);
   });
 });

@@ -29,3 +29,31 @@ export class CreateCourseDto {
   @IsString()
   thumbnail?: string | null;
 }
+
+export class UpdateCourseDto {
+  @Transform(trimString)
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  @Matches(/\S/)
+  title?: string;
+
+  @Transform(trimString)
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  @Matches(/\S/)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @IsOptional()
+  @IsString()
+  shortDescription?: string | null;
+
+  @IsOptional()
+  @IsString()
+  thumbnail?: string | null;
+}

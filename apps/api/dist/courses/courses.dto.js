@@ -46,4 +46,42 @@ __decorate([
     IsString(),
     __metadata("design:type", Object)
 ], CreateCourseDto.prototype, "thumbnail", void 0);
+export class UpdateCourseDto {
+    title;
+    slug;
+    description;
+    shortDescription;
+    thumbnail;
+}
+__decorate([
+    Transform(trimString),
+    IsOptional(),
+    IsString(),
+    Length(1, 255),
+    Matches(/\S/),
+    __metadata("design:type", String)
+], UpdateCourseDto.prototype, "title", void 0);
+__decorate([
+    Transform(trimString),
+    IsOptional(),
+    IsString(),
+    Length(1, 255),
+    Matches(/\S/),
+    __metadata("design:type", String)
+], UpdateCourseDto.prototype, "slug", void 0);
+__decorate([
+    IsOptional(),
+    IsString(),
+    __metadata("design:type", Object)
+], UpdateCourseDto.prototype, "description", void 0);
+__decorate([
+    IsOptional(),
+    IsString(),
+    __metadata("design:type", Object)
+], UpdateCourseDto.prototype, "shortDescription", void 0);
+__decorate([
+    IsOptional(),
+    IsString(),
+    __metadata("design:type", Object)
+], UpdateCourseDto.prototype, "thumbnail", void 0);
 //# sourceMappingURL=courses.dto.js.map
