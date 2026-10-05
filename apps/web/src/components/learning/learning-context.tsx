@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/session-provider";
 import { api } from "@/lib/api";
 import {
-  sortCurriculum,
   type Syllabus,
   type SyllabusChapter,
   type SyllabusLesson,
@@ -74,10 +73,7 @@ export function LearningProvider({
   });
   const enrolled = enrollment.data?.isEnrolled === true;
 
-  const curriculum = useMemo(
-    () => sortCurriculum(syllabus.curriculum),
-    [syllabus.curriculum],
-  );
+  const curriculum = syllabus.curriculum;
 
   const value = useMemo<LearningContextValue>(
     () => ({

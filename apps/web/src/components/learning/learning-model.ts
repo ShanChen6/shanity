@@ -23,21 +23,21 @@ export type Syllabus = {
 
 export type LessonStatus = "active" | "completed" | "locked" | "preview" | "default";
 
-export type FlatLesson = SyllabusLesson & { chapterId: string };
-
-// Chapters by orderIndex, lessons by position; ties keep API order.
-export function sortCurriculum(curriculum: SyllabusChapter[]): SyllabusChapter[] {
-  return [...curriculum]
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map((chapter) => ({
-      ...chapter,
-      lessons: [...chapter.lessons].sort((a, b) => a.position - b.position),
-    }));
-}
+export type FlatLesson = SyllabusLesson & {
+  chapterId: string;
+  chapterTitle: string;
+  globalIndex: number;
+};
 
 export function flattenLessons(curriculum: SyllabusChapter[]): FlatLesson[] {
+  let globalIndex = 0;
   return curriculum.flatMap((chapter) =>
-    chapter.lessons.map((lesson) => ({ ...lesson, chapterId: chapter.id })),
+    chapter.lessons.map((lesson) => ({
+      ...lesson,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      globalIndex: globalIndex++,
+    })),
   );
 }
 

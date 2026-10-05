@@ -1,61 +1,85 @@
 "use client";
-import Link from "next/link";
+
+import { useCallback, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCurriculumNavigation } from "@/hooks/useCurriculumNavigation";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import {
   learningPath,
   type FlatLesson,
   type SyllabusChapter,
-  getAdjacentLessons,
   type SyllabusLesson,
 } from "./learning-model";
 
-const linkClass =
-  "inline-flex control min-w-0 items-center justify-center gap-2 rounded-md border border-border-strong px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-surface-hover";
-
-function NavButton({
-  courseSlug,
-  target,
-  label,
-  disabledReason,
-}: {
-  courseSlug: string;
+function NavButton({ target, direction, disabledReason, pending, onNavigate }: {
   target: FlatLesson | null;
-  label: string;
+  direction: "previous" | "next";
   disabledReason?: string;
+  pending: boolean;
+  onNavigate: () => void;
 }) {
-  if (!target || disabledReason)
-    return (
-      <Button variant="outline" disabled title={disabledReason}>
-        {label}
-      </Button>
-    );
+  const previous = direction === "previous";
+  const label = previous ? "Previous Lesson" : "Next Lesson";
   return (
-    <Link href={learningPath(courseSlug, target.slug)} className={linkClass}>
-      {label}
-    </Link>
+    <Button
+      variant="outline"
+      disabled={!target || Boolean(disabledReason) || pending}
+      title={disabledReason}
+      aria-label={label}
+      onClick={onNavigate}
+      className="min-w-0 gap-2"
+    >
+      {previous ? <ChevronLeft aria-hidden size={18} /> : null}
+      {disabledReason ? <Lock aria-hidden size={16} /> : null}
+      <span>{pending ? "Loading…" : label}</span>
+      {!previous ? <ChevronRight aria-hidden size={18} /> : null}
+    </Button>
   );
 }
 
-export function LearningFooter({
-  courseSlug,
-  curriculum,
-  activeSlug,
-  isLocked,
-}: {
+export function LearningFooter({ courseSlug, curriculum, activeSlug, isLocked }: {
   courseSlug: string;
   curriculum: SyllabusChapter[];
   activeSlug: string;
   isLocked: (lesson: SyllabusLesson) => boolean;
 }) {
-  const { previous, next } = getAdjacentLessons(curriculum, activeSlug);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const { previousLesson, nextLesson } = useCurriculumNavigation(
+    courseSlug,
+    curriculum,
+    activeSlug,
+  );
+  const nextLocked = Boolean(nextLesson && isLocked(nextLesson));
+  const navigate = useCallback((target: FlatLesson | null) => {
+    if (!target) return;
+    startTransition(() => router.push(learningPath(courseSlug, target.slug)));
+  }, [courseSlug, router]);
+  const goPrevious = useCallback(() => navigate(previousLesson), [navigate, previousLesson]);
+  const goNext = useCallback(() => {
+    if (!nextLocked) navigate(nextLesson);
+  }, [navigate, nextLesson, nextLocked]);
+
+  useKeyboardNavigation({
+    onPrevious: previousLesson ? goPrevious : undefined,
+    onNext: nextLesson && !nextLocked ? goNext : undefined,
+    disabled: isPending,
+  });
+
   return (
-    <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3">
-      <NavButton courseSlug={courseSlug} target={previous} label="← Previous Lesson" />
+    <footer
+      aria-busy={isPending}
+      className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3"
+    >
+      <NavButton target={previousLesson} direction="previous" pending={isPending} onNavigate={goPrevious} />
       <NavButton
-        courseSlug={courseSlug}
-        target={next}
-        label="Next Lesson →"
-        disabledReason={next && isLocked(next) ? "Bài học tiếp theo bị khóa" : undefined}
+        target={nextLesson}
+        direction="next"
+        disabledReason={nextLocked ? "Bài học tiếp theo bị khóa" : undefined}
+        pending={isPending}
+        onNavigate={goNext}
       />
     </footer>
   );
