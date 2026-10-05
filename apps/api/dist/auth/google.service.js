@@ -7,6 +7,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+import { OAuthRequest, AuthSession, AuthIdentity, UserRole, } from './auth.entities.js';
+import { User } from '../users/user.entity.js';
 import { ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException, } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { createHash } from 'node:crypto';
@@ -74,14 +76,17 @@ let GoogleService = class GoogleService {
     async start(linkSessionId) {
         this.provider.client();
         const state = randomToken(), browser = randomToken(), nonce = randomToken(), verifier = randomToken();
-        await this.auth.database.client('oauth_requests').insert({
+        await this.auth.database.dataSource.manager
+            .getRepository(OAuthRequest)
+            .insert({
             state_hash: digest(state),
             browser_hash: digest(browser),
-            nonce,
-            verifier,
+            nonce: nonce,
+            verifier: verifier,
             link_session_id: linkSessionId ?? null,
             expires_at: new Date(Date.now() + 600000),
-        });
+        })
+            .then((result) => result.raw);
         const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
         url.search = new URLSearchParams({
             client_id: this.auth.config.googleId,
@@ -102,12 +107,17 @@ let GoogleService = class GoogleService {
             !browser ||
             !/^[\w-]{43}$/.test(browser))
             throw new UnauthorizedException('Invalid OAuth state');
-        const [flow] = await this.auth.database
-            .client('oauth_requests')
-            .where({ state_hash: digest(state), browser_hash: digest(browser) })
-            .where('expires_at', '>', new Date())
+        const flow = (await this.auth.database.dataSource
+            .createQueryBuilder()
             .delete()
-            .returning('*');
+            .from(OAuthRequest)
+            .where('state_hash = :stateHash', { stateHash: digest(state) })
+            .andWhere('browser_hash = :browserHash', {
+            browserHash: digest(browser),
+        })
+            .andWhere('expires_at > :now', { now: new Date() })
+            .returning('*')
+            .execute()).raw[0];
         if (!flow)
             throw new UnauthorizedException('Invalid OAuth state');
         if (providerError ||
@@ -122,69 +132,77 @@ let GoogleService = class GoogleService {
         }
         const identity = await this.provider.verify(code, flow.verifier, flow.nonce);
         try {
-            return await this.auth.database.client.transaction(async (trx) => {
-                await trx.raw('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [
-                    `google:${identity.sub}`,
-                ]);
+            return await this.auth.database.dataSource.transaction(async (trx) => {
+                await trx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`google:${identity.sub}`]);
                 let userId;
                 if (flow.link_session_id) {
-                    const session = await trx('auth_sessions')
-                        .where({ id: flow.link_session_id })
-                        .forUpdate()
-                        .first();
+                    const session = await trx.getRepository(AuthSession).findOne({
+                        where: { id: flow.link_session_id },
+                        lock: { mode: 'pessimistic_write' },
+                    });
                     if (!session ||
                         session.revoked_at ||
                         new Date(session.expires_at) <= new Date())
                         throw new UnauthorizedException();
                     userId = session.user_id;
-                    const user = await trx('users')
-                        .where({ id: userId })
-                        .forUpdate()
-                        .first();
+                    const user = await trx.getRepository(User).findOne({
+                        where: { id: userId },
+                        select: { id: true, status: true },
+                        lock: { mode: 'pessimistic_write' },
+                    });
                     if (user?.status !== 'active')
                         throw new UnauthorizedException();
-                    const existing = await trx('auth_identities')
-                        .where({ provider: 'google', provider_subject: identity.sub })
-                        .first();
+                    const existing = await trx.getRepository(AuthIdentity).findOne({
+                        where: { provider: 'google', provider_subject: identity.sub },
+                    });
                     if (existing && existing.user_id !== userId)
                         throw new ConflictException('Google account already linked');
                     if (!existing)
-                        await trx('auth_identities').insert({
+                        await trx
+                            .getRepository(AuthIdentity)
+                            .insert({
                             provider: 'google',
                             provider_subject: identity.sub,
                             user_id: userId,
-                        });
+                        })
+                            .then((result) => result.raw);
                     return { linked: true };
                 }
-                const existing = await trx('auth_identities')
-                    .where({ provider: 'google', provider_subject: identity.sub })
-                    .first();
+                const existing = await trx.getRepository(AuthIdentity).findOne({
+                    where: { provider: 'google', provider_subject: identity.sub },
+                });
                 if (existing)
                     userId = existing.user_id;
                 else {
-                    const match = await trx('users')
-                        .where({ email: identity.email })
-                        .first('id');
+                    const match = await trx.getRepository(User).findOne({
+                        where: { email: identity.email },
+                        select: { id: true },
+                    });
                     if (match)
                         throw new ConflictException('Sign in to your existing account to link Google');
-                    const [user] = await trx('users')
-                        .insert({ email: identity.email, display_name: identity.name })
-                        .returning('id');
+                    const [user] = await trx
+                        .getRepository(User)
+                        .insert({ email: identity.email, displayName: identity.name })
+                        .then((result) => result.raw);
                     userId = user.id;
-                    await trx('user_roles').insert({
-                        user_id: userId,
-                        role_code: 'student',
-                    });
-                    await trx('auth_identities').insert({
+                    await trx
+                        .getRepository(UserRole)
+                        .insert({ user_id: userId, role_code: 'student' })
+                        .then((result) => result.raw);
+                    await trx
+                        .getRepository(AuthIdentity)
+                        .insert({
                         provider: 'google',
                         provider_subject: identity.sub,
                         user_id: userId,
-                    });
+                    })
+                        .then((result) => result.raw);
                 }
-                const user = await trx('users')
-                    .where({ id: userId })
-                    .forUpdate()
-                    .first();
+                const user = await trx.getRepository(User).findOne({
+                    where: { id: userId },
+                    select: { id: true, status: true },
+                    lock: { mode: 'pessimistic_write' },
+                });
                 if (user?.status !== 'active')
                     throw new UnauthorizedException();
                 return {

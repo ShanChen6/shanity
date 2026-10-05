@@ -11,18 +11,20 @@ export declare class AvatarService {
     constructor(database: DatabaseService, auth: AuthService, storage: AvatarStorage);
     private cleanup;
     upload(id: string, file?: Express.Multer.File): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
     remove(id: string): Promise<{
-        id: any;
-        email: any;
-        displayName: any;
+        id: string;
+        email: string;
+        displayName: string;
+        hasPassword: boolean;
         avatarUrl: string | null;
-        roles: any[];
+        roles: string[];
     }>;
     private replace;
 }

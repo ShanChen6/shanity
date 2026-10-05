@@ -9,6 +9,21 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsIn, IsOptional, IsInt, IsString, Length, Max, MaxLength, Matches, Min, } from 'class-validator';
+const passwordLength = () => Length(12, 128);
+export class ChangePasswordDto {
+    currentPassword;
+    newPassword;
+}
+__decorate([
+    IsString(),
+    passwordLength(),
+    __metadata("design:type", String)
+], ChangePasswordDto.prototype, "currentPassword", void 0);
+__decorate([
+    IsString(),
+    passwordLength(),
+    __metadata("design:type", String)
+], ChangePasswordDto.prototype, "newPassword", void 0);
 export class LoginDto {
     email;
     password;
@@ -21,7 +36,7 @@ __decorate([
 ], LoginDto.prototype, "email", void 0);
 __decorate([
     IsString(),
-    Length(12, 128),
+    passwordLength(),
     __metadata("design:type", String)
 ], LoginDto.prototype, "password", void 0);
 export class RegisterDto extends LoginDto {

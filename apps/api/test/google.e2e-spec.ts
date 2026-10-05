@@ -17,7 +17,7 @@ const cookies = (res: request.Response): string[] =>
 
 describe('Google OAuth backend with PostgreSQL', () => {
   let app: INestApplication;
-  let db: DatabaseService['client'];
+  let db: DatabaseService['dataSource']['manager'];
   let config: AuthConfig;
   let testIp: string;
   const verify = vi.fn();
@@ -33,7 +33,7 @@ describe('Google OAuth backend with PostgreSQL', () => {
     });
     configureApp(app);
     await app.init();
-    db = app.get(DatabaseService).client;
+    db = app.get(DatabaseService).dataSource.manager;
     config = app.get(AuthConfig);
   });
   beforeEach(() => {
@@ -75,15 +75,19 @@ describe('Google OAuth backend with PostgreSQL', () => {
       .set('Origin', config.origin)
       .send({ email, password: 'long-test-password-42', displayName: 'Test' })
       .expect(201);
-    const user = await db('users').where({ email }).first();
+    const user = await db
+      .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [email])
+      .then((rows) => rows[0]);
     return { session: cookies(result), id: user.id as string };
   }
 
   it('uses nonce/PKCE and rejects expired or wrong-browser state without contacting provider', async () => {
     const flow = await start();
-    const row = await db('oauth_requests')
-      .where({ state_hash: digest(flow.state) })
-      .first();
+    const row = await db
+      .query('SELECT * FROM "oauth_requests" WHERE "state_hash" = $1 LIMIT 1', [
+        digest(flow.state),
+      ])
+      .then((rows) => rows[0]);
     expect(flow.url.searchParams.get('redirect_uri')).toBe(
       config.googleCallback,
     );
@@ -96,9 +100,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
     await callback({ ...flow, cookie: other.cookie })
       .expect(302)
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
-    await db('oauth_requests')
-      .where({ state_hash: digest(flow.state) })
-      .update({ expires_at: new Date(Date.now() - 1000) });
+    await db
+      .query(
+        'UPDATE "oauth_requests" SET "expires_at" = $2 WHERE "state_hash" = $1',
+        [digest(flow.state), new Date(Date.now() - 1000)],
+      )
+      .then(([, count]) => count);
     await callback(flow)
       .expect(302)
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
@@ -126,7 +133,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
       .expect(302)
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
     const disabled = await start(second.session);
-    await db('users').where({ id: second.id }).update({ status: 'disabled' });
+    await db
+      .query('UPDATE "users" SET "status" = $2 WHERE "id" = $1', [
+        second.id,
+        'disabled',
+      ])
+      .then(([, count]) => count);
     await callback(disabled, second.session)
       .expect(302)
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
@@ -147,10 +159,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
     await callback(again, user.session).expect(302);
     expect(
       Number(
-        (await db('auth_identities')
-          .where({ provider_subject: identity.sub })
-          .count('* as n')
-          .first())!.n,
+        (await db
+          .query(
+            'SELECT count(*) AS "n" FROM "auth_identities" WHERE "provider_subject" = $1 LIMIT 1',
+            [identity.sub],
+          )
+          .then((rows) => rows[0]))!.n,
       ),
     ).toBe(1);
     const login = await start();
@@ -166,9 +180,18 @@ describe('Google OAuth backend with PostgreSQL', () => {
       .expect(200);
     expect(me.body.id).toBe(user.id);
     expect(
-      await db('users').where({ email: identity.email }).first(),
+      await db
+        .query('SELECT * FROM "users" WHERE "email" = $1 LIMIT 1', [
+          identity.email,
+        ])
+        .then((rows) => rows[0]),
     ).toBeUndefined();
-    await db('users').where({ id: user.id }).update({ status: 'disabled' });
+    await db
+      .query('UPDATE "users" SET "status" = $2 WHERE "id" = $1', [
+        user.id,
+        'disabled',
+      ])
+      .then(([, count]) => count);
     await callback(await start())
       .expect(302)
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
@@ -187,18 +210,22 @@ describe('Google OAuth backend with PostgreSQL', () => {
     expect(responses.map((res) => res.status)).toEqual([302, 302]);
     expect(
       Number(
-        (await db('users')
-          .where({ email: identity.email })
-          .count('* as n')
-          .first())!.n,
+        (await db
+          .query(
+            'SELECT count(*) AS "n" FROM "users" WHERE "email" = $1 LIMIT 1',
+            [identity.email],
+          )
+          .then((rows) => rows[0]))!.n,
       ),
     ).toBe(1);
     expect(
       Number(
-        (await db('auth_identities')
-          .where({ provider_subject: identity.sub })
-          .count('* as n')
-          .first())!.n,
+        (await db
+          .query(
+            'SELECT count(*) AS "n" FROM "auth_identities" WHERE "provider_subject" = $1 LIMIT 1',
+            [identity.sub],
+          )
+          .then((rows) => rows[0]))!.n,
       ),
     ).toBe(1);
   });
@@ -223,10 +250,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
     ).toEqual(['?error=account_conflict', '?result=linked']);
     expect(
       Number(
-        (await db('auth_identities')
-          .where({ provider_subject: identity.sub })
-          .count('* as n')
-          .first())!.n,
+        (await db
+          .query(
+            'SELECT count(*) AS "n" FROM "auth_identities" WHERE "provider_subject" = $1 LIMIT 1',
+            [identity.sub],
+          )
+          .then((rows) => rows[0]))!.n,
       ),
     ).toBe(1);
   });
@@ -245,9 +274,12 @@ describe('Google OAuth backend with PostgreSQL', () => {
       .expect('Location', `${config.origin}/auth/callback?error=failed`);
     expect(verify).toHaveBeenCalledTimes(1);
     expect(
-      await db('oauth_requests')
-        .where({ state_hash: digest(flow.state) })
-        .first(),
+      await db
+        .query(
+          'SELECT * FROM "oauth_requests" WHERE "state_hash" = $1 LIMIT 1',
+          [digest(flow.state)],
+        )
+        .then((rows) => rows[0]),
     ).toBeUndefined();
   });
 });

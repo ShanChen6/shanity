@@ -19,8 +19,6 @@ COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/apps/api/database ./apps/api/database
-COPY --from=build /app/apps/api/src/database/config.ts ./apps/api/src/database/config.ts
-COPY --from=build /app/apps/api/src/auth/password.ts ./apps/api/src/auth/password.ts
 WORKDIR /app/apps/api
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

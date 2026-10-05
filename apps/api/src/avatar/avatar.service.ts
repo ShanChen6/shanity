@@ -1,3 +1,4 @@
+import { User } from '../users/user.entity.js';
 import {
   BadRequestException,
   Injectable,
@@ -84,16 +85,20 @@ export class AvatarService {
   private async replace(id: string, key: string | null) {
     let result;
     try {
-      result = await this.database.client.transaction(async (trx) => {
+      result = await this.database.dataSource.transaction(async (trx) => {
         // Serialize simultaneous replace/remove requests for this account.
-        const user = await trx('users')
-          .where({ id, status: 'active' })
-          .forUpdate()
-          .first('avatar_key');
+        const user = await trx.getRepository(User).findOne({
+          where: { id, status: 'active' },
+          select: { id: true, avatarKey: true },
+          lock: { mode: 'pessimistic_write' },
+        });
         if (!user) throw new UnauthorizedException();
-        await trx('users').where({ id }).update({ avatar_key: key });
+        await trx
+          .getRepository(User)
+          .update({ id }, { avatarKey: key })
+          .then((result) => result.affected);
         const profile = await this.auth.profile(id, trx);
-        return { oldKey: user.avatar_key as string | null, profile };
+        return { oldKey: user.avatarKey, profile };
       });
     } catch (error) {
       await this.cleanup(key);

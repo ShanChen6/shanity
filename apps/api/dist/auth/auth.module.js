@@ -50,7 +50,7 @@ AuthModule = __decorate([
                 }),
             },
         ],
-        exports: [AuthService, SessionGuard, OriginGuard],
+        exports: [AuthConfig, AuthService, SessionGuard, OriginGuard],
     })
 ], AuthModule);
 export { AuthModule };

@@ -72,6 +72,17 @@ export function UserHeader() {
               >
                 Hồ sơ
               </Link>
+              {session.user.roles.includes("instructor") && (
+                <Link
+                  href="/instructor/courses"
+                  className="flex min-h-11 items-center rounded-md px-3 hover:bg-surface-hover"
+                  onClick={() => {
+                    if (details.current) details.current.open = false;
+                  }}
+                >
+                  Instructor Portal
+                </Link>
+              )}
               <Button
                 variant="ghost"
                 className="w-full justify-start"

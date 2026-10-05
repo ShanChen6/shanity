@@ -4,7 +4,7 @@
 
 Audit completed before editing. Tasks 1–10 already provide the protected admin layout/navigation, user list/search/filters/pagination, detail, role changes, account status, SQL overview statistics and UX polish. They are retained, not rebuilt.
 
-NestJS AuthModule provides one AuthController/AuthService and UsersController. There is no separate JWT strategy/User entity/Role enum service: jose signs/verifies HS256 JWTs; Knex accesses users, user_roles and roles; role codes are student/instructor/admin, and accounts can have several roles. SessionGuard authenticates the session and enforces @Roles using current database roles. OriginGuard and rate limiting protect auth writes. Public registration only assigns student.
+NestJS AuthModule provides one AuthController/AuthService and UsersController. jose signs/verifies HS256 JWTs; TypeORM entities/repositories and parameterized SQL access users, user_roles and roles; role codes are student/instructor/admin, and accounts can have several roles. SessionGuard authenticates the session and enforces @Roles using current database roles. OriginGuard and rate limiting protect auth writes. Public registration only assigns student.
 
 Access/refresh cookies are HttpOnly, SameSite=Lax, path=/, Secure with __Host- names in production. Access tokens refer to server sessions; refresh tokens are stored hashed and rotated. Status and revoked/expired sessions are checked server-side. No authentication infrastructure was duplicated or changed in the backend.
 

@@ -1,8 +1,12 @@
 # PostgreSQL — nền tảng giai đoạn 0
 
+> The entire backend now uses TypeORM. See [TypeORM setup and legacy upgrade](typeorm.md)
+> for current commands and [Course schema](course-schema.md) for C2. Historical
+> verification records below describe the earlier implementation.
+
 ## Phạm vi và lựa chọn
 
-Repository gốc dùng NestJS 12/TypeScript ESM, chưa có entity, ORM, migration hay cấu hình DB. Dùng **Knex + pg**: query builder và migration có transaction/lock, không thêm ORM hay đồng bộ schema tự động. Migration SQL rõ ràng giúp kiểm soát composite foreign key. Tham khảo [Knex migrations](https://knexjs.org/guide/migrations.html). Node 24 như Dockerfile hỗ trợ chạy config TypeScript chỉ chứa cú pháp có thể xóa kiểu.
+Backend dùng NestJS 12/TypeScript ESM và **TypeORM + pg**, với migration có transaction/lock và không đồng bộ schema tự động. Migration SQL rõ ràng giữ các composite foreign key. Node 24 chạy JavaScript đã biên dịch; xem [hướng dẫn TypeORM](typeorm.md) trước khi nâng cấp database đã có lịch sử Knex.
 
 Auth + User đã được triển khai; xem [hướng dẫn Auth](auth.md) để cấu hình JWT_SECRET, WEB_ORIGIN và thời hạn token trước khi chạy API. `GET /health/db` thực hiện SELECT 1, trả 200 hoặc 503 không tiết lộ lỗi kết nối. API kiểm tra kết nối trước khi listen và đóng pool khi shutdown. Khi chạy trực tiếp, DB chưa sẵn sàng thì API dừng; chạy lại sau khi DB healthy. Compose chờ healthcheck và migration hoàn tất trước khi chạy API.
 
@@ -18,14 +22,14 @@ Từ thư mục gốc, Node 24 và pnpm:
 6. `pnpm dev:api`
 7. `curl http://localhost:4000/health/db`
 
-API và CLI đọc `.env` gốc dựa trên đường dẫn module, không phụ thuộc thư mục làm việc của Knex. Biến môi trường đã export ưu tiên hơn file. `PORT` là cổng API khi chạy trực tiếp (mặc định 4000); `API_PORT` chỉ ánh xạ cổng Compose. PostgreSQL session dùng UTC; mọi thời điểm trong schema là timestamptz.
+API và CLI đọc `.env` gốc dựa trên đường dẫn module. Biến môi trường đã export ưu tiên hơn file. `PORT` là cổng API khi chạy trực tiếp (mặc định 4000); `API_PORT` chỉ ánh xạ cổng Compose. PostgreSQL session dùng UTC; mọi thời điểm trong schema là timestamptz.
 
 ## Chạy toàn bộ bằng Compose
 
 Sau khi tạo `.env` và thay `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD` bằng thông tin riêng: `docker compose up --build -d`. Service `postgres` có volume và healthcheck; `migrate` chạy migration rồi seed admin ban đầu trước khi thoát 0; API dùng hostname `postgres`, cổng nội bộ 5432 dù host đổi cổng. Mật khẩu chỉ dùng để tạo tài khoản mới, được lưu dưới dạng scrypt hash; chạy lại seed không đổi mật khẩu của tài khoản đã tồn tại. Không đưa `.env` hoặc secret vào Git và nên dùng secret manager khi triển khai production. Để có thêm dữ liệu demo trong môi trường phát triển:
 
 ```bash
-docker compose run --rm -e NODE_ENV=development migrate node node_modules/knex/bin/cli.js --knexfile database/knexfile.mjs seed:run
+docker compose run --rm -e NODE_ENV=development migrate node database/cli.mjs seed
 curl http://localhost:4000/health/db
 docker compose logs migrate api
 ```
@@ -40,15 +44,15 @@ Khi triển khai phiên bản có migration mới, chạy `docker compose run --
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Danh tính  | `users`: UUID, email chuẩn hóa lowercase/trim và unique, hash mật khẩu nullable; `auth_identities`: nhiều danh tính trên một user, unique(provider, provider_subject), không lưu OAuth token                                                              |
 | Phân quyền | `roles`, `user_roles`; `courses.owner_id` nullable để giữ khóa cũ; `course_instructors` phân công giảng viên, tách khỏi quyền sở hữu; xem [ma trận quyền](permissions.md)                                                                                 |
-| Nội dung   | `courses` → `course_sections` → `lessons` → `lesson_assets`; slug khóa unique, position không âm và unique trong cha; tài nguyên chỉ lưu storage key, không lưu file hoặc signed URL                                                                      |
-| Ghi danh   | `enrollments`: unique(user_id, course_id), revoked_at riêng; cấp lại quyền bằng cập nhật bản ghi, không tạo bản sao                                                                                                                                       |
+| Nội dung   | `courses` → `course_sections` → `lessons` → `lesson_assets`; slug khóa unique, position không âm và unique trong cha; `lessons.is_preview` cho phép truy cập nội dung xem trước; tài nguyên chỉ lưu storage key, không lưu file hoặc signed URL |
+| Ghi danh   | `enrollments`: unique(user_id, course_id), FK user/course cascade; giữ `revoked_at` lịch sử và composite key được `lesson_progress` tham chiếu                                                                                                            |
 | Tiến độ    | `lesson_progress`: PK(enrollment_id, lesson_id); composite FK đảm bảo enrollment và lesson cùng khóa; last_position_seconds là vị trí tiếp tục, watched_seconds là thời lượng do ứng dụng tính, completed_at độc lập; updated_at tự cập nhật bằng trigger |
 | Blog       | `posts` có tác giả, slug unique, draft/review/published/archived; published cần published_at; `categories` và `post_categories` nhiều–nhiều                                                                                                               |
 | Chat       | `chat_rooms` luôn thuộc khóa; `chat_members` unique(room_id,user_id); `messages` FK đến thành viên cùng phòng, index(room_id,created_at,id) để phân trang lịch sử                                                                                         |
 
-UUID do PostgreSQL sinh, không cần extension. FK mặc định RESTRICT để bảo vệ lịch sử; chỉ quan hệ phụ `post_categories` cascade khi xóa bài. Index bổ sung cho các FK/truy vấn lịch sử; index unique đã bao phủ tra cứu đầu cột nên không tạo trùng. Chưa triển khai hard-delete tài khoản hoặc tự động xóa lịch sử.
+UUID hiện có dùng `gen_random_uuid()`; chapter và enrollment UUID dùng `uuid_generate_v4()` từ extension `uuid-ossp`. FK mặc định RESTRICT để bảo vệ lịch sử, ngoại trừ chapter/course và enrollment/user-course được cấu hình CASCADE theo schema mới. Index riêng trên enrollment user/course hỗ trợ hai hướng tra cứu. Chưa triển khai hard-delete tài khoản hoặc tự động xóa lịch sử.
 
-Giả định: một bài thuộc một chương; khóa có thể có nhiều phòng chat; bài blog có nhiều danh mục. DB chỉ kiểm tra cấu trúc; backend giai đoạn sau phải kiểm tra quyền ghi danh còn hiệu lực, thành viên chưa rời phòng, giáo viên phụ trách và trạng thái xuất bản. FK chat không tự cấp quyền vào phòng theo enrollment. Danh mục vai trò đã có; không tự cấp vai trò cho tài khoản. Xem [ma trận quyền đã chốt](permissions.md). Email OAuth phải được xác minh ở tầng auth trước khi liên kết; không tự ghép tài khoản chỉ dựa trên email.
+Ghi danh miễn phí chỉ nhận khóa học `published` có `price = 0`; `POST /courses/:courseId/enroll` và `GET /courses/:courseId/enrollment-status` yêu cầu Student session. UNIQUE(user_id, course_id) bảo vệ dữ liệu khi hai yêu cầu đồng thời; API chuyển xung đột thành HTTP 409. `CourseAccessService` cho phép bài preview không cần đăng nhập và yêu cầu enrollment chưa bị thu hồi cho bài được bảo vệ. FK chat không tự cấp quyền vào phòng theo enrollment. Danh mục vai trò đã có; không tự cấp vai trò cho tài khoản. Xem [ma trận quyền đã chốt](permissions.md). Email OAuth phải được xác minh ở tầng auth trước khi liên kết; không tự ghép tài khoản chỉ dựa trên email.
 
 ## Thiết kế đề xuất chưa tạo bảng
 
@@ -61,7 +65,7 @@ README còn để mở quy tắc quiz, chấm lại và người thanh toán. Tr
 
 ## Migration an toàn và sao lưu
 
-Hai migration đầu tạo bảng; migration 003 bổ sung roles, user_roles, course_instructors, owner_id nullable và mở rộng CHECK trạng thái khóa/blog để nhận review/hidden. Không xóa bảng, cột hay dữ liệu; chỉ thay CHECK bằng tập giá trị rộng hơn trong transaction. Knex quản lý lịch sử và migration lock; không synchronize. Nếu database đích đã có tên bảng trùng mà không có lịch sử tương ứng, migration **báo lỗi và rollback**, không tự nhận bảng hoặc sửa dữ liệu. Repository không có schema cũ để viết chuyển đổi cụ thể; chưa kết nối database sản xuất nào.
+Hai migration đầu tạo bảng; migration 003 bổ sung roles, user_roles, course_instructors, owner_id nullable và mở rộng CHECK trạng thái khóa/blog để nhận review/hidden. TypeORM quản lý lịch sử, runner giữ PostgreSQL advisory lock và không synchronize. Database đã dùng Knex cần chạy bước [adopt-legacy](typeorm.md). Nếu bảng đã tồn tại nhưng không có lịch sử phù hợp, migration báo lỗi thay vì tự nhận schema.
 
 Với DB hiện hữu: sao lưu, restore sang môi trường thử, so sánh schema/count/constraints, viết migration chuyển đổi riêng theo expand → backfill → validate → switch; chỉ baseline lịch sử sau khi xác minh tương đương. Không sửa migration đã áp dụng. Rollback phá hủy bị vô hiệu hóa chủ động; sửa bằng forward migration hoặc restore backup đã kiểm chứng.
 

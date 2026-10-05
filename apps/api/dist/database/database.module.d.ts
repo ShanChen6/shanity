@@ -1,7 +1,7 @@
 import type { OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
-import { type Knex } from 'knex';
+import { DataSource } from 'typeorm';
 export declare class DatabaseService implements OnModuleInit, OnApplicationShutdown {
-    readonly client: Knex;
+    readonly dataSource: DataSource;
     onModuleInit(): Promise<void>;
     onApplicationShutdown(): Promise<void>;
 }

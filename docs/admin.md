@@ -14,7 +14,7 @@ Audit trên working tree local có remote `https://github.com/ShanChen6/shanity.
 
 ### Backend
 
-- NestJS + PostgreSQL qua Knex, schema bằng SQL migration; không có ORM User entity. `UserRow` nằm trong `auth.service.ts`.
+- NestJS + PostgreSQL qua TypeORM, có User entity và SQL migration; xem [TypeORM](typeorm.md).
 - `users`: UUID id, email chuẩn hóa/unique, display_name, password_hash nullable, created_at; migration auth bổ sung status `active|disabled`. `auth_identities`, `auth_sessions` lưu identity/phiên riêng.
 - `roles` và `user_roles` là schema RBAC, role code `student|instructor|admin`, hỗ trợ nhiều role/user. Không có backend Role enum riêng; frontend có union Role trong `lib/api.ts`.
 - Chưa có UserModule/UserService riêng. `UsersController` nằm trong `auth/auth.controller.ts`, đăng ký trong AuthModule; profile/authenticate do AuthService xử lý.
@@ -126,7 +126,7 @@ Thiết kế và triển khai API **đọc danh sách người dùng cho admin**
 
 ## Task 07 — Update timestamp and Change User Role
 
-- Migration `202610010001_user_update_at.mjs` adds `users.update_at` (timestamptz, required, default now). Existing rows start at `created_at` because historical update times were not recorded. A database trigger advances the timestamp for user updates; role changes explicitly touch the user inside the same transaction. List/detail/mutation responses expose `updatedAt`, displayed on the detail page.
+- Migration `202610010001_user_update_at.ts` adds `users.update_at` (timestamptz, required, default now). Existing rows start at `created_at` because historical update times were not recorded. A database trigger advances the timestamp for user updates; role changes explicitly touch the user inside the same transaction. List/detail/mutation responses expose `updatedAt`, displayed on the detail page.
 - `PATCH /users/:id/role`, body exactly `{ "role": "STUDENT" | "INSTRUCTOR" | "ADMIN" }`. Values map to existing lowercase database role codes. The operation replaces all existing roles with the selected single role. Reassigning an identical single role is a no-op, preserving its timestamp.
 - Requires a valid session, admin role and trusted Origin. Extra properties (including status), missing/invalid/lowercase roles and malformed UUIDs return 400. Missing user returns 404. Self-demotion returns 409; the service also checks that another active admin remains before removing admin from a target.
 - Role mutations use a transaction-scoped advisory lock and recheck the actor's active/admin state after acquiring the lock. Competing admin demotions cannot both succeed. Reads of authorization continue to use database roles, so the changed permissions take effect on subsequent requests. This lock coordinates this endpoint; manual SQL or future mutation paths must respect the same invariant.
