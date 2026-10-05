@@ -16,16 +16,24 @@ import { CoursesService } from './courses.service.js';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseAccessService } from './course-access.service.js';
 import { LessonsModule } from '../modules/lessons/lessons.module.js';
+import { StorageModule } from '../storage/storage.module.js';
+import { LocalVideoDeliveryController, VideoPlaybackController, } from '../modules/lessons/video-playback.controller.js';
+import { VideoPlaybackService } from '../modules/lessons/video-playback.service.js';
+import { DocumentAccessController } from '../modules/lessons/document-access.controller.js';
+import { DocumentAccessService } from '../modules/lessons/document-access.service.js';
 let CoursesModule = class CoursesModule {
 };
 CoursesModule = __decorate([
     Module({
-        imports: [AuthModule, DatabaseModule, LessonsModule],
+        imports: [AuthModule, DatabaseModule, LessonsModule, StorageModule],
         controllers: [
             CoursesController,
             PublicCoursesController,
             InstructorContentController,
             CourseMediaController,
+            VideoPlaybackController,
+            LocalVideoDeliveryController,
+            DocumentAccessController,
         ],
         providers: [
             CoursesService,
@@ -34,6 +42,8 @@ CoursesModule = __decorate([
             OriginGuard,
             SessionGuard,
             CourseOwnershipGuard,
+            VideoPlaybackService,
+            DocumentAccessService,
         ],
         exports: [CourseAccessService],
     })

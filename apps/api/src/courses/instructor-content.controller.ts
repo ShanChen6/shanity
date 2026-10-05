@@ -65,15 +65,17 @@ class LessonOrderDto {
   @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) ids!: string[];
 }
 type OwnedRequest = AuthRequest & { course: Course };
-const fields =
-  `id, chapter_id AS "chapterId", title,
+const fields = `id, chapter_id AS "chapterId", title,
    CASE type
      WHEN 'TEXT' THEN 'Article'
      WHEN 'VIDEO' THEN 'Video'
      WHEN 'DOCUMENT' THEN 'Quiz'
    END AS type,
+   type AS "contentType",
    COALESCE(text_body, '') AS body,
    video_external_url AS "videoUrl",
+   video_asset_id AS "videoAssetId",
+   document_asset_id AS "documentAssetId",
    is_preview AS "isPreview", position`;
 
 function legacyLesson(lesson: Lesson) {
@@ -87,8 +89,11 @@ function legacyLesson(lesson: Lesson) {
         : lesson.type === LessonType.VIDEO
           ? 'Video'
           : 'Quiz',
+    contentType: lesson.type,
     body: lesson.textBody ?? '',
     videoUrl: lesson.videoExternalUrl,
+    videoAssetId: lesson.videoAssetId,
+    documentAssetId: lesson.documentAssetId,
     isPreview: lesson.isPreview,
     position: lesson.position,
   };
@@ -97,8 +102,7 @@ function legacyLesson(lesson: Lesson) {
 function lessonType(value: string): LessonType {
   if (value === 'Article' || value === 'Quiz' || value === LessonType.TEXT)
     return LessonType.TEXT;
-  if (value === 'Video' || value === LessonType.VIDEO)
-    return LessonType.VIDEO;
+  if (value === 'Video' || value === LessonType.VIDEO) return LessonType.VIDEO;
   return LessonType.DOCUMENT;
 }
 

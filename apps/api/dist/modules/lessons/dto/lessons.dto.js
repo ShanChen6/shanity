@@ -8,13 +8,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsObject, IsOptional, IsString, Length, Matches, Max, Min, ValidateIf, ValidateNested, } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, Min, ValidateIf, ValidateNested, } from 'class-validator';
 import { LessonType } from '../entities/lesson.entity.js';
 const trimString = ({ value }) => typeof value === 'string' ? value.trim() : value;
 export class LessonContentDto {
     textBody;
     videoUrl;
-    videoAssetId;
     documentAssetId;
     documentFileName;
     documentFileSize;
@@ -32,12 +31,6 @@ __decorate([
     Length(1, 2048),
     __metadata("design:type", String)
 ], LessonContentDto.prototype, "videoUrl", void 0);
-__decorate([
-    IsOptional(),
-    IsString(),
-    Length(1, 255),
-    __metadata("design:type", String)
-], LessonContentDto.prototype, "videoAssetId", void 0);
 __decorate([
     IsOptional(),
     IsString(),
@@ -137,4 +130,99 @@ __decorate([
     Max(2_147_483_647),
     __metadata("design:type", Number)
 ], UpdateLessonDto.prototype, "position", void 0);
+export class LessonOrderDto {
+    id;
+    position;
+}
+__decorate([
+    IsUUID('4'),
+    __metadata("design:type", String)
+], LessonOrderDto.prototype, "id", void 0);
+__decorate([
+    IsInt(),
+    Min(0),
+    Max(2_147_483_647),
+    __metadata("design:type", Number)
+], LessonOrderDto.prototype, "position", void 0);
+export class ReorderLessonsDto {
+    lessonOrders;
+}
+__decorate([
+    IsArray(),
+    ArrayUnique((lesson) => lesson.id),
+    ValidateNested({ each: true }),
+    Type(() => LessonOrderDto),
+    __metadata("design:type", Array)
+], ReorderLessonsDto.prototype, "lessonOrders", void 0);
+export class VideoUploadDto {
+    title;
+    isPreview;
+    durationSeconds;
+}
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    Transform(trimString),
+    IsString(),
+    Length(1, 255),
+    Matches(/\S/),
+    __metadata("design:type", String)
+], VideoUploadDto.prototype, "title", void 0);
+__decorate([
+    IsOptional(),
+    Transform(({ value }) => value === true || value === 'true'
+        ? true
+        : value === false || value === 'false'
+            ? false
+            : value),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], VideoUploadDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    Type(() => Number),
+    IsInt(),
+    Min(0),
+    Max(2_147_483_647),
+    __metadata("design:type", Number)
+], VideoUploadDto.prototype, "durationSeconds", void 0);
+export class DocumentUploadDto {
+    title;
+    isPreview;
+    allowDownload;
+}
+__decorate([
+    ValidateIf((_object, value) => value !== undefined),
+    Transform(trimString),
+    IsString(),
+    Length(1, 255),
+    Matches(/\S/),
+    __metadata("design:type", String)
+], DocumentUploadDto.prototype, "title", void 0);
+__decorate([
+    IsOptional(),
+    Transform(({ value }) => value === true || value === 'true'
+        ? true
+        : value === false || value === 'false'
+            ? false
+            : value),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], DocumentUploadDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    Transform(({ value }) => value === true || value === 'true'
+        ? true
+        : value === false || value === 'false'
+            ? false
+            : value),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], DocumentUploadDto.prototype, "allowDownload", void 0);
+export class DocumentSettingsDto {
+    allowDownload;
+}
+__decorate([
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], DocumentSettingsDto.prototype, "allowDownload", void 0);
 //# sourceMappingURL=lessons.dto.js.map

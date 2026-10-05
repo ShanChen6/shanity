@@ -7,10 +7,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { BadRequestException, Injectable, NotFoundException, } from '@nestjs/common';
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var ChaptersService_1;
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Chapter } from './chapter.entity.js';
 import { Course } from './course.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
+import { MEDIA_STORAGE_DRIVER } from '../storage/media-storage.constants.js';
 const MAX_POSITION = 2_147_483_647;
 function findTemporaryPositions(reservedValues, count) {
     const reserved = [...new Set(reservedValues)].sort((left, right) => left - right);
@@ -28,10 +34,13 @@ function findTemporaryPositions(reservedValues, count) {
         positions.push(candidate++);
     return positions.length === count ? positions : undefined;
 }
-let ChaptersService = class ChaptersService {
+let ChaptersService = ChaptersService_1 = class ChaptersService {
     dataSource;
-    constructor(dataSource) {
+    mediaStorage;
+    logger = new Logger(ChaptersService_1.name);
+    constructor(dataSource, mediaStorage) {
         this.dataSource = dataSource;
+        this.mediaStorage = mediaStorage;
     }
     create(courseId, dto) {
         return this.dataSource.transaction(async (manager) => {
@@ -94,6 +103,7 @@ let ChaptersService = class ChaptersService {
         });
     }
     async remove(id) {
+        let mediaKeys = [];
         await this.dataSource.transaction(async (manager) => {
             const repository = manager.getRepository(Chapter);
             const existing = await repository.findOne({
@@ -109,10 +119,32 @@ let ChaptersService = class ChaptersService {
             });
             if (!course)
                 throw new NotFoundException('Course not found');
+            mediaKeys = await manager
+                .getRepository(Lesson)
+                .find({
+                where: { chapterId: id },
+                select: { videoAssetId: true, documentAssetId: true },
+            })
+                .then((lessons) => lessons.flatMap(({ videoAssetId, documentAssetId }) => [
+                ...(videoAssetId
+                    ? [{ key: videoAssetId, label: 'Video' }]
+                    : []),
+                ...(documentAssetId
+                    ? [{ key: documentAssetId, label: 'Document' }]
+                    : []),
+            ]));
             const result = await repository.delete({ id, courseId: course.id });
             if (!result.affected)
                 throw new NotFoundException('Chapter not found');
         });
+        for (const media of mediaKeys) {
+            try {
+                await this.mediaStorage.delete(media.key);
+            }
+            catch {
+                this.logger.warn(`${media.label} cleanup deferred for ${media.key}`);
+            }
+        }
     }
     reorder(courseId, dto) {
         return this.dataSource.transaction(async (manager) => {
@@ -137,10 +169,7 @@ let ChaptersService = class ChaptersService {
                 throw new BadRequestException('chapterOrders must contain every chapter in this course exactly once');
             if (new Set(submittedPositions).size !== submittedPositions.length)
                 throw new BadRequestException('Chapter positions must be unique');
-            const temporaryPositions = findTemporaryPositions([
-                ...chapters.map(({ position }) => position),
-                ...submittedPositions,
-            ], chapters.length);
+            const temporaryPositions = findTemporaryPositions([...chapters.map(({ position }) => position), ...submittedPositions], chapters.length);
             if (!temporaryPositions)
                 throw new BadRequestException('No safe temporary positions available');
             for (const [index, chapter] of chapters.entries()) {
@@ -160,9 +189,10 @@ let ChaptersService = class ChaptersService {
         });
     }
 };
-ChaptersService = __decorate([
+ChaptersService = ChaptersService_1 = __decorate([
     Injectable(),
-    __metadata("design:paramtypes", [DataSource])
+    __param(1, Inject(MEDIA_STORAGE_DRIVER)),
+    __metadata("design:paramtypes", [DataSource, Object])
 ], ChaptersService);
 export { ChaptersService };
 //# sourceMappingURL=chapters.service.js.map

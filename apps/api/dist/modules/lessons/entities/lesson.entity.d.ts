@@ -6,13 +6,21 @@ export declare enum LessonType {
     DOCUMENT = "DOCUMENT"
 }
 export declare enum VideoProvider {
+    LOCAL = "LOCAL",
     S3 = "S3",
+    EXTERNAL_EMBED = "EXTERNAL_EMBED",
     YOUTUBE = "YOUTUBE",
     VIMEO = "VIMEO"
 }
 export declare enum MediaProcessingStatus {
     PROCESSING = "PROCESSING",
     READY = "READY"
+}
+export declare enum DocumentFileType {
+    PDF = "PDF",
+    SLIDE = "SLIDE",
+    DOCX = "DOCX",
+    OTHER = "OTHER"
 }
 export declare class Lesson {
     id: string;
@@ -30,10 +38,14 @@ export declare class Lesson {
     videoExternalUrl: string | null;
     videoProvider: VideoProvider | null;
     videoDurationSeconds: number | null;
+    videoFileSize: string | null;
+    videoMimeType: string | null;
     videoStatus: MediaProcessingStatus | null;
     documentAssetId: string | null;
     documentFileName: string | null;
     documentFileSize: string | null;
+    documentMimeType: string | null;
+    documentFileType: DocumentFileType | null;
     documentDownloadAllowed: boolean | null;
     createdAt: Date;
     updatedAt: Date;

@@ -17,7 +17,9 @@ export var LessonType;
 })(LessonType || (LessonType = {}));
 export var VideoProvider;
 (function (VideoProvider) {
+    VideoProvider["LOCAL"] = "LOCAL";
     VideoProvider["S3"] = "S3";
+    VideoProvider["EXTERNAL_EMBED"] = "EXTERNAL_EMBED";
     VideoProvider["YOUTUBE"] = "YOUTUBE";
     VideoProvider["VIMEO"] = "VIMEO";
 })(VideoProvider || (VideoProvider = {}));
@@ -26,6 +28,13 @@ export var MediaProcessingStatus;
     MediaProcessingStatus["PROCESSING"] = "PROCESSING";
     MediaProcessingStatus["READY"] = "READY";
 })(MediaProcessingStatus || (MediaProcessingStatus = {}));
+export var DocumentFileType;
+(function (DocumentFileType) {
+    DocumentFileType["PDF"] = "PDF";
+    DocumentFileType["SLIDE"] = "SLIDE";
+    DocumentFileType["DOCX"] = "DOCX";
+    DocumentFileType["OTHER"] = "OTHER";
+})(DocumentFileType || (DocumentFileType = {}));
 let Lesson = class Lesson {
     id;
     courseId;
@@ -42,10 +51,14 @@ let Lesson = class Lesson {
     videoExternalUrl;
     videoProvider;
     videoDurationSeconds;
+    videoFileSize;
+    videoMimeType;
     videoStatus;
     documentAssetId;
     documentFileName;
     documentFileSize;
+    documentMimeType;
+    documentFileType;
     documentDownloadAllowed;
     createdAt;
     updatedAt;
@@ -122,6 +135,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Lesson.prototype, "videoDurationSeconds", void 0);
 __decorate([
+    Column({ name: 'video_file_size', type: 'bigint', nullable: true }),
+    __metadata("design:type", Object)
+], Lesson.prototype, "videoFileSize", void 0);
+__decorate([
+    Column({ name: 'video_mime_type', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Lesson.prototype, "videoMimeType", void 0);
+__decorate([
     Column({
         name: 'video_status',
         type: 'enum',
@@ -143,6 +164,20 @@ __decorate([
     Column({ name: 'document_file_size', type: 'bigint', nullable: true }),
     __metadata("design:type", Object)
 ], Lesson.prototype, "documentFileSize", void 0);
+__decorate([
+    Column({ name: 'document_mime_type', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], Lesson.prototype, "documentMimeType", void 0);
+__decorate([
+    Column({
+        name: 'document_file_type',
+        type: 'enum',
+        enum: DocumentFileType,
+        enumName: 'DocumentFileType',
+        nullable: true,
+    }),
+    __metadata("design:type", Object)
+], Lesson.prototype, "documentFileType", void 0);
 __decorate([
     Column({
         name: 'document_download_allowed',
