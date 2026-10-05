@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@import "../styles/color.css";
+@import "../styles/theme.css";
+@import "../styles/base.css";
+@import "../styles/typography.css";
+@import "../styles/responsive.css";

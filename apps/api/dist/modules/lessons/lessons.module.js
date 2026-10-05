@@ -18,6 +18,7 @@ LessonsModule = __decorate([
         imports: [AuthModule, DatabaseModule],
         controllers: [LessonsController],
         providers: [LessonsService, OriginGuard, SessionGuard, CourseOwnershipGuard],
+        exports: [LessonsService],
     })
 ], LessonsModule);
 export { LessonsModule };

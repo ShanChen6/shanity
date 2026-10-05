@@ -42,10 +42,21 @@ import {
 } from './course-ownership.guard.js';
 import { Course } from './course.entity.js';
 import { normalizeAvatar, MAX_AVATAR_BYTES } from '../avatar/avatar.service.js';
+import type {
+  CreateLessonDto,
+  LessonContentDto,
+  UpdateLessonDto,
+} from '../modules/lessons/dto/lessons.dto.js';
+import {
+  Lesson,
+  LessonType,
+} from '../modules/lessons/entities/lesson.entity.js';
+import { LessonsService } from '../modules/lessons/lessons.service.js';
 
 class LessonDto {
   @IsString() @Length(1, 255) @Matches(/\S/) title!: string;
-  @IsIn(['Article', 'Video', 'Quiz']) type!: string;
+  @IsIn(['Article', 'Video', 'Quiz', 'TEXT', 'VIDEO', 'DOCUMENT'])
+  type!: string;
   @IsOptional() @IsString() @Length(0, 100000) body?: string;
   @IsOptional() @IsString() @Matches(/^https?:\/\/[^\s]+$/) videoUrl?: string;
   @IsOptional() @IsBoolean() isPreview?: boolean;
@@ -55,14 +66,76 @@ class LessonOrderDto {
 }
 type OwnedRequest = AuthRequest & { course: Course };
 const fields =
-  'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", is_preview AS "isPreview", position';
+  `id, chapter_id AS "chapterId", title,
+   CASE type
+     WHEN 'TEXT' THEN 'Article'
+     WHEN 'VIDEO' THEN 'Video'
+     WHEN 'DOCUMENT' THEN 'Quiz'
+   END AS type,
+   COALESCE(text_body, '') AS body,
+   video_external_url AS "videoUrl",
+   is_preview AS "isPreview", position`;
+
+function legacyLesson(lesson: Lesson) {
+  return {
+    id: lesson.id,
+    chapterId: lesson.chapterId,
+    title: lesson.title,
+    type:
+      lesson.type === LessonType.TEXT
+        ? 'Article'
+        : lesson.type === LessonType.VIDEO
+          ? 'Video'
+          : 'Quiz',
+    body: lesson.textBody ?? '',
+    videoUrl: lesson.videoExternalUrl,
+    isPreview: lesson.isPreview,
+    position: lesson.position,
+  };
+}
+
+function lessonType(value: string): LessonType {
+  if (value === 'Article' || value === 'Quiz' || value === LessonType.TEXT)
+    return LessonType.TEXT;
+  if (value === 'Video' || value === LessonType.VIDEO)
+    return LessonType.VIDEO;
+  return LessonType.DOCUMENT;
+}
+
+function lessonContent(dto: LessonDto): LessonContentDto {
+  const type = lessonType(dto.type);
+  if (type === LessonType.TEXT) return { textBody: dto.body ?? '' };
+  if (type === LessonType.VIDEO) return { videoUrl: dto.videoUrl };
+  throw new BadRequestException(
+    'Use the Lesson API content object when creating a DOCUMENT lesson',
+  );
+}
 
 @Controller('courses/:courseId')
 @UseGuards(OriginGuard, SessionGuard, CourseOwnershipGuard)
 @Roles('instructor', 'admin')
 @RequireCourseOwnership({ resource: 'course', param: 'courseId' })
 export class InstructorContentController {
-  constructor(private readonly database: DataSource) {}
+  constructor(
+    private readonly database: DataSource,
+    private readonly lessons: LessonsService,
+  ) {}
+
+  private async assertLessonInCourse(courseId: string, lessonId: string) {
+    const [lesson] = await this.database.query(
+      'SELECT id FROM lessons WHERE id = $1 AND course_id = $2 AND chapter_id IS NOT NULL',
+      [lessonId, courseId],
+    );
+    if (!lesson) throw new NotFoundException('Lesson not found');
+  }
+
+  private async assertChapterInCourse(courseId: string, chapterId: string) {
+    const [chapter] = await this.database.query(
+      'SELECT id FROM chapters WHERE id = $1 AND course_id = $2',
+      [chapterId, courseId],
+    );
+    if (!chapter) throw new NotFoundException('Chapter not found');
+  }
 
   private async chapter(
     manager: EntityManager,
@@ -89,28 +162,19 @@ export class InstructorContentController {
   }
 
   @Post('chapters/:chapterId/lessons')
-  create(
+  async create(
     @Req() req: OwnedRequest,
     @Param('chapterId', new ParseUUIDPipe({ version: '4' })) chapterId: string,
     @Body() dto: LessonDto,
   ) {
-    return this.database.transaction(async (manager) => {
-      await this.chapter(manager, req.course.id, chapterId);
-      const [lesson] = await manager.query(
-        `INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, is_preview, position)
-        SELECT $1, $2, $3, $4, $5, $6, $7, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`,
-        [
-          req.course.id,
-          chapterId,
-          dto.title.trim(),
-          dto.type,
-          dto.body ?? '',
-          dto.videoUrl ?? null,
-          dto.isPreview ?? false,
-        ],
-      );
-      return lesson;
-    });
+    await this.assertChapterInCourse(req.course.id, chapterId);
+    const input: CreateLessonDto = {
+      title: dto.title,
+      type: lessonType(dto.type),
+      isPreview: dto.isPreview,
+      content: lessonContent(dto),
+    };
+    return legacyLesson(await this.lessons.create(chapterId, input));
   }
 
   @Patch('chapters/:chapterId/lessons/reorder')
@@ -145,49 +209,29 @@ export class InstructorContentController {
   }
 
   @Patch('lessons/:id')
-  update(
+  async update(
     @Req() req: OwnedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: LessonDto,
   ) {
-    return this.database.transaction(async (manager) => {
-      await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
-        req.course.id,
-      ]);
-      const [lesson] = await manager.query(
-        `UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4, is_preview = COALESCE($5, is_preview) WHERE id = $6 AND course_id = $7 AND chapter_id IS NOT NULL RETURNING ${fields}`,
-        [
-          dto.title.trim(),
-          dto.type,
-          dto.body ?? '',
-          dto.videoUrl ?? null,
-          dto.isPreview ?? null,
-          id,
-          req.course.id,
-        ],
-      );
-      if (!lesson) throw new NotFoundException('Lesson not found');
-      return lesson;
-    });
+    await this.assertLessonInCourse(req.course.id, id);
+    const input: UpdateLessonDto = {
+      title: dto.title,
+      type: lessonType(dto.type),
+      isPreview: dto.isPreview,
+      content: lessonContent(dto),
+    };
+    return legacyLesson(await this.lessons.update(id, input));
   }
 
   @Delete('lessons/:id')
   @HttpCode(204)
-  remove(
+  async remove(
     @Req() req: OwnedRequest,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ) {
-    return this.database.transaction(async (manager) => {
-      await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
-        req.course.id,
-      ]);
-      const rows = await manager.query(
-        'DELETE FROM lessons WHERE id = $1 AND course_id = $2 AND chapter_id IS NOT NULL RETURNING id',
-        [id, req.course.id],
-      );
-      // TypeORM returns [rows, affected] for raw DELETE.
-      if (!rows[1]) throw new NotFoundException('Lesson not found');
-    });
+    await this.assertLessonInCourse(req.course.id, id);
+    await this.lessons.remove(id);
   }
 
   @Post('thumbnail')

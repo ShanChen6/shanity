@@ -44,10 +44,11 @@ export class Lesson {
   chapterId: string;
 
   @ManyToOne(() => Chapter, { nullable: false, onDelete: 'CASCADE' })
-  @JoinColumn([
-    { name: 'chapter_id', referencedColumnName: 'id' },
-    { name: 'course_id', referencedColumnName: 'courseId' },
-  ])
+  @JoinColumn({
+    name: 'chapter_id',
+    referencedColumnName: 'id',
+    foreignKeyConstraintName: 'lessons_chapter_fk',
+  })
   chapter: Relation<Chapter>;
 
   @Column({ type: 'varchar', length: 255 })

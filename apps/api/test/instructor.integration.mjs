@@ -84,7 +84,7 @@ await test('instructor content ownership, validation, reorder, media and lifecyc
       await createLesson({
         title: 'Two',
         type: 'Video',
-        videoUrl: 'https://example.org/video.mp4',
+        videoUrl: 'https://www.youtube.com/watch?v=lesson-two',
       }).expect(201)
     ).body;
     await createLesson({ title: ' ', type: 'Article' }).expect(400);

@@ -10,5 +10,6 @@ import { LessonsService } from './lessons.service.js';
   imports: [AuthModule, DatabaseModule],
   controllers: [LessonsController],
   providers: [LessonsService, OriginGuard, SessionGuard, CourseOwnershipGuard],
+  exports: [LessonsService],
 })
 export class LessonsModule {}

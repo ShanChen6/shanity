@@ -17,6 +17,8 @@ import { DataSource } from 'typeorm';
 import { OriginGuard, Roles, SessionGuard, } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
 import { normalizeAvatar, MAX_AVATAR_BYTES } from '../avatar/avatar.service.js';
+import { LessonType, } from '../modules/lessons/entities/lesson.entity.js';
+import { LessonsService } from '../modules/lessons/lessons.service.js';
 class LessonDto {
     title;
     type;
@@ -31,7 +33,7 @@ __decorate([
     __metadata("design:type", String)
 ], LessonDto.prototype, "title", void 0);
 __decorate([
-    IsIn(['Article', 'Video', 'Quiz']),
+    IsIn(['Article', 'Video', 'Quiz', 'TEXT', 'VIDEO', 'DOCUMENT']),
     __metadata("design:type", String)
 ], LessonDto.prototype, "type", void 0);
 __decorate([
@@ -60,11 +62,62 @@ __decorate([
     IsUUID('4', { each: true }),
     __metadata("design:type", Array)
 ], LessonOrderDto.prototype, "ids", void 0);
-const fields = 'id, chapter_id AS "chapterId", title, type, body, video_storage_key AS "videoUrl", is_preview AS "isPreview", position';
+const fields = `id, chapter_id AS "chapterId", title,
+   CASE type
+     WHEN 'TEXT' THEN 'Article'
+     WHEN 'VIDEO' THEN 'Video'
+     WHEN 'DOCUMENT' THEN 'Quiz'
+   END AS type,
+   COALESCE(text_body, '') AS body,
+   video_external_url AS "videoUrl",
+   is_preview AS "isPreview", position`;
+function legacyLesson(lesson) {
+    return {
+        id: lesson.id,
+        chapterId: lesson.chapterId,
+        title: lesson.title,
+        type: lesson.type === LessonType.TEXT
+            ? 'Article'
+            : lesson.type === LessonType.VIDEO
+                ? 'Video'
+                : 'Quiz',
+        body: lesson.textBody ?? '',
+        videoUrl: lesson.videoExternalUrl,
+        isPreview: lesson.isPreview,
+        position: lesson.position,
+    };
+}
+function lessonType(value) {
+    if (value === 'Article' || value === 'Quiz' || value === LessonType.TEXT)
+        return LessonType.TEXT;
+    if (value === 'Video' || value === LessonType.VIDEO)
+        return LessonType.VIDEO;
+    return LessonType.DOCUMENT;
+}
+function lessonContent(dto) {
+    const type = lessonType(dto.type);
+    if (type === LessonType.TEXT)
+        return { textBody: dto.body ?? '' };
+    if (type === LessonType.VIDEO)
+        return { videoUrl: dto.videoUrl };
+    throw new BadRequestException('Use the Lesson API content object when creating a DOCUMENT lesson');
+}
 let InstructorContentController = class InstructorContentController {
     database;
-    constructor(database) {
+    lessons;
+    constructor(database, lessons) {
         this.database = database;
+        this.lessons = lessons;
+    }
+    async assertLessonInCourse(courseId, lessonId) {
+        const [lesson] = await this.database.query('SELECT id FROM lessons WHERE id = $1 AND course_id = $2 AND chapter_id IS NOT NULL', [lessonId, courseId]);
+        if (!lesson)
+            throw new NotFoundException('Lesson not found');
+    }
+    async assertChapterInCourse(courseId, chapterId) {
+        const [chapter] = await this.database.query('SELECT id FROM chapters WHERE id = $1 AND course_id = $2', [chapterId, courseId]);
+        if (!chapter)
+            throw new NotFoundException('Chapter not found');
     }
     async chapter(manager, courseId, chapterId) {
         await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
@@ -77,21 +130,15 @@ let InstructorContentController = class InstructorContentController {
     list(req) {
         return this.database.query(`SELECT ${fields} FROM lessons WHERE course_id = $1 AND chapter_id IS NOT NULL ORDER BY position, id`, [req.course.id]);
     }
-    create(req, chapterId, dto) {
-        return this.database.transaction(async (manager) => {
-            await this.chapter(manager, req.course.id, chapterId);
-            const [lesson] = await manager.query(`INSERT INTO lessons(course_id, chapter_id, title, type, body, video_storage_key, is_preview, position)
-        SELECT $1, $2, $3, $4, $5, $6, $7, COALESCE(MAX(position), -1) + 1 FROM lessons WHERE chapter_id = $2 RETURNING ${fields}`, [
-                req.course.id,
-                chapterId,
-                dto.title.trim(),
-                dto.type,
-                dto.body ?? '',
-                dto.videoUrl ?? null,
-                dto.isPreview ?? false,
-            ]);
-            return lesson;
-        });
+    async create(req, chapterId, dto) {
+        await this.assertChapterInCourse(req.course.id, chapterId);
+        const input = {
+            title: dto.title,
+            type: lessonType(dto.type),
+            isPreview: dto.isPreview,
+            content: lessonContent(dto),
+        };
+        return legacyLesson(await this.lessons.create(chapterId, input));
     }
     reorder(req, chapterId, dto) {
         return this.database.transaction(async (manager) => {
@@ -105,34 +152,19 @@ let InstructorContentController = class InstructorContentController {
             return manager.query(`SELECT ${fields} FROM lessons WHERE course_id = $1 AND chapter_id IS NOT NULL ORDER BY position, id`, [req.course.id]);
         });
     }
-    update(req, id, dto) {
-        return this.database.transaction(async (manager) => {
-            await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
-                req.course.id,
-            ]);
-            const [lesson] = await manager.query(`UPDATE lessons SET title = $1, type = $2, body = $3, video_storage_key = $4, is_preview = COALESCE($5, is_preview) WHERE id = $6 AND course_id = $7 AND chapter_id IS NOT NULL RETURNING ${fields}`, [
-                dto.title.trim(),
-                dto.type,
-                dto.body ?? '',
-                dto.videoUrl ?? null,
-                dto.isPreview ?? null,
-                id,
-                req.course.id,
-            ]);
-            if (!lesson)
-                throw new NotFoundException('Lesson not found');
-            return lesson;
-        });
+    async update(req, id, dto) {
+        await this.assertLessonInCourse(req.course.id, id);
+        const input = {
+            title: dto.title,
+            type: lessonType(dto.type),
+            isPreview: dto.isPreview,
+            content: lessonContent(dto),
+        };
+        return legacyLesson(await this.lessons.update(id, input));
     }
-    remove(req, id) {
-        return this.database.transaction(async (manager) => {
-            await manager.query('SELECT id FROM courses WHERE id = $1 FOR UPDATE', [
-                req.course.id,
-            ]);
-            const rows = await manager.query('DELETE FROM lessons WHERE id = $1 AND course_id = $2 AND chapter_id IS NOT NULL RETURNING id', [id, req.course.id]);
-            if (!rows[1])
-                throw new NotFoundException('Lesson not found');
-        });
+    async remove(req, id) {
+        await this.assertLessonInCourse(req.course.id, id);
+        await this.lessons.remove(id);
     }
     async upload(req, file) {
         const data = await normalizeAvatar(file);
@@ -155,7 +187,7 @@ __decorate([
     __param(2, Body()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, LessonDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InstructorContentController.prototype, "create", null);
 __decorate([
     Patch('chapters/:chapterId/lessons/reorder'),
@@ -173,7 +205,7 @@ __decorate([
     __param(2, Body()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, LessonDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InstructorContentController.prototype, "update", null);
 __decorate([
     Delete('lessons/:id'),
@@ -182,7 +214,7 @@ __decorate([
     __param(1, Param('id', new ParseUUIDPipe({ version: '4' }))),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], InstructorContentController.prototype, "remove", null);
 __decorate([
     Post('thumbnail'),
@@ -200,7 +232,8 @@ InstructorContentController = __decorate([
     UseGuards(OriginGuard, SessionGuard, CourseOwnershipGuard),
     Roles('instructor', 'admin'),
     RequireCourseOwnership({ resource: 'course', param: 'courseId' }),
-    __metadata("design:paramtypes", [DataSource])
+    __metadata("design:paramtypes", [DataSource,
+        LessonsService])
 ], InstructorContentController);
 export { InstructorContentController };
 let CourseMediaController = class CourseMediaController {

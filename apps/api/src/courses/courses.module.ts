@@ -12,9 +12,10 @@ import { PublicCoursesController } from './courses.controller.js';
 import { CoursesService } from './courses.service.js';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseAccessService } from './course-access.service.js';
+import { LessonsModule } from '../modules/lessons/lessons.module.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule],
+  imports: [AuthModule, DatabaseModule, LessonsModule],
   controllers: [
     CoursesController,
     PublicCoursesController,

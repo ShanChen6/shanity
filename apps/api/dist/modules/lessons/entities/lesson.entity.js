@@ -64,10 +64,11 @@ __decorate([
 ], Lesson.prototype, "chapterId", void 0);
 __decorate([
     ManyToOne(() => Chapter, { nullable: false, onDelete: 'CASCADE' }),
-    JoinColumn([
-        { name: 'chapter_id', referencedColumnName: 'id' },
-        { name: 'course_id', referencedColumnName: 'courseId' },
-    ]),
+    JoinColumn({
+        name: 'chapter_id',
+        referencedColumnName: 'id',
+        foreignKeyConstraintName: 'lessons_chapter_fk',
+    }),
     __metadata("design:type", Object)
 ], Lesson.prototype, "chapter", void 0);
 __decorate([
