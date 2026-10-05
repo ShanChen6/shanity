@@ -10,27 +10,18 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { ForbiddenException, Inject, Injectable, NotFoundException, } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { CourseAccessService } from '../../courses/course-access.service.js';
 import { MEDIA_STORAGE_DRIVER } from '../../storage/media-storage.constants.js';
 import { Lesson, LessonType } from './entities/lesson.entity.js';
 let VideoPlaybackService = class VideoPlaybackService {
-    accessPolicy;
     dataSource;
     mediaStorage;
-    constructor(accessPolicy, dataSource, mediaStorage) {
-        this.accessPolicy = accessPolicy;
+    constructor(dataSource, mediaStorage) {
         this.dataSource = dataSource;
         this.mediaStorage = mediaStorage;
     }
-    async createAccess(userId, lessonId) {
-        const access = await this.accessPolicy.canAccessLesson(userId, lessonId);
-        if (!access.granted) {
-            if (access.reason === 'LESSON_NOT_FOUND')
-                throw new NotFoundException('Lesson not found');
-            throw new ForbiddenException('ENROLLMENT_REQUIRED');
-        }
+    async createAccess(lessonId) {
         const lesson = await this.dataSource.getRepository(Lesson).findOne({
             where: { id: lessonId, type: LessonType.VIDEO },
             select: {
@@ -77,9 +68,8 @@ let VideoPlaybackService = class VideoPlaybackService {
 };
 VideoPlaybackService = __decorate([
     Injectable(),
-    __param(2, Inject(MEDIA_STORAGE_DRIVER)),
-    __metadata("design:paramtypes", [CourseAccessService,
-        DataSource, Object])
+    __param(1, Inject(MEDIA_STORAGE_DRIVER)),
+    __metadata("design:paramtypes", [DataSource, Object])
 ], VideoPlaybackService);
 export { VideoPlaybackService };
 //# sourceMappingURL=video-playback.service.js.map

@@ -27,6 +27,7 @@
     "db:revert": "pnpm build && node database/cli.mjs revert",
     "db:adopt-legacy": "pnpm build && node database/cli.mjs adopt-legacy",
     "db:seed": "pnpm build && node database/cli.mjs seed",
+    "seed:course": "pnpm build && node database/cli.mjs seed-course",
     "db:verify": "pnpm build && node database/verify.mjs"
   },
   "dependencies": {

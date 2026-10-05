@@ -519,6 +519,8 @@ let LessonsService = LessonsService_1 = class LessonsService {
                 const { columns, publishable } = buildContent(type, dto.content);
                 Object.assign(changes, columns, { isPublished: publishable });
             }
+            if (dto.isPublished !== undefined)
+                changes.isPublished = dto.isPublished;
             if (dto.position !== undefined) {
                 await this.assertPositionFree(manager, lesson.chapterId, dto.position, id);
                 changes.position = dto.position;

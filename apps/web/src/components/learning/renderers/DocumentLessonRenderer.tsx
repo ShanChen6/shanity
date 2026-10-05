@@ -1,8 +1,11 @@
 "use client";
 
-import { memo, useEffect } from "react";
+import { memo, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { Spinner } from "@/components/ui/spinner";
+import { MediaErrorFallback } from "../states/MediaErrorFallback";
 import type { LessonRendererProps } from "./types";
 
 export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
@@ -23,11 +26,40 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
     return () => window.removeEventListener("keydown", preventSave);
   }, [allowDownload]);
 
-  if (!userAccess.canView)
-    return <p role="alert">You do not have access to this document.</p>;
   const fileName = lesson.fileName ?? lesson.metadata?.fileName ?? "Document";
   const viewUrl = `${API_URL}/lessons/${encodeURIComponent(lesson.id)}/document-view`;
   const downloadUrl = `${API_URL}/lessons/${encodeURIComponent(lesson.id)}/document-download`;
+  const document = useQuery({
+    queryKey: ["learn", "document-view", lesson.id],
+    queryFn: async ({ signal }) => {
+      const response = await fetch(viewUrl, {
+        credentials: "include",
+        cache: "no-store",
+        signal,
+      });
+      if (!response.ok) throw new Error(`Document request failed: ${response.status}`);
+      return response.blob();
+    },
+    enabled: userAccess.canView,
+    retry: false,
+  });
+  const objectUrl = useMemo(
+    () =>
+      document.data && typeof URL.createObjectURL === "function"
+        ? URL.createObjectURL(document.data)
+        : null,
+    [document.data],
+  );
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl],
+  );
+  if (!userAccess.canView)
+    return <p role="alert">You do not have access to this document.</p>;
+  if (document.error)
+    return <MediaErrorFallback kind="document" onRetry={() => void document.refetch()} />;
   return (
     <section data-testid="document-lesson-renderer" className="space-y-4">
       <header className="flex items-center justify-between gap-4">
@@ -46,15 +78,20 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
         ) : null}
       </header>
       <div
-        className="min-h-[70vh] overflow-hidden rounded-lg border border-border bg-surface"
+        className="relative min-h-[70vh] overflow-hidden rounded-lg border border-border bg-surface"
         onContextMenu={allowDownload ? undefined : (event) => event.preventDefault()}
       >
         <iframe
-          src={viewUrl}
+          src={objectUrl ?? undefined}
           title={`Document viewer: ${fileName}`}
           className="h-[70vh] w-full"
           sandbox="allow-same-origin"
         />
+        {document.isPending || !objectUrl ? (
+          <div role="status" aria-label="Đang tải tài liệu" className="absolute inset-0 grid place-items-center bg-surface/90">
+            <Spinner decorative />
+          </div>
+        ) : null}
       </div>
     </section>
   );

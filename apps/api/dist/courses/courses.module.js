@@ -21,6 +21,9 @@ import { LocalVideoDeliveryController, VideoPlaybackController, } from '../modul
 import { VideoPlaybackService } from '../modules/lessons/video-playback.service.js';
 import { DocumentAccessController } from '../modules/lessons/document-access.controller.js';
 import { DocumentAccessService } from '../modules/lessons/document-access.service.js';
+import { LessonAccessController } from '../modules/lessons/lesson-access.controller.js';
+import { LessonAccessGuard } from '../modules/lessons/guards/lesson-access.guard.js';
+import { LessonAccessService } from '../modules/lessons/lesson-access.service.js';
 let CoursesModule = class CoursesModule {
 };
 CoursesModule = __decorate([
@@ -34,6 +37,7 @@ CoursesModule = __decorate([
             VideoPlaybackController,
             LocalVideoDeliveryController,
             DocumentAccessController,
+            LessonAccessController,
         ],
         providers: [
             CoursesService,
@@ -44,6 +48,8 @@ CoursesModule = __decorate([
             CourseOwnershipGuard,
             VideoPlaybackService,
             DocumentAccessService,
+            LessonAccessService,
+            LessonAccessGuard,
         ],
         exports: [CourseAccessService],
     })

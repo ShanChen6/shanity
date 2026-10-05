@@ -2,15 +2,15 @@
 import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Sheet } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { Failure } from "@/features/instructor/shared";
 import { CurriculumSidebar } from "./CurriculumSidebar";
 import { LearningFooter } from "./LearningFooter";
 import { LearningHeader } from "./LearningHeader";
 import { LearningProvider, useLearning, useSyllabusQuery } from "./learning-context";
-import { LearningNotFound } from "./states/LearningNotFound";
-import { LessonSkeleton, SidebarSkeleton } from "./states/LessonSkeleton";
+import { NotFoundCard } from "./states/NotFoundCard";
+import { LearningSkeletonLoader } from "./states/LearningSkeletonLoader";
+import { MobileCurriculumSheet } from "./states/MobileCurriculumSheet";
 
 export function LearningShell({
   courseSlug,
@@ -38,11 +38,11 @@ function Frame({ header, sidebar, children, footer }: {
       {header}
       <div className="flex min-h-0 flex-1">
         {sidebar && (
-          <aside className="hidden w-80 shrink-0 overflow-y-auto border-r border-border bg-surface lg:block">
+          <aside className="hidden w-80 shrink-0 overflow-y-auto overscroll-contain border-r border-border bg-surface lg:block xl:w-96">
             {sidebar}
           </aside>
         )}
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
       </div>
       {footer}
     </div>
@@ -51,18 +51,13 @@ function Frame({ header, sidebar, children, footer }: {
 
 function ShellLoader({ courseSlug, children }: { courseSlug: string; children: ReactNode }) {
   const query = useSyllabusQuery(courseSlug);
-  if (query.isPending)
-    return (
-      <Frame sidebar={<SidebarSkeleton />}>
-        <LessonSkeleton />
-      </Frame>
-    );
+  if (query.isPending) return <LearningSkeletonLoader />;
   if (query.error) {
     const notFound = query.error instanceof ApiError && query.error.status === 404;
     return (
       <Frame>
         {notFound ? (
-          <LearningNotFound scope="course" />
+          <NotFoundCard scope="course" />
         ) : (
           <div className="p-6">
             <Failure error={query.error} retry={() => void query.refetch()} />
@@ -115,11 +110,9 @@ function ShellContent({ children }: { children: ReactNode }) {
       }
     >
       {children}
-      {menuOpen && (
-        <Sheet side="left" title="Giáo trình" onClose={() => setMenuOpen(false)}>
-          {sidebar(() => setMenuOpen(false))}
-        </Sheet>
-      )}
+      <MobileCurriculumSheet open={menuOpen} onClose={() => setMenuOpen(false)}>
+        {sidebar(() => setMenuOpen(false))}
+      </MobileCurriculumSheet>
     </Frame>
   );
 }

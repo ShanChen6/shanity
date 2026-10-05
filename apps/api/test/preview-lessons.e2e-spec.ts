@@ -131,7 +131,7 @@ describe('Preview lesson policy', () => {
       .send({ isPreview: false })
       .expect(200)
       .expect(({ body }) => expect(body.isPreview).toBe(false));
-    await request(app.getHttpServer()).get(`/lessons/${lesson.id}`).expect(401);
+    await request(app.getHttpServer()).get(`/lessons/${lesson.id}`).expect(403);
 
     await db.query(
       'INSERT INTO enrollments(user_id,course_id) VALUES ($1,$2)',

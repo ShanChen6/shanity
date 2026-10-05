@@ -1,8 +1,10 @@
 "use client";
 
-import { memo, useCallback, useRef } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { API_URL, api } from "@/lib/api";
+import { Spinner } from "@/components/ui/spinner";
+import { MediaErrorFallback } from "../states/MediaErrorFallback";
 import type { LessonRendererProps } from "./types";
 
 type VideoAccess = { url: string; expiresInSeconds: number | null };
@@ -15,6 +17,9 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
   const provider = lesson.videoProvider ?? lesson.metadata?.provider;
   const externalUrl = lesson.videoExternalUrl ?? lesson.metadata?.externalUrl;
   const managed = provider === "LOCAL" || provider === "S3";
+  const [buffering, setBuffering] = useState(managed);
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
   const access = useQuery({
     queryKey: ["learn", "video-access", lesson.id],
     queryFn: ({ signal }) =>
@@ -57,28 +62,53 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
   if (managed && access.isPending)
     return <p role="status" className="p-6 text-sm text-muted">Đang chuẩn bị video…</p>;
   if (managed && (access.error || !access.data?.url))
-    return <p role="alert" className="p-6 text-danger">Không thể tải video.</p>;
+    return <MediaErrorFallback kind="video" onRetry={() => void access.refetch()} />;
   const source = managed ? mediaUrl(access.data!.url) : externalUrl;
   if (!source)
-    return <p role="alert" className="p-6 text-danger">Video chưa sẵn sàng.</p>;
+    return <MediaErrorFallback kind="video" />;
+  if (mediaFailed)
+    return (
+      <MediaErrorFallback
+        kind="video"
+        onRetry={() => {
+          setMediaFailed(false);
+          setBuffering(true);
+          setRetryVersion((value) => value + 1);
+        }}
+      />
+    );
   return (
-    <video
-      data-testid="video-lesson-renderer"
-      className="aspect-video w-full rounded-lg bg-black"
-      src={source}
-      controls
-      controlsList="nodownload"
-      preload="metadata"
-      onTimeUpdate={(event) => reportProgress(event.currentTarget)}
-      onEnded={() => {
-        if (!completed.current) {
-          completed.current = true;
-          onComplete?.();
-        }
-      }}
-    >
-      Trình duyệt không hỗ trợ phát video.
-    </video>
+    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+      <video
+        key={retryVersion}
+        data-testid="video-lesson-renderer"
+        className="h-full w-full object-contain"
+        src={source}
+        poster={lesson.posterUrl ?? undefined}
+        controls
+        controlsList="nodownload"
+        preload="metadata"
+        onLoadStart={() => setBuffering(true)}
+        onWaiting={() => setBuffering(true)}
+        onCanPlay={() => setBuffering(false)}
+        onPlaying={() => setBuffering(false)}
+        onError={() => setMediaFailed(true)}
+        onTimeUpdate={(event) => reportProgress(event.currentTarget)}
+        onEnded={() => {
+          if (!completed.current) {
+            completed.current = true;
+            onComplete?.();
+          }
+        }}
+      >
+        Trình duyệt không hỗ trợ phát video.
+      </video>
+      {buffering ? (
+        <div role="status" aria-label="Video đang tải" className="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 text-white">
+          <Spinner />
+        </div>
+      ) : null}
+    </div>
   );
 });
 

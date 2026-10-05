@@ -95,6 +95,7 @@ export class UpdateLessonDto {
     title;
     type;
     isPreview;
+    isPublished;
     content;
     position;
 }
@@ -116,6 +117,11 @@ __decorate([
     IsBoolean(),
     __metadata("design:type", Boolean)
 ], UpdateLessonDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], UpdateLessonDto.prototype, "isPublished", void 0);
 __decorate([
     IsOptional(),
     IsObject(),

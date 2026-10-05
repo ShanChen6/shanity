@@ -149,7 +149,7 @@ describe('Document Lesson media API', () => {
 
     const viewPath = `/lessons/${lesson.id}/document-view`;
     const downloadPath = `/lessons/${lesson.id}/document-download`;
-    await request(app.getHttpServer()).get(viewPath).expect(401);
+    await request(app.getHttpServer()).get(viewPath).expect(403);
     await request(app.getHttpServer())
       .get(viewPath)
       .set('Cookie', student.session)

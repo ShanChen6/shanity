@@ -16,6 +16,7 @@ export type LessonData = {
   videoProvider?: "LOCAL" | "S3" | "EXTERNAL_EMBED" | "YOUTUBE" | "VIMEO" | null;
   videoExternalUrl?: string | null;
   durationSeconds?: number | null;
+  posterUrl?: string | null;
   fileName?: string | null;
   fileSize?: string | number | null;
   fileType?: "PDF" | "SLIDE" | "DOCX" | "OTHER" | null;

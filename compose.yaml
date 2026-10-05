@@ -37,7 +37,7 @@ services:
       [
         "sh",
         "-c",
-        "node database/cli.mjs migrate && node database/cli.mjs seed",
+        "node database/cli.mjs migrate && node database/cli.mjs seed-admin",
       ]
     depends_on:
       postgres:

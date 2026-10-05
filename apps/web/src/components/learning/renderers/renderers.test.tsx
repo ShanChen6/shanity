@@ -55,19 +55,24 @@ describe("LessonContentRenderer", () => {
   });
 
   it("hides document downloads when allowDownload is false", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
     render(
-      <LessonContentRenderer
-        lesson={lesson({
-          type: "DOCUMENT",
-          fileName: "private.pdf",
-          fileType: "PDF",
-          allowDownload: false,
-        })}
-        userAccess={access}
-      />,
+      <QueryClientProvider client={client}>
+        <LessonContentRenderer
+          lesson={lesson({
+            type: "DOCUMENT",
+            fileName: "private.pdf",
+            fileType: "PDF",
+            allowDownload: false,
+          })}
+          userAccess={access}
+        />
+      </QueryClientProvider>,
     );
     expect(screen.getByTestId("document-lesson-renderer")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Tải tài liệu/ })).toBeNull();
+    vi.unstubAllGlobals();
   });
 
   it("renders a safe fallback for an unknown type", () => {

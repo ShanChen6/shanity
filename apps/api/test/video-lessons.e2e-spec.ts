@@ -156,7 +156,7 @@ describe('Video Lesson media API', () => {
     expect(Number(metadata.video_file_size)).toBe(MP4.length);
 
     const accessPath = `/lessons/${lesson.id}/video-access`;
-    await request(app.getHttpServer()).get(accessPath).expect(401);
+    await request(app.getHttpServer()).get(accessPath).expect(403);
     await request(app.getHttpServer())
       .get(accessPath)
       .set('Cookie', student.session)

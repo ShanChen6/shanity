@@ -10,41 +10,31 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Controller, ForbiddenException, Get, Header, HttpException, Param, ParseUUIDPipe, Query, Req, Res, } from '@nestjs/common';
-import { AuthConfig } from '../../auth/auth.config.js';
-import { AuthService } from '../../auth/auth.service.js';
-import { cookie } from '../../auth/auth.guards.js';
+import { Controller, ForbiddenException, Get, Header, HttpException, Param, ParseUUIDPipe, Query, Req, Res, UseGuards, } from '@nestjs/common';
+import { LessonAccessGuard } from './guards/lesson-access.guard.js';
 import { MediaUrlSigner } from '../../storage/media-url-signer.js';
 import { VideoPlaybackService } from './video-playback.service.js';
 let VideoPlaybackController = class VideoPlaybackController {
-    auth;
-    config;
     playback;
-    constructor(auth, config, playback) {
-        this.auth = auth;
-        this.config = config;
+    constructor(playback) {
         this.playback = playback;
     }
-    async access(request, id) {
-        const token = cookie(request, this.config.cookieName('access'));
-        const principal = token ? await this.auth.authenticate(token) : undefined;
-        return this.playback.createAccess(principal?.id, id);
+    access(id) {
+        return this.playback.createAccess(id);
     }
 };
 __decorate([
     Get(':id/video-access'),
     Header('Cache-Control', 'no-store'),
-    __param(0, Req()),
-    __param(1, Param('id', new ParseUUIDPipe({ version: '4' }))),
+    __param(0, Param('id', new ParseUUIDPipe({ version: '4' }))),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", Promise)
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
 ], VideoPlaybackController.prototype, "access", null);
 VideoPlaybackController = __decorate([
     Controller('lessons'),
-    __metadata("design:paramtypes", [AuthService,
-        AuthConfig,
-        VideoPlaybackService])
+    UseGuards(LessonAccessGuard),
+    __metadata("design:paramtypes", [VideoPlaybackService])
 ], VideoPlaybackController);
 export { VideoPlaybackController };
 let LocalVideoDeliveryController = class LocalVideoDeliveryController {

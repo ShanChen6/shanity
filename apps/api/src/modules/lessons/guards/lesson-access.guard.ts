@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthConfig } from '../../../auth/auth.config.js';
@@ -32,10 +31,10 @@ export function rejectLessonAccess(result: LessonAccessResult): never {
     case 'LESSON_NOT_FOUND':
       throw new NotFoundException('Lesson not found');
     case 'AUTHENTICATION_REQUIRED':
-      throw new UnauthorizedException({
-        statusCode: 401,
-        message: 'AUTHENTICATION_REQUIRED',
-        code: 'AUTHENTICATION_REQUIRED',
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'ENROLLMENT_REQUIRED',
+        code: 'ENROLLMENT_REQUIRED',
       });
     case 'ENROLLMENT_REQUIRED':
       throw new ForbiddenException({

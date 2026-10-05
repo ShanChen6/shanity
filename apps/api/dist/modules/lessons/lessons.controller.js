@@ -40,9 +40,6 @@ let LessonsController = class LessonsController {
     reorder(chapterId, dto) {
         return this.lessons.reorder(chapterId, dto);
     }
-    get(id) {
-        return this.lessons.get(id);
-    }
     update(id, dto) {
         return this.lessons.update(id, dto);
     }
@@ -107,14 +104,6 @@ __decorate([
     __metadata("design:paramtypes", [String, ReorderLessonsDto]),
     __metadata("design:returntype", void 0)
 ], LessonsController.prototype, "reorder", null);
-__decorate([
-    Get('lessons/:id'),
-    Header('Cache-Control', 'no-store'),
-    __param(0, Param('id', uuid())),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], LessonsController.prototype, "get", null);
 __decorate([
     Patch('lessons/:id'),
     Header('Cache-Control', 'no-store'),

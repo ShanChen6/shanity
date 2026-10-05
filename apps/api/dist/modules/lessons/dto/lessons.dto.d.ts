@@ -18,6 +18,7 @@ export declare class UpdateLessonDto {
     title?: string;
     type?: LessonType;
     isPreview?: boolean;
+    isPublished?: boolean;
     content?: LessonContentDto;
     position?: number;
 }

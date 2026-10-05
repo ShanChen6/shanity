@@ -131,7 +131,7 @@ describe('Lesson access control matrix', () => {
     // Guest + preview + published.
     await read(preview.lessonId).expect(200);
     // Guest + non-preview + published.
-    await read(locked.lessonId).expect(401);
+    await read(locked.lessonId).expect(403);
     // Un-enrolled student.
     await read(locked.lessonId, student.session)
       .expect(403)
@@ -157,10 +157,10 @@ describe('Lesson access control matrix', () => {
     // Media routes share the same guard.
     await request(app.getHttpServer())
       .get(`/lessons/${locked.lessonId}/video-access`)
-      .expect(401);
+      .expect(403);
     await request(app.getHttpServer())
       .get(`/lessons/${locked.lessonId}/document-view`)
-      .expect(401);
+      .expect(403);
     await request(app.getHttpServer())
       .get(`/lessons/${randomUUID()}`)
       .expect(404);

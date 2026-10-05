@@ -4,6 +4,7 @@ import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
 import { CatalogShell } from "./catalog-view";
 import { CatalogThumbnail } from "./catalog-thumbnail";
+import { CourseCta } from "./site-nav";
 
 export type PublicCourseDetail = {
   course: {
@@ -211,22 +212,7 @@ export function PublicCourseDetailView({
                   </span>
                 </div>
                 <div className="mt-4 border-t border-border pt-4">
-                  <Link
-                    href="/login"
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
-                  >
-                    Đăng nhập để học
-                    <Icon name="arrow" className="size-4" />
-                  </Link>
-                  <p className="mt-3 text-center text-caption text-muted">
-                    Chưa có tài khoản?{" "}
-                    <Link
-                      href="/register"
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Tạo tài khoản
-                    </Link>
-                  </p>
+                  <CourseCta slug={course.slug} />
                 </div>
               </div>
             </div>

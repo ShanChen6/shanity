@@ -24,6 +24,7 @@ export function LearningHeader({
         variant="outline"
         size="sm"
         className="lg:hidden"
+        data-testid="curriculum-toggle"
         aria-label="Mở giáo trình"
         onClick={onOpenMenu}
       >

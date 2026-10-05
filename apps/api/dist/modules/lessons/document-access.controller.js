@@ -10,18 +10,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Controller, Get, Param, ParseUUIDPipe, Req, Res, } from '@nestjs/common';
-import { AuthConfig } from '../../auth/auth.config.js';
-import { cookie } from '../../auth/auth.guards.js';
-import { AuthService } from '../../auth/auth.service.js';
+import { Controller, Get, Param, ParseUUIDPipe, Req, Res, UseGuards, } from '@nestjs/common';
+import { LessonAccessGuard, } from './guards/lesson-access.guard.js';
 import { DocumentAccessService } from './document-access.service.js';
 let DocumentAccessController = class DocumentAccessController {
-    auth;
-    config;
     documents;
-    constructor(auth, config, documents) {
-        this.auth = auth;
-        this.config = config;
+    constructor(documents) {
         this.documents = documents;
     }
     view(request, response, id) {
@@ -31,9 +25,7 @@ let DocumentAccessController = class DocumentAccessController {
         return this.deliver(request, response, id, 'download');
     }
     async deliver(request, response, lessonId, behavior) {
-        const token = cookie(request, this.config.cookieName('access'));
-        const principal = token ? await this.auth.authenticate(token) : undefined;
-        const document = await this.documents.open(principal, lessonId, behavior);
+        const document = await this.documents.open(lessonId, behavior, request.lessonAccess?.bypass === true);
         response.set({
             'Content-Type': document.mimeType,
             'Content-Length': String(document.fileSize),
@@ -66,9 +58,8 @@ __decorate([
 ], DocumentAccessController.prototype, "download", null);
 DocumentAccessController = __decorate([
     Controller('lessons'),
-    __metadata("design:paramtypes", [AuthService,
-        AuthConfig,
-        DocumentAccessService])
+    UseGuards(LessonAccessGuard),
+    __metadata("design:paramtypes", [DocumentAccessService])
 ], DocumentAccessController);
 export { DocumentAccessController };
 function contentDisposition(behavior, originalName) {
