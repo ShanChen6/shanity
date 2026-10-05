@@ -465,17 +465,61 @@
 .instructor-student-preview > p {
   margin-bottom: 18px;
 }
-.instructor-markdown {
+.instructor-markdown,
+.text-lesson-content {
   margin: 20px 0;
   line-height: 1.8;
   font-size: 14px;
+}
+.instructor-markdown {
   white-space: pre-wrap;
 }
 .instructor-markdown h2,
 .instructor-markdown h3,
-.instructor-markdown h4 {
+.instructor-markdown h4,
+.text-lesson-content h1,
+.text-lesson-content h2,
+.text-lesson-content h3,
+.text-lesson-content h4,
+.text-lesson-content h5,
+.text-lesson-content h6 {
   font-weight: 600;
   margin: 12px 0;
+}
+.text-lesson-content h1 { font-size: 1.8rem; }
+.text-lesson-content h2 { font-size: 1.5rem; }
+.text-lesson-content h3 { font-size: 1.25rem; }
+.text-lesson-content p,
+.text-lesson-content ul,
+.text-lesson-content ol,
+.text-lesson-content pre,
+.text-lesson-content blockquote { margin: 12px 0; }
+.text-lesson-content ul,
+.text-lesson-content ol { padding-left: 24px; }
+.text-lesson-content ul { list-style: disc; }
+.text-lesson-content ol { list-style: decimal; }
+.text-lesson-content pre,
+.text-lesson-content code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.text-lesson-content pre {
+  overflow-x: auto;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--background, #f3f5f4);
+}
+.text-lesson-content blockquote {
+  padding-left: 16px;
+  border-left: 3px solid var(--border, #cfd8d3);
+  color: var(--muted, #61736b);
+}
+.text-lesson-content a {
+  color: var(--primary, #21664f);
+  text-decoration: underline;
+}
+.text-lesson-content img {
+  max-width: 100%;
+  height: auto;
 }
 .instructor-student-preview section > h3 {
   font-size: 17px;

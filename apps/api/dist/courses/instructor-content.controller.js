@@ -68,8 +68,11 @@ const fields = `id, chapter_id AS "chapterId", title,
      WHEN 'VIDEO' THEN 'Video'
      WHEN 'DOCUMENT' THEN 'Quiz'
    END AS type,
+   type AS "contentType",
    COALESCE(text_body, '') AS body,
    video_external_url AS "videoUrl",
+   video_asset_id AS "videoAssetId",
+   document_asset_id AS "documentAssetId",
    is_preview AS "isPreview", position`;
 function legacyLesson(lesson) {
     return {
@@ -81,8 +84,11 @@ function legacyLesson(lesson) {
             : lesson.type === LessonType.VIDEO
                 ? 'Video'
                 : 'Quiz',
+        contentType: lesson.type,
         body: lesson.textBody ?? '',
         videoUrl: lesson.videoExternalUrl,
+        videoAssetId: lesson.videoAssetId,
+        documentAssetId: lesson.documentAssetId,
         isPreview: lesson.isPreview,
         position: lesson.position,
     };

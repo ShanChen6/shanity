@@ -6,25 +6,22 @@ import { Button } from "@/components/ui/button";
 import {
   useCourse,
   useChapters,
-  useLessons,
   useReorder,
   chaptersKey,
   lessonsKey,
   type Chapter,
-  type Lesson,
 } from "./data";
+import { CurriculumTree } from "./lesson-builder/CurriculumTree";
 import { EditNav, Failure, Notice, Confirm } from "./shared";
 type Action = { path: string; method: string; body?: unknown };
 export function Curriculum({ id }: { id: string }) {
   const course = useCourse(id),
-    chapters = useChapters(id),
-    lessons = useLessons(id);
+    chapters = useChapters(id);
   const client = useQueryClient();
   const [title, setTitle] = useState("");
   const [notice, setNotice] = useState("");
   const [deletion, setDeletion] = useState<Action | null>(null);
-  const chapterOrder = useReorder(id, "chapters"),
-    lessonOrder = useReorder(id, "lessons");
+  const chapterOrder = useReorder(id, "chapters");
   const mutation = useMutation({
     mutationFn: (action: Action) =>
       api(action.path, {
@@ -40,29 +37,23 @@ export function Curriculum({ id }: { id: string }) {
       setNotice("Đã cập nhật đề cương.");
     },
   });
-  const busy =
-    mutation.isPending || chapterOrder.isPending || lessonOrder.isPending;
+  const busy = mutation.isPending || chapterOrder.isPending;
   function act(action: Action, done?: () => void) {
     setNotice("");
     mutation.mutate(action, { onSuccess: done });
   }
-  function move<T extends Chapter | Lesson>(
-    items: T[],
-    index: number,
-    delta: number,
-    chapterId?: string,
-  ) {
+  function move(items: Chapter[], index: number, delta: number) {
     const next = [...items];
     [next[index], next[index + delta]] = [next[index + delta], next[index]];
     setNotice("");
-    (chapterId ? lessonOrder : chapterOrder).mutate(
-      { items: next, chapterId },
+    chapterOrder.mutate(
+      { items: next },
       { onSuccess: () => setNotice("Đã lưu thứ tự mới.") },
     );
   }
-  if (course.isPending || chapters.isPending || lessons.isPending)
+  if (course.isPending || chapters.isPending)
     return <p role="status">Đang tải đề cương…</p>;
-  const error = course.error || chapters.error || lessons.error;
+  const error = course.error || chapters.error;
   if (error)
     return (
       <Failure
@@ -70,7 +61,6 @@ export function Curriculum({ id }: { id: string }) {
         retry={() => {
           void course.refetch();
           void chapters.refetch();
-          void lessons.refetch();
         }}
       />
     );
@@ -85,10 +75,8 @@ export function Curriculum({ id }: { id: string }) {
       </div>
       <EditNav id={id} active="curriculum" />
       <Notice>{notice}</Notice>
-      {(mutation.error || chapterOrder.error || lessonOrder.error) && (
-        <Failure
-          error={mutation.error || chapterOrder.error || lessonOrder.error}
-        />
+      {(mutation.error || chapterOrder.error) && (
+        <Failure error={mutation.error || chapterOrder.error} />
       )}
       <div className="instructor-curriculum">
         {chapters.data?.map((chapter, index) => (
@@ -140,69 +128,10 @@ export function Curriculum({ id }: { id: string }) {
               </div>
             </div>
             <div className="instructor-lessons">
-              {lessons.data
-                ?.filter((lesson) => lesson.chapterId === chapter.id)
-                .sort((a, b) => a.position - b.position)
-                .map((lesson, index, array) => (
-                  <div className="instructor-lesson" key={lesson.id}>
-                    <LessonForm
-                      lesson={lesson}
-                      busy={busy}
-                      save={(body, done) =>
-                        act(
-                          {
-                            path: `/courses/${id}/lessons/${lesson.id}`,
-                            method: "PATCH",
-                            body,
-                          },
-                          done,
-                        )
-                      }
-                    />
-                    <div className="instructor-actions">
-                      <Button
-                        variant="outline"
-                        disabled={busy || index === 0}
-                        aria-label={`Đưa bài ${lesson.title} lên`}
-                        onClick={() => move(array, index, -1, chapter.id)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busy || index === array.length - 1}
-                        aria-label={`Đưa bài ${lesson.title} xuống`}
-                        onClick={() => move(array, index, 1, chapter.id)}
-                      >
-                        ↓
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() =>
-                          setDeletion({
-                            path: `/courses/${id}/lessons/${lesson.id}`,
-                            method: "DELETE",
-                          })
-                        }
-                      >
-                        Xóa bài
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              <LessonForm
-                busy={busy}
-                save={(body, done) =>
-                  act(
-                    {
-                      path: `/courses/${id}/chapters/${chapter.id}/lessons`,
-                      method: "POST",
-                      body,
-                    },
-                    done,
-                  )
-                }
+              <CurriculumTree
+                courseId={id}
+                chapterId={chapter.id}
+                onNotice={setNotice}
               />
             </div>
           </section>
@@ -298,114 +227,5 @@ function ChapterTitle({
         Đổi tên
       </Button>
     </form>
-  );
-}
-function LessonForm({
-  lesson,
-  busy,
-  save,
-}: {
-  lesson?: Lesson;
-  busy: boolean;
-  save: (body: unknown, done: () => void) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState(lesson?.title ?? "");
-  const [type, setType] = useState(lesson?.type ?? "Article");
-  const [body, setBody] = useState(lesson?.body ?? "");
-  const [videoUrl, setVideoUrl] = useState(lesson?.videoUrl ?? "");
-  return (
-    <div className="instructor-lesson-editor">
-      <Button
-        variant="ghost"
-        disabled={busy}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {lesson
-          ? `${lesson.type === "Video" ? "▷" : "▤"} ${lesson.title} · ${lesson.type}`
-          : "＋ Thêm bài học"}
-      </Button>
-      {open && (
-        <form
-          className="instructor-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!busy)
-              save(
-                {
-                  title: title.trim(),
-                  type,
-                  body,
-                  ...(type === "Video" && videoUrl ? { videoUrl } : {}),
-                },
-                () => {
-                  setOpen(false);
-                  if (!lesson) {
-                    setTitle("");
-                    setBody("");
-                    setVideoUrl("");
-                  }
-                },
-              );
-          }}
-        >
-          <fieldset disabled={busy}>
-            <label>
-              Tiêu đề bài học
-              <input
-                required
-                maxLength={255}
-                pattern=".*\S.*"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </label>
-            <label>
-              Loại bài học
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as Lesson["type"])}
-              >
-                {["Article", "Video", "Quiz"].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            {type === "Video" && (
-              <label>
-                URL video
-                <input
-                  type="url"
-                  pattern="https?://.*"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://example.com/video.mp4"
-                />
-              </label>
-            )}
-            <label>
-              {type === "Quiz"
-                ? "Câu hỏi và hướng dẫn (Markdown)"
-                : "Nội dung bài học (Markdown)"}
-              <textarea
-                rows={5}
-                maxLength={100000}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-            </label>
-            <div className="instructor-actions">
-              <Button type="submit">
-                {lesson ? "Lưu bài học" : "Tạo bài học"}
-              </Button>
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Đóng
-              </Button>
-            </div>
-          </fieldset>
-        </form>
-      )}
-    </div>
   );
 }

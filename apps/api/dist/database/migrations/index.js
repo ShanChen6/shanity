@@ -10,6 +10,10 @@ import { UserAvatar1790899200001 } from './202610020001_user_avatar.js';
 import { CourseSchema1790899200002 } from './202610020002_course_schema.js';
 import { Chapters1790899200003 } from './202610020003_chapters.js';
 import { Enrollments1790899200004 } from './202610020004_enrollments.js';
+import { VideoLessonMetadata1791158400001 } from './202610050001_video_lesson_metadata.js';
+import { VideoProviderConstraint1791158400002 } from './202610050002_video_provider_constraint.js';
+import { VideoMetadataDiscriminator1791158400003 } from './202610050003_video_metadata_discriminator.js';
+import { DocumentLessonMetadata1791158400004 } from './202610050004_document_lesson_metadata.js';
 export const migrationHistory = [
     {
         legacy: '202609270001_foundation.mjs',
@@ -82,6 +86,30 @@ export const migrationHistory = [
         name: 'LessonDomain1790899200007',
         timestamp: 1790899200007,
         migration: LessonDomain1790899200007,
+    },
+    {
+        legacy: null,
+        name: 'VideoLessonMetadata1791158400001',
+        timestamp: 1791158400001,
+        migration: VideoLessonMetadata1791158400001,
+    },
+    {
+        legacy: null,
+        name: 'VideoProviderConstraint1791158400002',
+        timestamp: 1791158400002,
+        migration: VideoProviderConstraint1791158400002,
+    },
+    {
+        legacy: null,
+        name: 'VideoMetadataDiscriminator1791158400003',
+        timestamp: 1791158400003,
+        migration: VideoMetadataDiscriminator1791158400003,
+    },
+    {
+        legacy: null,
+        name: 'DocumentLessonMetadata1791158400004',
+        timestamp: 1791158400004,
+        migration: DocumentLessonMetadata1791158400004,
     },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

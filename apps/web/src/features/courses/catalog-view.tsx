@@ -5,6 +5,7 @@ import { API_URL } from "@/lib/api";
 import { CatalogControls } from "./catalog-controls";
 import { CatalogThumbnail } from "./catalog-thumbnail";
 import { catalogHref } from "./catalog-types";
+import { SiteNav } from "./site-nav";
 import type {
   CatalogCourse,
   CatalogFilters,
@@ -22,21 +23,7 @@ export function CatalogShell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="font-heading text-base font-bold">Shanity</span>
           </Link>
-          <nav className="flex items-center gap-2 sm:gap-3" aria-label="Chính">
-            <Link
-              href="/courses"
-              aria-current="page"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-hover"
-            >
-              Khóa học
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
-            >
-              Đăng nhập
-            </Link>
-          </nav>
+          <SiteNav />
         </div>
       </header>
       {children}

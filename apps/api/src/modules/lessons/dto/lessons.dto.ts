@@ -1,11 +1,14 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -28,11 +31,6 @@ export class LessonContentDto {
   @IsString()
   @Length(1, 2048)
   videoUrl?: string;
-
-  @IsOptional()
-  @IsString()
-  @Length(1, 255)
-  videoAssetId?: string;
 
   @IsOptional()
   @IsString()
@@ -98,6 +96,10 @@ export class UpdateLessonDto {
   isPreview?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => LessonContentDto)
@@ -108,4 +110,85 @@ export class UpdateLessonDto {
   @Min(0)
   @Max(2_147_483_647)
   position?: number;
+}
+
+export class LessonOrderDto {
+  @IsUUID('4')
+  id!: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  position!: number;
+}
+
+export class ReorderLessonsDto {
+  @IsArray()
+  @ArrayUnique((lesson: LessonOrderDto) => lesson.id)
+  @ValidateNested({ each: true })
+  @Type(() => LessonOrderDto)
+  lessonOrders!: LessonOrderDto[];
+}
+
+export class VideoUploadDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(trimString)
+  @IsString()
+  @Length(1, 255)
+  @Matches(/\S/)
+  title?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  isPreview?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  durationSeconds?: number;
+}
+
+export class DocumentUploadDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(trimString)
+  @IsString()
+  @Length(1, 255)
+  @Matches(/\S/)
+  title?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  isPreview?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  allowDownload?: boolean;
+}
+
+export class DocumentSettingsDto {
+  @IsBoolean()
+  allowDownload!: boolean;
 }

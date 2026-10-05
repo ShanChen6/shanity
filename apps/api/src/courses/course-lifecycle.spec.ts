@@ -4,7 +4,11 @@ import {
   assertCourseTransition,
   InvalidCourseTransitionError,
 } from './course-lifecycle.js';
-import { CoursePublishabilityValidator } from './course-publishability.validator.js';
+import {
+  CoursePublishabilityValidator,
+  isLessonContentValid,
+} from './course-publishability.validator.js';
+import { LessonType } from '../modules/lessons/entities/lesson.entity.js';
 
 describe('course lifecycle transitions', () => {
   it('allows draft publish and archive, and published archive', () => {
@@ -81,7 +85,42 @@ describe('course publishability', () => {
       'At least one section is required',
       'Every section must contain at least one lesson',
       'At least one lesson is required',
-      'Every lesson must have text or video content',
+      'Every lesson must have valid text, video, or document content',
     ]);
+  });
+
+  const emptyMedia = {
+    textBody: null,
+    videoAssetId: null,
+    videoExternalUrl: null,
+    documentAssetId: null,
+  };
+
+  it.each([
+    [LessonType.TEXT, { textBody: 'Lesson copy' }],
+    [LessonType.VIDEO, { videoExternalUrl: 'https://example.com/video' }],
+    [LessonType.VIDEO, { videoAssetId: 'videos/lesson.mp4' }],
+    [LessonType.DOCUMENT, { documentAssetId: 'documents/slides.pdf' }],
+  ])('accepts valid %s lesson content', (type, content) => {
+    expect(isLessonContentValid({ ...emptyMedia, type, ...content })).toBe(
+      true,
+    );
+  });
+
+  it.each([LessonType.TEXT, LessonType.VIDEO, LessonType.DOCUMENT])(
+    'rejects empty %s lesson content',
+    (type) => {
+      expect(isLessonContentValid({ ...emptyMedia, type })).toBe(false);
+    },
+  );
+
+  it('rejects whitespace-only text content', () => {
+    expect(
+      isLessonContentValid({
+        ...emptyMedia,
+        type: LessonType.TEXT,
+        textBody: '   ',
+      }),
+    ).toBe(false);
   });
 });

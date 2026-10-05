@@ -38,6 +38,22 @@ export function UserHeader() {
           shanity.
         </Link>
         {session.user && (
+          <div className="flex items-center gap-1">
+            <Link
+              href="/courses"
+              className="rounded-md px-3 py-2 text-sm font-semibold hover:bg-surface-hover"
+            >
+              Khóa học
+            </Link>
+            <Link
+              href="/my-courses"
+              className="rounded-md px-3 py-2 text-sm font-semibold hover:bg-surface-hover"
+            >
+              Khóa học của tôi
+            </Link>
+          </div>
+        )}
+        {session.user && (
           <details
             ref={details}
             className="relative min-w-0 max-w-full"

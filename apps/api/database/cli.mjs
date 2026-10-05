@@ -2,11 +2,12 @@ import { createAppDataSource } from '../dist/database/typeorm.js';
 import { migrateDatabase } from '../dist/database/migrate.js';
 import { seed as demo } from './seeds/001_demo.mjs';
 import { seed as admin } from './seeds/002_super_admin.mjs';
+import { seedSampleCourse } from '../dist/database/seeds/sample-course.seed.js';
 
 const command = process.argv[2];
-if (!['migrate', 'revert', 'adopt-legacy', 'seed'].includes(command)) {
+if (!['migrate', 'revert', 'adopt-legacy', 'seed', 'seed-admin', 'seed-course'].includes(command)) {
   throw new Error(
-    'Usage: node database/cli.mjs migrate|revert|adopt-legacy|seed',
+    'Usage: node database/cli.mjs migrate|revert|adopt-legacy|seed|seed-admin|seed-course',
   );
 }
 const db = createAppDataSource();
@@ -14,8 +15,15 @@ try {
   await db.initialize();
   if (command === 'seed') {
     await demo(db);
+    await seedSampleCourse(db);
     await admin(db);
     console.log('Seeds complete');
+  } else if (command === 'seed-admin') {
+    await admin(db);
+    console.log('Super admin seed complete');
+  } else if (command === 'seed-course') {
+    await seedSampleCourse(db);
+    console.log('Sample JavaScript course seed complete');
   } else {
     const completed = await migrateDatabase(db, {
       adoptLegacy: command === 'adopt-legacy',

@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
-  testDir: "./tests",
+  testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
   timeout: 30000,
@@ -13,4 +13,15 @@ export default defineConfig({
     trace: "off",
     screenshot: "only-on-failure",
   },
+  projects: [
+    { name: "desktop-chromium", use: { viewport: { width: 1440, height: 900 } } },
+    {
+      name: "mobile-chromium",
+      use: {
+        viewport: { width: 375, height: 812 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+  ],
 });
