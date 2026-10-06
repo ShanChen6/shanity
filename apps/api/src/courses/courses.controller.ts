@@ -10,7 +10,9 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import type { AuthRequest } from '../auth/auth.guards.js';
 import {
@@ -84,6 +86,7 @@ export class CoursesController {
   }
 
   @Post(':id/publish')
+  @UseInterceptors(CurriculumChangedInterceptor)
   @Roles('instructor', 'admin')
   @UseGuards(CourseOwnershipGuard)
   @RequireCourseOwnership({ resource: 'course', param: 'id' })
@@ -93,6 +96,7 @@ export class CoursesController {
   }
 
   @Post(':id/unpublish')
+  @UseInterceptors(CurriculumChangedInterceptor)
   @Roles('instructor', 'admin')
   @UseGuards(CourseOwnershipGuard)
   @RequireCourseOwnership({ resource: 'course', param: 'id' })
@@ -102,6 +106,7 @@ export class CoursesController {
   }
 
   @Post(':id/archive')
+  @UseInterceptors(CurriculumChangedInterceptor)
   @Roles('instructor', 'admin')
   @UseGuards(CourseOwnershipGuard)
   @RequireCourseOwnership({ resource: 'course', param: 'id' })

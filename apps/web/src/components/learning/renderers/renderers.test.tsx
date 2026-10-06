@@ -1,3 +1,4 @@
+import { readPercentage } from "./TextLessonRenderer";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -154,5 +155,18 @@ describe("LessonContentRenderer", () => {
     });
     video.dispatchEvent(new Event("loadedmetadata", { bubbles: true }));
     expect(video.currentTime).toBe(90);
+  });
+});
+
+describe("readPercentage", () => {
+  const rect = (top: number, height: number) => ({ top, height }) as DOMRect;
+  it("measures how much of the lesson body has scrolled into view", () => {
+    expect(readPercentage(rect(0, 1000), 400)).toBe(40);
+    expect(readPercentage(rect(-500, 1000), 400)).toBe(90);
+    expect(readPercentage(rect(600, 1000), 400)).toBe(0);
+  });
+  it("treats content that fits on screen as fully read", () => {
+    expect(readPercentage(rect(0, 300), 800)).toBe(100);
+    expect(readPercentage(rect(0, 0), 800)).toBe(100);
   });
 });

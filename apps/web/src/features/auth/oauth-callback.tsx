@@ -4,7 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { safeRedirect, GOOGLE_RETURN_KEY, loginUrl } from "@/lib/auth-redirect";
+import {
+  GOOGLE_RETURN_KEY,
+  homeForRoles,
+  loginUrl,
+  postLoginRedirect,
+  safeRedirect,
+} from "@/lib/auth-redirect";
 import { useSession } from "./session-provider";
 const errors: Record<string, string> = {
   cancelled:
@@ -25,20 +31,30 @@ export function OAuthCallback() {
   const linked = params.get("result") === "linked";
   const redirected = useRef(false);
   useEffect(() => {
-    if (!code && session.status === "authenticated" && !redirected.current) {
+    const user = session.user;
+    if (
+      !code &&
+      session.status === "authenticated" &&
+      user &&
+      !redirected.current
+    ) {
       redirected.current = true;
-      let destination = "/profile";
+      // Account linking starts from /profile, so it always returns there.
+      let destination = linked ? "/profile" : homeForRoles(user.roles);
       try {
         destination = linked
           ? "/profile"
-          : safeRedirect(sessionStorage.getItem(GOOGLE_RETURN_KEY));
+          : postLoginRedirect(
+              sessionStorage.getItem(GOOGLE_RETURN_KEY),
+              user.roles,
+            );
         sessionStorage.removeItem(GOOGLE_RETURN_KEY);
       } catch {
         /* Storage unavailable: use the safe default. */
       }
       router.replace(destination);
     }
-  }, [code, linked, session.status, router]);
+  }, [code, linked, session.status, session.user, router]);
   const message = code
     ? (errors[code] ?? errors.failed)
     : session.status === "anonymous"
@@ -57,13 +73,15 @@ export function OAuthCallback() {
             onClick={(event) => {
               if (session.user) return;
               event.preventDefault();
-              let destination = "/profile";
+              // Keep "no explicit return URL" so the next login uses the role home.
+              let requested = "";
               try {
-                destination = safeRedirect(
+                requested = safeRedirect(
                   sessionStorage.getItem(GOOGLE_RETURN_KEY),
+                  "",
                 );
               } catch {}
-              router.push(loginUrl(destination));
+              router.push(requested ? loginUrl(requested) : "/login");
             }}
             className="mt-5 inline-flex min-h-11 items-center font-semibold text-primary"
           >

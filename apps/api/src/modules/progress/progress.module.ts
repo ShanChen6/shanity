@@ -6,20 +6,29 @@ import { ProgressController } from './progress.controller.js';
 import { ProgressService } from './progress.service.js';
 import { CoursesModule } from '../../courses/courses.module.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
-import { CourseProgressEngine } from './services/course-progress-engine.service.js';
+import { CourseProgressCalculatorService } from './services/course-progress-calculator.service.js';
 import { ResumeLearningService } from './services/resume-learning.service.js';
+import { NoopProgressCache, ProgressCache } from './cache/progress-cache.js';
+import { EnrollmentPolicy } from './services/enrollment-policy.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, CoursesModule],
   controllers: [ProgressController],
   providers: [
     ProgressService,
-    CourseProgressEngine,
+    CourseProgressCalculatorService,
     ResumeLearningService,
+    EnrollmentPolicy,
+    // Swap for a Redis-backed adapter to enable caching.
+    { provide: ProgressCache, useClass: NoopProgressCache },
     OriginGuard,
     SessionGuard,
     LessonAccessGuard,
   ],
-  exports: [ProgressService, CourseProgressEngine, ResumeLearningService],
+  exports: [
+    ProgressService,
+    CourseProgressCalculatorService,
+    ResumeLearningService,
+  ],
 })
 export class ProgressModule {}

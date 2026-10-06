@@ -1,3 +1,9 @@
+export type CompletionEvidence = {
+  scrollPercentage?: number;
+  reachedLastPage?: boolean;
+  downloaded?: boolean;
+};
+
 export type LessonType = "TEXT" | "VIDEO" | "DOCUMENT";
 
 export type EditorBlock = {
@@ -41,11 +47,13 @@ export type LessonRendererProps = {
   lesson: LessonData;
   initialPosition?: number;
   userAccess: AccessRights;
-  onComplete?: (evidence?: {
-    scrollPercentage?: number;
-    reachedLastPage?: boolean;
-    downloaded?: boolean;
-  }) => void;
+  // Reports proof the learner consumed the lesson; the action bar sends it
+  // with POST /lessons/:id/progress/complete. Text: >= 80% read. Document:
+  // viewer loaded (or downloaded).
+  onEvidence?: (evidence: CompletionEvidence) => void;
+  // Videos complete on the server through onVideoProgress; this fires once at
+  // the same threshold so the page can react.
+  onComplete?: () => void;
   onVideoProgress?: (progress: {
     seconds: number;
     percentage: number;

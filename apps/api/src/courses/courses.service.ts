@@ -44,6 +44,7 @@ interface PublicCourseDetailRow {
   shortDescription: string | null;
   thumbnail: string | null;
   publishedAt: Date | null;
+  isSequential: boolean;
   instructorId: string | null;
   instructorDisplayName: string | null;
   instructorAvatarKey: string | null;
@@ -324,6 +325,7 @@ export class CoursesService {
       .addSelect('course.shortDescription', 'shortDescription')
       .addSelect('course.thumbnail', 'thumbnail')
       .addSelect('course.publishedAt', 'publishedAt')
+      .addSelect('course.isSequential', 'isSequential')
       .addSelect('instructor.id', 'instructorId')
       .addSelect('instructor.displayName', 'instructorDisplayName')
       .addSelect('instructor.avatarKey', 'instructorAvatarKey')
@@ -350,6 +352,7 @@ export class CoursesService {
         shortDescription: course.shortDescription,
         thumbnail: course.thumbnail,
         publishedAt: course.publishedAt,
+        isSequential: course.isSequential === true,
       },
       instructor: course.instructorId
         ? {

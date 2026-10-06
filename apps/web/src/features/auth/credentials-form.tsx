@@ -16,13 +16,19 @@ import {
   type Fields,
 } from "./validation";
 
-import { safeRedirect, GOOGLE_RETURN_KEY } from "@/lib/auth-redirect";
+import {
+  GOOGLE_RETURN_KEY,
+  postLoginRedirect,
+  safeRedirect,
+} from "@/lib/auth-redirect";
 
 export function CredentialsForm({ register = false }: { register?: boolean }) {
   const session = useSession();
   const router = useRouter();
-  const destination = safeRedirect(useSearchParams().get("redirect"));
-  const passwordChanged = useSearchParams().get("passwordChanged") === "1";
+  const searchParams = useSearchParams();
+  // Only an explicit, safe ?redirect= is carried; otherwise the role decides.
+  const requested = safeRedirect(searchParams.get("redirect"), "") || null;
+  const passwordChanged = searchParams.get("passwordChanged") === "1";
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [displayName, setDisplayName] = useState(""),
@@ -44,9 +50,9 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
     };
   }, [loadSession]);
   useEffect(() => {
-    if (checked && session.status === "authenticated")
-      router.replace(destination);
-  }, [checked, session.status, router, destination]);
+    if (checked && session.status === "authenticated" && session.user)
+      router.replace(postLoginRedirect(requested, session.user.roles));
+  }, [checked, session.status, session.user, router, requested]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current) return;
@@ -69,7 +75,7 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
     pending.current = true;
     setBusy(true);
     try {
-      await session.signIn(register ? "/auth/register" : "/auth/login", {
+      const user = await session.signIn(register ? "/auth/register" : "/auth/login", {
         email: email.trim().toLowerCase(),
         password,
         ...(register ? { displayName: displayName.trim() } : {}),
@@ -81,7 +87,7 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
       } catch {
         /* Optional cleanup. */
       }
-      router.replace(destination);
+      router.replace(postLoginRedirect(requested, user.roles));
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 409) {
         setFields({
@@ -140,7 +146,8 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
           pending.current = true;
           setBusy(true);
           try {
-            sessionStorage.setItem(GOOGLE_RETURN_KEY, destination);
+            // Empty means "no explicit return URL"; the callback picks the role home.
+            sessionStorage.setItem(GOOGLE_RETURN_KEY, requested ?? "");
           } catch {
             pending.current = false;
             setBusy(false);
@@ -277,7 +284,7 @@ export function CredentialsForm({ register = false }: { register?: boolean }) {
         {register ? "Bạn đã có tài khoản?" : "Bạn mới đến Shanity?"}{" "}
         <Link
           className="inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline"
-          href={`${register ? "/login" : "/register"}?${new URLSearchParams({ redirect: destination })}`}
+          href={`${register ? "/login" : "/register"}${requested ? `?${new URLSearchParams({ redirect: requested })}` : ""}`}
         >
           {register ? "Đăng nhập" : "Tạo tài khoản"}
         </Link>

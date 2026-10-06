@@ -1,11 +1,9 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { Failure } from "@/features/instructor/shared";
 import { CurriculumSidebar } from "./CurriculumSidebar";
-import { LearningFooter } from "./LearningFooter";
 import { LearningHeader } from "./LearningHeader";
 import {
   LearningProvider,
@@ -23,24 +21,19 @@ export function LearningShell({
   courseSlug: string;
   children: ReactNode;
 }) {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <ShellLoader courseSlug={courseSlug}>{children}</ShellLoader>
-    </QueryClientProvider>
-  );
+  // Uses the app-wide QueryClient so progress changes made here also refresh
+  // /my-learning and the resume card without a reload.
+  return <ShellLoader courseSlug={courseSlug}>{children}</ShellLoader>;
 }
 
 function Frame({
   header,
   sidebar,
   children,
-  footer,
 }: {
   header?: ReactNode;
   sidebar?: ReactNode;
   children: ReactNode;
-  footer?: ReactNode;
 }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
@@ -55,7 +48,6 @@ function Frame({
           {children}
         </main>
       </div>
-      {footer}
     </div>
   );
 }
@@ -100,8 +92,8 @@ function ShellContent({ children }: { children: ReactNode }) {
       courseSlug={learning.courseSlug}
       curriculum={learning.curriculum}
       activeSlug={lessonSlug}
-      completed={learning.completed}
-      isLocked={learning.isLocked}
+      statusOf={learning.statusOf}
+      prerequisiteOf={learning.prerequisiteOf}
       onNavigate={onNavigate}
     />
   );
@@ -111,20 +103,11 @@ function ShellContent({ children }: { children: ReactNode }) {
         <LearningHeader
           courseTitle={learning.syllabus.course.title}
           courseProgress={learning.courseProgress}
+          showProgress={learning.isTracking}
           onOpenMenu={() => setMenuOpen(true)}
         />
       }
       sidebar={sidebar()}
-      footer={
-        lessonSlug ? (
-          <LearningFooter
-            courseSlug={learning.courseSlug}
-            curriculum={learning.curriculum}
-            activeSlug={lessonSlug}
-            isLocked={learning.isLocked}
-          />
-        ) : undefined
-      }
     >
       {children}
       <MobileCurriculumSheet open={menuOpen} onClose={() => setMenuOpen(false)}>

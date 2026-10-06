@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
+import { UserMenu } from "@/features/auth/user-menu";
 import { useSession } from "@/features/auth/session-provider";
 import { loginUrl } from "@/lib/auth-redirect";
 import { api } from "@/lib/api";
@@ -14,14 +14,14 @@ const linkClass = (active: boolean) =>
   }`;
 
 export function SiteNav() {
-  const { user, status, logout } = useSession();
+  const { user, status } = useSession();
   const pathname = usePathname();
   const is = (prefix: string) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`);
 
   const links = [{ href: "/courses", label: "Khóa học" }];
   if (user) {
-    links.push({ href: "/my-courses", label: "Khóa học của tôi" });
+    links.push({ href: "/my-learning", label: "Góc học tập" });
     if (user.roles.includes("instructor"))
       links.push({ href: "/instructor/courses", label: "Giảng viên" });
     if (user.roles.includes("admin"))
@@ -44,24 +44,7 @@ export function SiteNav() {
         </Link>
       ))}
       {user ? (
-        <>
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-surface-hover"
-          >
-            <CurrentUserAvatar />
-            <span className="hidden max-w-32 truncate text-sm font-semibold sm:inline">
-              {user.displayName}
-            </span>
-          </Link>
-          <button
-            type="button"
-            className={linkClass(false)}
-            onClick={() => void logout().catch(() => undefined)}
-          >
-            Đăng xuất
-          </button>
-        </>
+        <UserMenu />
       ) : status === "loading" ? null : (
         <Link href="/login" className={linkClass(false)}>
           Đăng nhập

@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsOptional,
   ValidateIf,
   IsString,
@@ -110,4 +111,8 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   thumbnail?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isSequential?: boolean;
 }

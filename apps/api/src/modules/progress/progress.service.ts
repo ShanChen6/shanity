@@ -1,11 +1,9 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.module.js';
-import { Enrollment } from '../../courses/enrollment.entity.js';
 import { Lesson, LessonType } from '../lessons/entities/lesson.entity.js';
 import {
   LessonProgress,
@@ -13,14 +11,15 @@ import {
 } from './entities/lesson-progress.entity.js';
 import type { CompleteLessonDto, VideoProgressDto } from './progress.dto.js';
 import type { UpdateProgressDto } from './dto/update-progress.dto.js';
-import { IsNull } from 'typeorm';
-import { CourseProgressEngine } from './services/course-progress-engine.service.js';
+import { CourseProgressCalculatorService } from './services/course-progress-calculator.service.js';
+import { EnrollmentPolicy } from './services/enrollment-policy.js';
 
 @Injectable()
 export class ProgressService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly courseProgressEngine: CourseProgressEngine,
+    private readonly progressCalculator: CourseProgressCalculatorService,
+    private readonly enrollments: EnrollmentPolicy,
   ) {}
 
   private async lessonForStudent(userId: string, lessonId: string) {
@@ -28,14 +27,7 @@ export class ProgressService {
       .getRepository(Lesson)
       .findOneBy({ id: lessonId });
     if (!lesson) throw new NotFoundException('Lesson not found');
-    const enrollment = await this.database.dataSource
-      .getRepository(Enrollment)
-      .findOneBy({
-        userId,
-        courseId: lesson.courseId,
-        revokedAt: IsNull(),
-      });
-    if (!enrollment) throw new ForbiddenException('Active enrollment required');
+    await this.enrollments.requireActive(userId, lesson.courseId);
     return lesson;
   }
 
@@ -187,14 +179,7 @@ export class ProgressService {
   }
 
   async courseProgress(userId: string, courseId: string) {
-    const enrollment = await this.database.dataSource
-      .getRepository(Enrollment)
-      .findOneBy({
-        userId,
-        courseId,
-        revokedAt: IsNull(),
-      });
-    if (!enrollment) throw new ForbiddenException('Active enrollment required');
+    await this.enrollments.requireActive(userId, courseId);
     const rows = (await this.database.dataSource.query(
       `SELECT lesson.id AS "lessonId", COALESCE(progress.status::text, $3) AS status,
               lesson.is_required AS "isRequired",
@@ -213,13 +198,16 @@ export class ProgressService {
       lastPosition: number | null;
     }>;
     return Object.assign(
-      await this.courseProgressEngine.calculate(userId, courseId),
+      await this.progressCalculator.calculate(userId, courseId),
       { lessons: rows },
     );
   }
 
+  // Called after every progress write: drop the student's cached summary so
+  // this response and every other device/tab read the new numbers.
   async calculateCourseProgress(userId: string, courseId: string) {
-    return this.courseProgressEngine.calculate(userId, courseId);
+    await this.progressCalculator.invalidateStudentProgress(userId, courseId);
+    return this.progressCalculator.calculate(userId, courseId);
   }
 
   private async markCompleted(
