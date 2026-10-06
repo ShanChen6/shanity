@@ -10,7 +10,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Get, Header, ParseUUIDPipe, Param, Patch, Post, Query, Req, UseGuards, } from '@nestjs/common';
+import { Body, Controller, Get, Header, ParseUUIDPipe, Param, Patch, Post, Query, Req, UseGuards, UseInterceptors, } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
 import { CreateCourseDto, UpdateCourseDto } from './courses.dto.js';
@@ -114,6 +115,7 @@ __decorate([
 ], CoursesController.prototype, "update", null);
 __decorate([
     Post(':id/publish'),
+    UseInterceptors(CurriculumChangedInterceptor),
     Roles('instructor', 'admin'),
     UseGuards(CourseOwnershipGuard),
     RequireCourseOwnership({ resource: 'course', param: 'id' }),
@@ -125,6 +127,7 @@ __decorate([
 ], CoursesController.prototype, "publish", null);
 __decorate([
     Post(':id/unpublish'),
+    UseInterceptors(CurriculumChangedInterceptor),
     Roles('instructor', 'admin'),
     UseGuards(CourseOwnershipGuard),
     RequireCourseOwnership({ resource: 'course', param: 'id' }),
@@ -136,6 +139,7 @@ __decorate([
 ], CoursesController.prototype, "unpublish", null);
 __decorate([
     Post(':id/archive'),
+    UseInterceptors(CurriculumChangedInterceptor),
     Roles('instructor', 'admin'),
     UseGuards(CourseOwnershipGuard),
     RequireCourseOwnership({ resource: 'course', param: 'id' }),

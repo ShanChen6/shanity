@@ -10,6 +10,7 @@ declare class LessonDto {
     body?: string;
     videoUrl?: string;
     isPreview?: boolean;
+    isRequired?: boolean;
 }
 declare class LessonOrderDto {
     ids: string[];
@@ -36,6 +37,7 @@ export declare class InstructorContentController {
         videoAssetId: string | null;
         documentAssetId: string | null;
         isPreview: boolean;
+        isRequired: boolean;
         position: number;
     }>;
     reorder(req: OwnedRequest, chapterId: string, dto: LessonOrderDto): Promise<any>;
@@ -50,6 +52,7 @@ export declare class InstructorContentController {
         videoAssetId: string | null;
         documentAssetId: string | null;
         isPreview: boolean;
+        isRequired: boolean;
         position: number;
     }>;
     remove(req: OwnedRequest, id: string): Promise<void>;

@@ -11,6 +11,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import { Body, Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors, } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../curriculum/curriculum-changed.interceptor.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OriginGuard, Roles, SessionGuard } from '../../auth/auth.guards.js';
 import { CreateLessonDto, DocumentSettingsDto, DocumentUploadDto, ReorderLessonsDto, UpdateLessonDto, VideoUploadDto, } from './dto/lessons.dto.js';
@@ -158,7 +159,7 @@ __decorate([
 LessonsController = __decorate([
     Controller(),
     UseGuards(OriginGuard, SessionGuard, LessonOwnershipGuard),
-    UseInterceptors(LessonRequestSanitizationInterceptor),
+    UseInterceptors(LessonRequestSanitizationInterceptor, CurriculumChangedInterceptor),
     Roles('instructor', 'admin'),
     __metadata("design:paramtypes", [LessonsService])
 ], LessonsController);

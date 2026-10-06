@@ -14,6 +14,14 @@ import { VideoLessonMetadata1791158400001 } from './202610050001_video_lesson_me
 import { VideoProviderConstraint1791158400002 } from './202610050002_video_provider_constraint.js';
 import { VideoMetadataDiscriminator1791158400003 } from './202610050003_video_metadata_discriminator.js';
 import { DocumentLessonMetadata1791158400004 } from './202610050004_document_lesson_metadata.js';
+import { LessonProgress1791244800001 } from './202610060001_lesson_progress.js';
+import { AddIsRequiredToLessons1791244800002 } from './202610060002_lesson_required.js';
+import { ResumeLearning1791244800003 } from './202610060003_resume_learning.js';
+import { SequentialCourses1791331200001 } from './202610070001_sequential_courses.js';
+import { EnrollmentsCourseActiveIndex1791331200002 } from './202610070002_enrollments_course_active_idx.js';
+import { QuizCoreSchema1791417600001 } from './202610080001_quiz_core_schema.js';
+import { QuizTargetIntegrity1791417600002 } from './202610080002_quiz_target_integrity.js';
+import { QuizQuestionsOptions1791417600003 } from './202610080003_quiz_questions_options.js';
 export const migrationHistory = [
     {
         legacy: '202609270001_foundation.mjs',
@@ -110,6 +118,54 @@ export const migrationHistory = [
         name: 'DocumentLessonMetadata1791158400004',
         timestamp: 1791158400004,
         migration: DocumentLessonMetadata1791158400004,
+    },
+    {
+        legacy: null,
+        name: 'LessonProgress1791244800001',
+        timestamp: 1791244800001,
+        migration: LessonProgress1791244800001,
+    },
+    {
+        legacy: null,
+        name: 'AddIsRequiredToLessons1791244800002',
+        timestamp: 1791244800002,
+        migration: AddIsRequiredToLessons1791244800002,
+    },
+    {
+        legacy: null,
+        name: 'ResumeLearning1791244800003',
+        timestamp: 1791244800003,
+        migration: ResumeLearning1791244800003,
+    },
+    {
+        legacy: null,
+        name: 'SequentialCourses1791331200001',
+        timestamp: 1791331200001,
+        migration: SequentialCourses1791331200001,
+    },
+    {
+        legacy: null,
+        name: 'EnrollmentsCourseActiveIndex1791331200002',
+        timestamp: 1791331200002,
+        migration: EnrollmentsCourseActiveIndex1791331200002,
+    },
+    {
+        legacy: null,
+        name: 'QuizCoreSchema1791417600001',
+        timestamp: 1791417600001,
+        migration: QuizCoreSchema1791417600001,
+    },
+    {
+        legacy: null,
+        name: 'QuizTargetIntegrity1791417600002',
+        timestamp: 1791417600002,
+        migration: QuizTargetIntegrity1791417600002,
+    },
+    {
+        legacy: null,
+        name: 'QuizQuestionsOptions1791417600003',
+        timestamp: 1791417600003,
+        migration: QuizQuestionsOptions1791417600003,
     },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

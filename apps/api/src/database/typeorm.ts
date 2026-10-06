@@ -8,6 +8,8 @@ import { User } from '../users/user.entity.js';
 import { databaseConfig } from './config.js';
 import { LessonProgress } from '../modules/progress/entities/lesson-progress.entity.js';
 import { QuizEntity } from '../modules/quiz/entities/quiz.entity.js';
+import { QuizQuestionEntity } from '../modules/quiz/entities/quiz-question.entity.js';
+import { QuizOptionEntity } from '../modules/quiz/entities/quiz-option.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -35,6 +37,8 @@ export function createAppDataSource(): DataSource {
       AuthRateLimit,
       LessonProgress,
       QuizEntity,
+      QuizQuestionEntity,
+      QuizOptionEntity,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

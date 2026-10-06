@@ -20,6 +20,8 @@ import { ResumeLearning1791244800003 } from './202610060003_resume_learning.js';
 import { SequentialCourses1791331200001 } from './202610070001_sequential_courses.js';
 import { EnrollmentsCourseActiveIndex1791331200002 } from './202610070002_enrollments_course_active_idx.js';
 import { QuizCoreSchema1791417600001 } from './202610080001_quiz_core_schema.js';
+import { QuizTargetIntegrity1791417600002 } from './202610080002_quiz_target_integrity.js';
+import { QuizQuestionsOptions1791417600003 } from './202610080003_quiz_questions_options.js';
 
 export const migrationHistory = [
   {
@@ -153,6 +155,18 @@ export const migrationHistory = [
     name: 'QuizCoreSchema1791417600001',
     timestamp: 1791417600001,
     migration: QuizCoreSchema1791417600001,
+  },
+  {
+    legacy: null,
+    name: 'QuizTargetIntegrity1791417600002',
+    timestamp: 1791417600002,
+    migration: QuizTargetIntegrity1791417600002,
+  },
+  {
+    legacy: null,
+    name: 'QuizQuestionsOptions1791417600003',
+    timestamp: 1791417600003,
+    migration: QuizQuestionsOptions1791417600003,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

@@ -72,8 +72,8 @@ describe('Q2 quiz core migration', () => {
 
     const [quiz] = await db.query(
       `INSERT INTO quizzes(title, created_by, scope, target_id)
-       VALUES ($1, $2, 'LESSON', $3) RETURNING *`,
-      ['Defaults', user.id, randomUUID()],
+       VALUES ($1, $2, 'STANDALONE', NULL) RETURNING *`,
+      ['Defaults', user.id],
     );
     expect(quiz).toMatchObject({
       status: 'DRAFT',
@@ -102,9 +102,22 @@ describe('Q2 quiz core migration', () => {
       ),
     ).toBe(true);
 
-    await migrateDatabase(db, { revert: true });
+    // Later quiz migrations sit on top of Q2; undo down to and including it.
+    const q2Applied = async () =>
+      (
+        await db.query(
+          `SELECT 1 FROM "${schema}".typeorm_migrations WHERE name = $1`,
+          ['QuizCoreSchema1791417600001'],
+        )
+      ).length > 0;
+    while (await q2Applied()) await migrateDatabase(db, { revert: true });
     expect(
-      (await db.query("SELECT to_regclass('quizzes') AS name"))[0].name,
+      // Schema-qualified: search_path also reaches a migrated public schema.
+      (
+        await db.query('SELECT to_regclass($1) AS name', [
+          `"${schema}".quizzes`,
+        ])
+      )[0].name,
     ).toBeNull();
     for (const type of [
       'QuizScope',
@@ -113,8 +126,11 @@ describe('Q2 quiz core migration', () => {
       'GradingPolicy',
     ]) {
       expect(
-        (await db.query('SELECT to_regtype($1) AS name', [`"${type}"`]))[0]
-          .name,
+        (
+          await db.query('SELECT to_regtype($1) AS name', [
+            `"${schema}"."${type}"`,
+          ])
+        )[0].name,
       ).toBeNull();
     }
   });
@@ -144,7 +160,7 @@ describe('Q2 quiz core migration', () => {
     );
     await expectConstraint(
       insert('LESSON', null),
-      'CHK_quizzes_target_context',
+      'CHK_quizzes_scope_target_integrity',
     );
     await expect(insert('STANDALONE', null)).resolves.toBeDefined();
     await expectConstraint(

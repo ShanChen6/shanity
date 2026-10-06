@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique, } from 'typeorm';
 import { Course } from './course.entity.js';
 import { User } from '../users/user.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 let Enrollment = class Enrollment {
     id;
     userId;
@@ -18,6 +19,9 @@ let Enrollment = class Enrollment {
     course;
     enrolledAt;
     revokedAt;
+    lastAccessedLessonId;
+    lastAccessedLesson;
+    lastAccessedAt;
 };
 __decorate([
     PrimaryGeneratedColumn('uuid'),
@@ -61,11 +65,28 @@ __decorate([
     Column({ name: 'revoked_at', type: 'timestamptz', nullable: true }),
     __metadata("design:type", Object)
 ], Enrollment.prototype, "revokedAt", void 0);
+__decorate([
+    Column({ name: 'last_accessed_lesson_id', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], Enrollment.prototype, "lastAccessedLessonId", void 0);
+__decorate([
+    ManyToOne(() => Lesson, { nullable: true, onDelete: 'SET NULL' }),
+    JoinColumn({
+        name: 'last_accessed_lesson_id',
+        foreignKeyConstraintName: 'FK_enrollments_last_accessed_lesson',
+    }),
+    __metadata("design:type", Object)
+], Enrollment.prototype, "lastAccessedLesson", void 0);
+__decorate([
+    Column({ name: 'last_accessed_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], Enrollment.prototype, "lastAccessedAt", void 0);
 Enrollment = __decorate([
     Entity('enrollments'),
     Unique('enrollments_user_id_course_id_key', ['userId', 'courseId']),
     Index('enrollments_user_idx', ['userId']),
-    Index('enrollments_course_idx', ['courseId'])
+    Index('enrollments_course_idx', ['courseId']),
+    Index('idx_enrollments_user_last_accessed', ['userId', 'lastAccessedAt'])
 ], Enrollment);
 export { Enrollment };
 //# sourceMappingURL=enrollment.entity.js.map
