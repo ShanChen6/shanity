@@ -42,6 +42,12 @@ async function register(page: Page) {
   await page
     .getByRole("button", { name: "Tạo tài khoản", exact: true })
     .click();
+  // Students land on the learning dashboard when no ?redirect= is given.
+  await expect(page).toHaveURL(`${WEB}/my-learning`);
+  await expect(
+    page.getByRole("heading", { name: "Khóa học của tôi" }),
+  ).toBeVisible();
+  await page.goto("/profile");
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
   ).toBeVisible();
@@ -100,8 +106,9 @@ test("change password validates, clears cancellation, logs out and accepts only 
       .filter({ hasText: "Email hoặc mật khẩu không đúng" }),
   ).toBeVisible();
   await login(page, email, replacement);
+  await expect(page).toHaveURL(`${WEB}/my-learning`);
   await expect(
-    page.getByRole("heading", { name: "Hồ sơ của bạn" }),
+    page.getByRole("heading", { name: "Khóa học của tôi" }),
   ).toBeVisible();
 });
 
@@ -397,6 +404,8 @@ for (const path of [
   "/profile",
   "/my-courses",
   "/my-courses/course-1?lesson=2",
+  "/my-learning",
+  "/my-learning?filter=completed",
 ]) {
   test(`guest is redirected before rendering ${path}`, async ({ request }) => {
     const response = await request.get(`${WEB}${path}`, { maxRedirects: 0 });
@@ -413,12 +422,12 @@ test("email login returns to the original path and query", async ({ page }) => {
   await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
-  await page.goto("/my-courses?filter=in-progress&q=hello%20world");
+  await page.goto("/my-learning?filter=in-progress&q=hello%20world");
   await expect(page).toHaveURL(/\/login\?redirect=/);
   await login(page, email);
   await expect(page).toHaveURL(
     (url) =>
-      url.pathname === "/my-courses" &&
+      url.pathname === "/my-learning" &&
       url.searchParams.get("filter") === "in-progress" &&
       url.searchParams.get("q") === "hello world",
   );
@@ -469,7 +478,40 @@ test("forged cookie cannot render a protected page without JavaScript", async ({
   await context.close();
 });
 
-test("external and auth-loop return URLs fall back to profile", async ({
+test("student login without redirect lands on my learning", async ({
+  page,
+}) => {
+  const email = await register(page);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
+  await page.getByRole("button", { name: "Đăng xuất" }).click();
+  await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
+  await page.goto("/login");
+  await login(page, email);
+  await expect(page).toHaveURL(`${WEB}/my-learning`);
+  await expect(
+    page.getByRole("heading", { name: "Khóa học của tôi" }),
+  ).toBeVisible();
+});
+
+test("student login honors an explicit redirect", async ({ page }) => {
+  const email = await register(page);
+  await page.getByLabel("Mở menu tài khoản", { exact: true }).click();
+  await page.getByRole("button", { name: "Đăng xuất" }).click();
+  await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
+  await page.goto("/login?redirect=/courses/js-basics");
+  await login(page, email);
+  await expect(page).toHaveURL(`${WEB}/courses/js-basics`);
+});
+
+test("legacy /my-courses forwards to /my-learning with its query", async ({
+  page,
+}) => {
+  await register(page);
+  await page.goto("/my-courses?filter=completed");
+  await expect(page).toHaveURL(`${WEB}/my-learning?filter=completed`);
+});
+
+test("external and auth-loop return URLs fall back to the role home", async ({
   page,
 }) => {
   await register(page);
@@ -483,7 +525,7 @@ test("external and auth-loop return URLs fall back to profile", async ({
     "/%6cogin",
   ]) {
     await page.goto(`/login?${new URLSearchParams({ redirect: destination })}`);
-    await expect(page).toHaveURL(`${WEB}/profile`);
+    await expect(page).toHaveURL(`${WEB}/my-learning`);
   }
 });
 
@@ -1724,7 +1766,9 @@ test("instructor login defaults to profile and restores identity without flicker
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await page.goto("/login");
   await login(page, email);
-  await expect(page).toHaveURL(`${WEB}/profile`);
+  // Instructors keep landing on their portal; the profile is opened explicitly.
+  await expect(page).toHaveURL(`${WEB}/instructor/courses`);
+  await page.goto("/profile");
   await expect(page.getByText("Giảng viên", { exact: true })).toBeVisible();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {

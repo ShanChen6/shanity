@@ -23,6 +23,7 @@ function BasicForm({ course }: { course: Course }) {
     level: course.level ?? "Beginner",
     language: course.language ?? "vi",
     price: course.price ?? 0,
+    isSequential: course.isSequential ?? false,
   });
   const [paid, setPaid] = useState(course.price > 0);
   const [dirty, setDirty] = useState(false);
@@ -239,6 +240,23 @@ function BasicForm({ course }: { course: Course }) {
               </label>
             )}
           </div>
+        </fieldset>
+        <fieldset>
+          <legend>Lộ trình học</legend>
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={values.isSequential}
+              onChange={(e) => field("isSequential", e.target.checked)}
+            />
+            <span>
+              Học tuần tự
+              <small className="block text-muted">
+                Học viên phải hoàn thành các bài bắt buộc theo thứ tự trước khi
+                mở bài tiếp theo. Bài tùy chọn và bài xem thử không bị khóa.
+              </small>
+            </span>
+          </label>
         </fieldset>
         {uploading && <p role="status">Đang tải ảnh lên…</p>}
         {uploadError instanceof Error && (

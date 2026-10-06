@@ -1,5 +1,10 @@
+import type { Role } from "./api";
+
 // Shared by server routing and browser navigation. Never accept an external URL.
-export function safeRedirect(value: string | null | undefined): string {
+export function safeRedirect(
+  value: string | null | undefined,
+  fallback = "/profile",
+): string {
   if (
     !value ||
     value.length > 2048 ||
@@ -7,7 +12,7 @@ export function safeRedirect(value: string | null | undefined): string {
     value.startsWith("//") ||
     /[\\\x00-\x20\x7f]/.test(value)
   )
-    return "/profile";
+    return fallback;
   try {
     const url = new URL(value, "https://shanity.invalid");
     let path = url.pathname;
@@ -16,23 +21,23 @@ export function safeRedirect(value: string | null | undefined): string {
       const decoded = decodeURIComponent(path);
       if (decoded === path) break;
       path = decoded;
-      if (i === 4) return "/profile";
+      if (i === 4) return fallback;
     }
     if (
       url.origin !== "https://shanity.invalid" ||
       path.startsWith("//") ||
       /[\\\x00-\x20\x7f]/.test(path)
     )
-      return "/profile";
+      return fallback;
     path = new URL(path, "https://shanity.invalid").pathname;
     if (
       /^\/(?:login|register|auth|api|_next)(?:\/|$)/.test(path) ||
       /^\/admin\/login(?:\/|$)/.test(path)
     )
-      return "/profile";
+      return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/profile";
+    return fallback;
   }
 }
 export function safeAdminRedirect(value: string | null | undefined): string {
@@ -69,5 +74,18 @@ export function loginUrl(destination: string) {
       : `/admin/login?${new URLSearchParams({ redirect: adminDestination })}`;
   }
   return `/login?${new URLSearchParams({ redirect: safe })}`;
+}
+// Landing page when login has no explicit return URL. Staff keep their portals.
+export function homeForRoles(roles: readonly Role[]): string {
+  if (roles.includes("admin")) return "/admin";
+  if (roles.includes("instructor")) return "/instructor/courses";
+  return "/my-learning";
+}
+// An explicit, safe ?redirect= wins; otherwise land on the role's home.
+export function postLoginRedirect(
+  value: string | null | undefined,
+  roles: readonly Role[],
+): string {
+  return safeRedirect(value, homeForRoles(roles));
 }
 export const GOOGLE_RETURN_KEY = "shanity-google-return";

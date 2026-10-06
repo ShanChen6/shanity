@@ -138,6 +138,9 @@ export function CourseList() {
                     <Link href={`${coursePath(course.id)}/preview`}>
                       Xem trước
                     </Link>
+                    <Link href={`${coursePath(course.id)}/progress`}>
+                      Học viên
+                    </Link>
                   </div>
                 </div>
               </article>

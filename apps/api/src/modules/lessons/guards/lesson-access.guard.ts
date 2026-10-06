@@ -42,6 +42,19 @@ export function rejectLessonAccess(result: LessonAccessResult): never {
         message: 'ENROLLMENT_REQUIRED',
         code: 'ENROLLMENT_REQUIRED',
       });
+    case 'ENROLLMENT_SUSPENDED':
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Enrollment Suspended',
+        code: 'ENROLLMENT_SUSPENDED',
+      });
+    case 'PREREQUISITE_LESSON_NOT_COMPLETED':
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'PREREQUISITE_LESSON_NOT_COMPLETED',
+        code: 'PREREQUISITE_LESSON_NOT_COMPLETED',
+        requiredLesson: result.requiredLesson,
+      });
     default:
       throw new ForbiddenException({
         statusCode: 403,

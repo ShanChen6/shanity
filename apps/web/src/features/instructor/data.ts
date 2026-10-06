@@ -14,6 +14,8 @@ export type Course = {
   language: string;
   price: number;
   status: "draft" | "published" | "archived";
+  // Students must complete required lessons in order.
+  isSequential?: boolean;
 };
 export type Chapter = { id: string; title: string; position: number };
 export type Lesson = {

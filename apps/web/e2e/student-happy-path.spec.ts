@@ -89,9 +89,29 @@ test.describe("Student happy path", () => {
       await expect(page.getByTestId("lesson-renderer")).toBeVisible();
     });
 
-    await test.step("move from text to video", async () => {
-      await page.getByRole("button", { name: "Next Lesson" }).click();
+    await test.step("complete the text lesson and continue to the video", async () => {
+      const progress = page.getByTestId("course-progress");
+      await expect(progress).toHaveText(/Tiến độ: 0%/);
+      // Reading evidence: scroll the lesson body (the shell scrolls <main>).
+      await page.locator("main").evaluate((main) =>
+        main.scrollTo({ top: main.scrollHeight }),
+      );
+      await page
+        .getByRole("button", { name: "Đánh dấu Hoàn thành & Sang bài tiếp theo" })
+        .click();
       await expect(page).toHaveURL(`${LEARN_PATH}/setup-moi-truong`);
+      const textLesson = syllabus.curriculum[0]!.lessons[0]!;
+      const sidebar = page.locator("aside");
+      await expect(
+        sidebar.getByTestId(`lesson-status-${textLesson.id}`),
+      ).toHaveAttribute("data-icon", "COMPLETED");
+      // Optimistic + server-confirmed: no reload needed for the new percentage.
+      await expect(progress).not.toHaveText(/Tiến độ: 0%/);
+      // Persisted server-side: survives a full reload.
+      await page.reload();
+      await expect(
+        page.locator("aside").getByTestId(`lesson-status-${textLesson.id}`),
+      ).toHaveAttribute("data-icon", "COMPLETED");
       await expect(page.getByTestId("video-lesson-renderer")).toBeVisible();
       await expect(page.locator('iframe[src*="youtube-nocookie.com/embed/"]')).toBeVisible();
     });
@@ -100,7 +120,7 @@ test.describe("Student happy path", () => {
       const documentResponse = page.waitForResponse((response) =>
         response.url().includes("/document-view"),
       );
-      await page.getByRole("button", { name: "Next Lesson" }).click();
+      await page.getByRole("button", { name: "Bài tiếp theo" }).click();
       await expect(page).toHaveURL(`${LEARN_PATH}/tai-lieu-cai-dat`);
       const pdf = await documentResponse;
       expect(pdf.status()).toBe(200);
@@ -111,11 +131,11 @@ test.describe("Student happy path", () => {
     });
 
     await test.step("cross the chapter boundary and return", async () => {
-      await page.getByRole("button", { name: "Next Lesson" }).click();
+      await page.getByRole("button", { name: "Bài tiếp theo" }).click();
       await expect(page).toHaveURL(`${LEARN_PATH}/let-const-va-var`);
       await expect(page.getByRole("heading", { name: "let, const và var" })).toBeVisible();
 
-      await page.getByRole("button", { name: "Previous Lesson" }).click();
+      await page.getByRole("button", { name: "Quay lại bài trước" }).click();
       await expect(page).toHaveURL(`${LEARN_PATH}/tai-lieu-cai-dat`);
       await expect(page.getByTestId("document-lesson-renderer")).toBeVisible();
     });

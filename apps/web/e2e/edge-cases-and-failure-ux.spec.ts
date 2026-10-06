@@ -125,7 +125,7 @@ test.describe("Learning failure UX resiliency", () => {
 
     await page.goto(`/learn/${COURSE}/${first.slug}`);
     await expect(page.getByTestId("text-lesson-renderer")).toBeVisible();
-    await page.getByRole("button", { name: "Next Lesson" }).click();
+    await page.getByRole("button", { name: "Bài tiếp theo" }).click();
     await expect(page.locator('main [role="status"]').first()).toBeVisible({ timeout: 500 });
     await expect(page.getByTestId("text-lesson-renderer")).toContainText("Loaded after delay");
     expect(uncaught).toEqual([]);

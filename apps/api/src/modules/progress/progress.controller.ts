@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,8 +21,9 @@ import { CompleteLessonDto, VideoProgressDto } from './progress.dto.js';
 import { UpdateProgressDto } from './dto/update-progress.dto.js';
 import { ProgressService } from './progress.service.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
-import { CourseProgressEngine } from './services/course-progress-engine.service.js';
+import { CourseProgressCalculatorService } from './services/course-progress-calculator.service.js';
 import { ResumeLearningService } from './services/resume-learning.service.js';
+import type { EnrolledCourseDto } from './dto/enrolled-course.dto.js';
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard)
@@ -29,7 +31,7 @@ import { ResumeLearningService } from './services/resume-learning.service.js';
 export class ProgressController {
   constructor(
     private readonly progress: ProgressService,
-    private readonly courseProgressEngine: CourseProgressEngine,
+    private readonly progressCalculator: CourseProgressCalculatorService,
     private readonly resumeLearning: ResumeLearningService,
   ) {}
 
@@ -50,8 +52,8 @@ export class ProgressController {
 
   @Get('student/enrolled-courses')
   @Header('Cache-Control', 'no-store')
-  enrolledCourses(@Req() req: AuthRequest) {
-    return this.courseProgressEngine.enrolledCourses(req.principal.id);
+  enrolledCourses(@Req() req: AuthRequest): Promise<EnrolledCourseDto[]> {
+    return this.progressCalculator.enrolledCourses(req.principal.id);
   }
 
   @Get('courses/:courseId/progress')
@@ -85,6 +87,9 @@ export class ProgressController {
   }
 
   @Post(['lessons/:lessonId/progress/complete', 'lessons/:lessonId/complete'])
+  // Idempotent: completing twice (double-click, retries, parallel tabs) is
+  // the same 200 with the same single lesson_progress row.
+  @HttpCode(200)
   @UseGuards(LessonAccessGuard)
   @Header('Cache-Control', 'no-store')
   complete(
@@ -96,6 +101,7 @@ export class ProgressController {
   }
 
   @Patch('lessons/:id/video-progress')
+  @UseGuards(LessonAccessGuard)
   @Header('Cache-Control', 'no-store')
   video(
     @Req() req: AuthRequest,

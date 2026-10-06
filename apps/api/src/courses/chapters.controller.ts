@@ -10,7 +10,9 @@ import {
   Post,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import type { AuthRequest } from '../auth/auth.guards.js';
 import {
@@ -29,6 +31,7 @@ type CourseRequest = AuthRequest & { course: Course };
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard)
+@UseInterceptors(CurriculumChangedInterceptor)
 export class ChaptersController {
   constructor(private readonly chapters: ChaptersService) {}
 
