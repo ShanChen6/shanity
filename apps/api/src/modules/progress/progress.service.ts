@@ -14,10 +14,14 @@ import {
 import type { CompleteLessonDto, VideoProgressDto } from './progress.dto.js';
 import type { UpdateProgressDto } from './dto/update-progress.dto.js';
 import { IsNull } from 'typeorm';
+import { CourseProgressEngine } from './services/course-progress-engine.service.js';
 
 @Injectable()
 export class ProgressService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly courseProgressEngine: CourseProgressEngine,
+  ) {}
 
   private async lessonForStudent(userId: string, lessonId: string) {
     const lesson = await this.database.dataSource
@@ -171,7 +175,8 @@ export class ProgressService {
       });
     if (!enrollment) throw new ForbiddenException('Active enrollment required');
     const rows = (await this.database.dataSource.query(
-      `SELECT lesson.id AS "lessonId", COALESCE(progress.status, $3) AS status,
+      `SELECT lesson.id AS "lessonId", COALESCE(progress.status::text, $3) AS status,
+              lesson.is_required AS "isRequired",
               COALESCE(progress.last_position, 0)::int AS "lastPosition",
               progress.started_at AS "startedAt", progress.completed_at AS "completedAt"
        FROM lessons lesson
@@ -183,44 +188,17 @@ export class ProgressService {
     )) as Array<{
       lessonId: string;
       status: LessonProgressStatus | 'NOT_STARTED';
+      isRequired: boolean;
       lastPosition: number | null;
     }>;
-    const completedLessonsCount = rows.filter(
-      (row) => row.status === LessonProgressStatus.COMPLETED,
-    ).length;
-    return {
-      courseId,
-      completedLessonsCount,
-      totalLessonsCount: rows.length,
-      percentage: rows.length ? (completedLessonsCount / rows.length) * 100 : 0,
-      lessons: rows,
-    };
+    return Object.assign(
+      await this.courseProgressEngine.calculate(userId, courseId),
+      { lessons: rows },
+    );
   }
 
   async calculateCourseProgress(userId: string, courseId: string) {
-    const [counts] = (await this.database.dataSource.query(
-      `SELECT COUNT(lesson.id)::int AS "totalLessons",
-              COUNT(progress.id) FILTER (
-                WHERE progress.status = $3
-              )::int AS "completedLessons"
-       FROM lessons lesson
-       LEFT JOIN lesson_progress progress
-         ON progress.lesson_id = lesson.id
-        AND progress.user_id = $1
-        AND progress.course_id = $2
-       WHERE lesson.course_id = $2 AND lesson.is_published = true`,
-      [userId, courseId, LessonProgressStatus.COMPLETED],
-    )) as Array<{ totalLessons: number; completedLessons: number }>;
-    const totalLessons = Number(counts?.totalLessons ?? 0);
-    const completedLessons = Number(counts?.completedLessons ?? 0);
-    return {
-      courseId,
-      completedLessons,
-      totalLessons,
-      percentage: totalLessons
-        ? Math.round((completedLessons / totalLessons) * 100)
-        : 0,
-    };
+    return this.courseProgressEngine.calculate(userId, courseId);
   }
 
   private async markCompleted(

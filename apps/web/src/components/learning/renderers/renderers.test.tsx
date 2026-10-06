@@ -16,7 +16,9 @@ const lesson = (overrides: Partial<LessonData>): LessonData => ({
 describe("LessonContentRenderer", () => {
   it("dispatches TEXT lessons to the text strategy", () => {
     render(<LessonContentRenderer lesson={lesson({})} userAccess={access} />);
-    expect(screen.getByTestId("text-lesson-renderer")).toHaveTextContent("Body");
+    expect(screen.getByTestId("text-lesson-renderer")).toHaveTextContent(
+      "Body",
+    );
   });
 
   it("removes scripts and inline handlers from HTML", () => {
@@ -49,14 +51,21 @@ describe("LessonContentRenderer", () => {
         userAccess={access}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Editor content" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Editor content" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("script")).not.toBeInTheDocument();
     expect(screen.getByText("<script>bad()</script>")).toBeInTheDocument();
   });
 
   it("hides document downloads when allowDownload is false", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
     render(
       <QueryClientProvider client={client}>
         <LessonContentRenderer
@@ -84,7 +93,9 @@ describe("LessonContentRenderer", () => {
         userAccess={access}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Unsupported Lesson Type");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Unsupported Lesson Type",
+    );
   });
 
   it("fires completion once after ninety percent video progress", () => {
@@ -105,7 +116,9 @@ describe("LessonContentRenderer", () => {
         />
       </QueryClientProvider>,
     );
-    const video = screen.getByTestId("video-lesson-renderer") as HTMLVideoElement;
+    const video = screen.getByTestId(
+      "video-lesson-renderer",
+    ) as HTMLVideoElement;
     Object.defineProperties(video, {
       duration: { configurable: true, value: 100 },
       currentTime: { configurable: true, value: 91 },

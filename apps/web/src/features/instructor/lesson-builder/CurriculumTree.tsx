@@ -23,7 +23,12 @@ import { EditLessonDrawer } from "./EditLessonDrawer";
 import { LessonItem } from "./LessonItem";
 import { useChapterLessons, useLessonMutations } from "./lesson-api";
 import { reorderAfterDrag } from "./reorder";
-import { LESSON_TYPES, TYPE_LABEL, type ApiLesson, type LessonType } from "./types";
+import {
+  LESSON_TYPES,
+  TYPE_LABEL,
+  type ApiLesson,
+  type LessonType,
+} from "./types";
 
 // Lessons of one chapter: list, drag-and-drop reorder, create/edit/delete, toggles.
 export function CurriculumTree({
@@ -45,7 +50,10 @@ export function CurriculumTree({
   const [deleting, setDeleting] = useState<ApiLesson | null>(null);
   const lessons = query.data;
   const editing = lessons?.find((lesson) => lesson.id === editingId) ?? null;
-  const ids = useMemo(() => lessons?.map((lesson) => lesson.id) ?? [], [lessons]);
+  const ids = useMemo(
+    () => lessons?.map((lesson) => lesson.id) ?? [],
+    [lessons],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -57,9 +65,15 @@ export function CurriculumTree({
   const onDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
       if (!lessons) return;
-      const next = reorderAfterDrag(lessons, String(active.id), over && String(over.id));
+      const next = reorderAfterDrag(
+        lessons,
+        String(active.id),
+        over && String(over.id),
+      );
       if (!next) return;
-      reorder.mutate(next, { onSuccess: () => onNotice?.("Đã lưu thứ tự mới.") });
+      reorder.mutate(next, {
+        onSuccess: () => onNotice?.("Đã lưu thứ tự mới."),
+      });
     },
     [lessons, reorder, onNotice],
   );
@@ -87,7 +101,8 @@ export function CurriculumTree({
 
   if (query.isPending)
     return <Skeleton className="h-16 w-full" aria-label="Đang tải bài học" />;
-  if (query.error) return <Failure error={query.error} retry={() => query.refetch()} />;
+  if (query.error)
+    return <Failure error={query.error} retry={() => query.refetch()} />;
 
   const mutationError = patch.error || reorder.error || remove.error;
   const busy = reorder.isPending;

@@ -14,14 +14,13 @@ import { lessonFormSchema, slugify, type LessonFormValues } from "./schema";
 import type { SaveLessonInput } from "./lesson-api";
 import type { ApiLesson, LessonType } from "./types";
 
-type Submit = (
-  input: SaveLessonInput,
-) => Promise<unknown>;
+type Submit = (input: SaveLessonInput) => Promise<unknown>;
 
 export function defaultsFor(lesson?: ApiLesson): LessonFormValues {
   return {
     title: lesson?.title ?? "",
     isPreview: lesson?.isPreview ?? false,
+    isRequired: lesson?.isRequired ?? true,
     textBody: lesson?.textBody ?? "",
     source: lesson?.videoProvider === "LOCAL" ? "upload" : "url",
     videoUrl: lesson?.videoExternalUrl ?? "",
@@ -47,7 +46,9 @@ export function LessonForm({
   onCancel: () => void;
   submitLabel: string;
 }) {
-  const hasStoredFile = Boolean(lesson?.videoAssetId || lesson?.documentAssetId);
+  const hasStoredFile = Boolean(
+    lesson?.videoAssetId || lesson?.documentAssetId,
+  );
   const form = useForm<LessonFormValues>({
     resolver: zodResolver(lessonFormSchema(type, { hasStoredFile })),
     defaultValues: defaultsFor(lesson),
@@ -97,6 +98,11 @@ export function LessonForm({
       <label className="flex items-center justify-between gap-3 text-sm">
         <span>Cho phép xem thử (Preview)</span>
         <Switch disabled={isSubmitting} {...form.register("isPreview")} />
+      </label>
+
+      <label className="flex items-center justify-between gap-3 text-sm">
+        <span>Bài học bắt buộc</span>
+        <Switch disabled={isSubmitting} {...form.register("isRequired")} />
       </label>
 
       {type === "TEXT" && (

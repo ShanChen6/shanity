@@ -34,7 +34,27 @@ function fixture(type: LessonType, downloadAllowed = false) {
       }),
     },
   };
-  return { service: new ProgressService(database as never), query, progress };
+  const courseProgressEngine = {
+    calculate: vi.fn().mockResolvedValue({
+      courseId: 'course-id',
+      userId: 'user-id',
+      totalLessons: 1,
+      totalRequiredLessons: 1,
+      completedLessons: 0,
+      completedRequiredLessons: 0,
+      percentage: 0,
+      isCompleted: false,
+      updatedAt: new Date(0),
+    }),
+  };
+  return {
+    service: new ProgressService(
+      database as never,
+      courseProgressEngine as never,
+    ),
+    query,
+    progress,
+  };
 }
 
 describe('ProgressService state machine', () => {

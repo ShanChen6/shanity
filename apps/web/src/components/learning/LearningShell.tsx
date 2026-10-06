@@ -7,7 +7,11 @@ import { Failure } from "@/features/instructor/shared";
 import { CurriculumSidebar } from "./CurriculumSidebar";
 import { LearningFooter } from "./LearningFooter";
 import { LearningHeader } from "./LearningHeader";
-import { LearningProvider, useLearning, useSyllabusQuery } from "./learning-context";
+import {
+  LearningProvider,
+  useLearning,
+  useSyllabusQuery,
+} from "./learning-context";
 import { NotFoundCard } from "./states/NotFoundCard";
 import { LearningSkeletonLoader } from "./states/LearningSkeletonLoader";
 import { MobileCurriculumSheet } from "./states/MobileCurriculumSheet";
@@ -27,7 +31,12 @@ export function LearningShell({
   );
 }
 
-function Frame({ header, sidebar, children, footer }: {
+function Frame({
+  header,
+  sidebar,
+  children,
+  footer,
+}: {
   header?: ReactNode;
   sidebar?: ReactNode;
   children: ReactNode;
@@ -42,18 +51,27 @@ function Frame({ header, sidebar, children, footer }: {
             {sidebar}
           </aside>
         )}
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          {children}
+        </main>
       </div>
       {footer}
     </div>
   );
 }
 
-function ShellLoader({ courseSlug, children }: { courseSlug: string; children: ReactNode }) {
+function ShellLoader({
+  courseSlug,
+  children,
+}: {
+  courseSlug: string;
+  children: ReactNode;
+}) {
   const query = useSyllabusQuery(courseSlug);
   if (query.isPending) return <LearningSkeletonLoader />;
   if (query.error) {
-    const notFound = query.error instanceof ApiError && query.error.status === 404;
+    const notFound =
+      query.error instanceof ApiError && query.error.status === 404;
     return (
       <Frame>
         {notFound ? (
@@ -92,8 +110,7 @@ function ShellContent({ children }: { children: ReactNode }) {
       header={
         <LearningHeader
           courseTitle={learning.syllabus.course.title}
-          curriculum={learning.curriculum}
-          completed={learning.completed}
+          courseProgress={learning.courseProgress}
           onOpenMenu={() => setMenuOpen(true)}
         />
       }

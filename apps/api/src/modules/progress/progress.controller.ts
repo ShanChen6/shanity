@@ -20,12 +20,22 @@ import { CompleteLessonDto, VideoProgressDto } from './progress.dto.js';
 import { UpdateProgressDto } from './dto/update-progress.dto.js';
 import { ProgressService } from './progress.service.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
+import { CourseProgressEngine } from './services/course-progress-engine.service.js';
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard)
 @Roles('student')
 export class ProgressController {
-  constructor(private readonly progress: ProgressService) {}
+  constructor(
+    private readonly progress: ProgressService,
+    private readonly courseProgressEngine: CourseProgressEngine,
+  ) {}
+
+  @Get('student/enrolled-courses')
+  @Header('Cache-Control', 'no-store')
+  enrolledCourses(@Req() req: AuthRequest) {
+    return this.courseProgressEngine.enrolledCourses(req.principal.id);
+  }
 
   @Get('courses/:courseId/progress')
   @Header('Cache-Control', 'no-store')

@@ -13,7 +13,13 @@ import {
   type SyllabusLesson,
 } from "./learning-model";
 
-function NavButton({ target, direction, disabledReason, pending, onNavigate }: {
+function NavButton({
+  target,
+  direction,
+  disabledReason,
+  pending,
+  onNavigate,
+}: {
   target: FlatLesson | null;
   direction: "previous" | "next";
   disabledReason?: string;
@@ -39,7 +45,12 @@ function NavButton({ target, direction, disabledReason, pending, onNavigate }: {
   );
 }
 
-export function LearningFooter({ courseSlug, curriculum, activeSlug, isLocked }: {
+export function LearningFooter({
+  courseSlug,
+  curriculum,
+  activeSlug,
+  isLocked,
+}: {
   courseSlug: string;
   curriculum: SyllabusChapter[];
   activeSlug: string;
@@ -53,11 +64,17 @@ export function LearningFooter({ courseSlug, curriculum, activeSlug, isLocked }:
     activeSlug,
   );
   const nextLocked = Boolean(nextLesson && isLocked(nextLesson));
-  const navigate = useCallback((target: FlatLesson | null) => {
-    if (!target) return;
-    startTransition(() => router.push(learningPath(courseSlug, target.slug)));
-  }, [courseSlug, router]);
-  const goPrevious = useCallback(() => navigate(previousLesson), [navigate, previousLesson]);
+  const navigate = useCallback(
+    (target: FlatLesson | null) => {
+      if (!target) return;
+      startTransition(() => router.push(learningPath(courseSlug, target.slug)));
+    },
+    [courseSlug, router],
+  );
+  const goPrevious = useCallback(
+    () => navigate(previousLesson),
+    [navigate, previousLesson],
+  );
   const goNext = useCallback(() => {
     if (!nextLocked) navigate(nextLesson);
   }, [navigate, nextLesson, nextLocked]);
@@ -73,7 +90,12 @@ export function LearningFooter({ courseSlug, curriculum, activeSlug, isLocked }:
       aria-busy={isPending}
       className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3"
     >
-      <NavButton target={previousLesson} direction="previous" pending={isPending} onNavigate={goPrevious} />
+      <NavButton
+        target={previousLesson}
+        direction="previous"
+        pending={isPending}
+        onNavigate={goPrevious}
+      />
       <NavButton
         target={nextLesson}
         direction="next"

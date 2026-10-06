@@ -39,15 +39,24 @@ export function TextLessonEditor({
     const { selectionStart, selectionEnd, value } = element;
     const selected = value.slice(selectionStart, selectionEnd) || "nội dung";
     const next = `${value.slice(0, selectionStart)}${open}${selected}${close}${value.slice(selectionEnd)}`;
-    form.setValue("textBody", next, { shouldDirty: true, shouldValidate: true });
+    form.setValue("textBody", next, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     element.focus();
   }
 
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        <Label htmlFor="lesson-text-body">Nội dung bài học (HTML an toàn)</Label>
-        <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Định dạng">
+        <Label htmlFor="lesson-text-body">
+          Nội dung bài học (HTML an toàn)
+        </Label>
+        <div
+          className="flex flex-wrap gap-1"
+          role="toolbar"
+          aria-label="Định dạng"
+        >
           {TOOLS.map((tool) => (
             <Button
               key={tool.label}
@@ -83,14 +92,19 @@ export function TextLessonEditor({
           Script, iframe và thuộc tính nguy hiểm sẽ tự động bị loại bỏ.
         </p>
       </div>
-      <section aria-label="Xem trước nội dung" className="rounded-md border border-border p-3">
+      <section
+        aria-label="Xem trước nội dung"
+        className="rounded-md border border-border p-3"
+      >
         <h3 className="pb-2 text-xs font-semibold uppercase text-muted">
           Xem trước
         </h3>
         {body.trim() ? (
           <TextLessonViewer content={body} />
         ) : (
-          <p className="text-sm text-muted">Nội dung xem trước sẽ hiển thị tại đây.</p>
+          <p className="text-sm text-muted">
+            Nội dung xem trước sẽ hiển thị tại đây.
+          </p>
         )}
       </section>
     </div>

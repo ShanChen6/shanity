@@ -2,6 +2,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/session-provider";
+import {
+  type CourseProgressSummary,
+  useCourseProgress,
+} from "@/features/progress/use-course-progress";
 import { api } from "@/lib/api";
 import {
   type Syllabus,
@@ -14,6 +18,7 @@ type LearningContextValue = {
   syllabus: Syllabus;
   curriculum: SyllabusChapter[];
   completed: ReadonlySet<string>;
+  courseProgress: CourseProgressSummary;
   isLocked: (lesson: SyllabusLesson) => boolean;
   isStudent: boolean;
   isAuthenticated: boolean;
@@ -32,13 +37,6 @@ export const enrollmentKey = (courseId: string, userId?: string) => [
   courseId,
   userId,
 ];
-export const progressKey = (courseId: string, userId?: string) => [
-  "learn",
-  "progress",
-  courseId,
-  userId,
-];
-
 export function useSyllabusQuery(courseSlug: string) {
   return useQuery({
     queryKey: syllabusKey(courseSlug),
@@ -53,6 +51,17 @@ export function useSyllabusQuery(courseSlug: string) {
 }
 
 const NO_PROGRESS: ReadonlySet<string> = new Set();
+const EMPTY_PROGRESS: CourseProgressSummary = {
+  courseId: "",
+  userId: "",
+  totalLessons: 0,
+  totalRequiredLessons: 0,
+  completedLessons: 0,
+  completedRequiredLessons: 0,
+  percentage: 0,
+  isCompleted: false,
+  updatedAt: new Date(0).toISOString(),
+};
 
 export function LearningProvider({
   courseSlug,
@@ -82,19 +91,13 @@ export function LearningProvider({
     retry: false,
   });
   const enrolled = enrollment.data?.isEnrolled === true;
-  const progress = useQuery({
-    queryKey: progressKey(syllabus.course.id, user?.id),
-    queryFn: ({ signal }) =>
-      api<{ lessons: Array<{ lessonId: string; status: string }> }>(
-        `/courses/${syllabus.course.id}/progress`,
-        { signal },
-      ),
-    enabled: isStudent && enrolled,
-    retry: false,
-  });
+  const progress = useCourseProgress(
+    syllabus.course.id,
+    user?.id,
+    isStudent && enrolled,
+  );
 
   const curriculum = syllabus.curriculum;
-
   const value = useMemo<LearningContextValue>(
     () => ({
       courseSlug,
@@ -107,6 +110,7 @@ export function LearningProvider({
               .map((item) => item.lessonId),
           )
         : NO_PROGRESS,
+      courseProgress: progress.data ?? EMPTY_PROGRESS,
       // Advisory only: the API re-checks access on every lesson request.
       isLocked: (lesson) => !(lesson.isPreview || enrolled || hasBypass),
       isStudent,

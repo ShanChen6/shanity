@@ -25,6 +25,7 @@ import {
   LessonProgressStatus,
 } from '../dist/modules/progress/entities/lesson-progress.entity.js';
 import { ProgressService } from '../dist/modules/progress/progress.service.js';
+import { CourseProgressEngine } from '../dist/modules/progress/services/course-progress-engine.service.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
 import { seed as seedAdmin } from './seeds/002_super_admin.mjs';
 
@@ -393,7 +394,8 @@ test('P3 progress API service: concurrent idempotency, enrollment and aggregatio
     await db.getRepository(Enrollment).save(
       db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
     );
-    const service = new ProgressService({ dataSource: db });
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
     await assert.rejects(
       () => service.startLesson(outsider.id, lessons[0].id),
       (error) => error.getStatus() === 403,
@@ -413,9 +415,121 @@ test('P3 progress API service: concurrent idempotency, enrollment and aggregatio
     })).completedAt.toISOString(), firstCompletedAt);
     await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
     const result = await service.completeLesson(user.id, lessons[2].id, { scrollPercentage: 80 });
-    assert.deepEqual(result.courseProgress, {
-      courseId: course.id, completedLessons: 3, totalLessons: 6, percentage: 50,
-    });
+    assert.equal(result.courseProgress.courseId, course.id);
+    assert.equal(result.courseProgress.completedRequiredLessons, 3);
+    assert.equal(result.courseProgress.totalRequiredLessons, 6);
+    assert.equal(result.courseProgress.percentage, 50);
+  }));
+
+test('P4 required lessons: defaults, optional exclusion and live toggle aggregation', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p4@example.invalid', displayName: 'P4 Student' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P4 Course', slug: 'p4-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P4 Chapter', position: 0 }),
+    );
+    const definitions = [true, true, false, true];
+    const lessons = [];
+    for (const [position, isRequired] of definitions.entries()) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `P4 Lesson ${position + 1}`,
+          slug: `p4-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body', isRequired,
+        }),
+      ));
+    }
+    const [defaulted] = await db.query(
+      `INSERT INTO lessons(course_id,chapter_id,title,slug,type,position,text_body)
+       VALUES ($1,$2,'Default required','default-required','TEXT',4,'Body') RETURNING is_required`,
+      [course.id, chapter.id],
+    );
+    assert.equal(defaulted.is_required, true);
+    await db.getRepository(Lesson).delete({ chapterId: chapter.id, position: 4 });
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
+    const complete = (index) =>
+      service.completeLesson(user.id, lessons[index].id, { scrollPercentage: 80 });
+    assert.equal((await complete(0)).courseProgress.percentage, 33);
+    await db.getRepository(Lesson).update(lessons[3].id, { isRequired: false });
+    const toggled = await service.calculateCourseProgress(user.id, course.id);
+    assert.equal(toggled.completedRequiredLessons, 1);
+    assert.equal(toggled.totalRequiredLessons, 2);
+    assert.equal(toggled.percentage, 50);
+    await db.getRepository(Lesson).update(lessons[3].id, { isRequired: true });
+    assert.equal((await service.calculateCourseProgress(user.id, course.id)).percentage, 33);
+    assert.equal((await complete(2)).courseProgress.percentage, 33);
+    assert.equal((await complete(1)).courseProgress.percentage, 67);
+    assert.equal((await complete(3)).courseProgress.percentage, 100);
+    await migrateDatabase(db, { revert: true });
+    const removed = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name='lessons' AND column_name='is_required'",
+    );
+    assert.equal(removed.length, 0);
+    assert.equal((await migrateDatabase(db)).length, 1);
+    assert.ok((await db.query('SELECT is_required FROM lessons')).every((row) => row.is_required === true));
+  }));
+
+test('P5 progress SSOT: detail, enrolled list and completion share one summary', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p5@example.invalid', displayName: 'P5 Student' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P5 Course', slug: 'p5-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P5 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (const [position, isRequired] of [true, true, true, false, false].entries()) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id,
+          chapterId: chapter.id,
+          title: `P5 Lesson ${position + 1}`,
+          slug: `p5-lesson-${position + 1}`,
+          type: LessonType.TEXT,
+          position,
+          textBody: 'Body',
+          isRequired,
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
+    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
+    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
+    const completed = await service.completeLesson(user.id, lessons[3].id, { scrollPercentage: 80 });
+    await db.query(
+      `UPDATE lesson_progress SET last_accessed_at = CURRENT_TIMESTAMP + INTERVAL '1 minute'
+       WHERE user_id = $1 AND lesson_id = $2`,
+      [user.id, lessons[3].id],
+    );
+
+    const detail = await service.courseProgress(user.id, course.id);
+    const [enrolled] = await engine.enrolledCourses(user.id);
+    for (const summary of [completed.courseProgress, detail, enrolled.progress]) {
+      assert.equal(summary.percentage, 67);
+      assert.equal(summary.completedLessons, 3);
+      assert.equal(summary.completedRequiredLessons, 2);
+      assert.equal(summary.totalRequiredLessons, 3);
+      assert.equal(summary.totalLessons, 5);
+    }
+    assert.equal(detail.lastAccessedLessonId, lessons[3].id);
+    assert.equal(enrolled.progress.lastAccessedLessonId, lessons[3].id);
+    assert.equal(enrolled.lastAccessedLessonSlug, lessons[3].slug);
   }));
 
 test('C4 enrollment schema: preserves legacy rows, relations, constraints, cascades and Down/Up', async () =>

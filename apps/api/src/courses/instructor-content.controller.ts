@@ -60,6 +60,7 @@ class LessonDto {
   @IsOptional() @IsString() @Length(0, 100000) body?: string;
   @IsOptional() @IsString() @Matches(/^https?:\/\/[^\s]+$/) videoUrl?: string;
   @IsOptional() @IsBoolean() isPreview?: boolean;
+  @IsOptional() @IsBoolean() isRequired?: boolean;
 }
 class LessonOrderDto {
   @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) ids!: string[];
@@ -76,7 +77,7 @@ const fields = `id, chapter_id AS "chapterId", title,
    video_external_url AS "videoUrl",
    video_asset_id AS "videoAssetId",
    document_asset_id AS "documentAssetId",
-   is_preview AS "isPreview", position`;
+   is_preview AS "isPreview", is_required AS "isRequired", position`;
 
 function legacyLesson(lesson: Lesson) {
   return {
@@ -95,6 +96,7 @@ function legacyLesson(lesson: Lesson) {
     videoAssetId: lesson.videoAssetId,
     documentAssetId: lesson.documentAssetId,
     isPreview: lesson.isPreview,
+    isRequired: lesson.isRequired,
     position: lesson.position,
   };
 }
@@ -176,6 +178,7 @@ export class InstructorContentController {
       title: dto.title,
       type: lessonType(dto.type),
       isPreview: dto.isPreview,
+      isRequired: dto.isRequired,
       content: lessonContent(dto),
     };
     return legacyLesson(await this.lessons.create(chapterId, input));
@@ -223,6 +226,7 @@ export class InstructorContentController {
       title: dto.title,
       type: lessonType(dto.type),
       isPreview: dto.isPreview,
+      isRequired: dto.isRequired,
       content: lessonContent(dto),
     };
     return legacyLesson(await this.lessons.update(id, input));

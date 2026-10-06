@@ -44,6 +44,22 @@ require an active enrollment and are scoped by the authenticated user ID.
 | DOCUMENT, download enabled | Download click, or final page followed by Mark as Completed | Not applicable |
 | DOCUMENT, download disabled | Final page followed by Mark as Completed | Not applicable |
 
+## Required and optional lessons
+
+`lessons.is_required` is non-null and defaults to `true`, including for rows
+created before the P4 migration. Instructors can change it through every lesson
+create/update path, including multipart video and document uploads.
+
+Course completion is based only on published required lessons:
+
+`round(completed published required / total published required * 100)`
+
+Optional lessons still retain their ordinary `LessonProgress` lifecycle, but
+are excluded from both sides of the aggregate. The result is clamped to
+`[0, 100]`; a course with no published required lessons returns `100%` by
+design. The aggregation is one SQL query using filtered `COUNT` expressions,
+so it does not issue per-lesson queries.
+
 The service validates the strategy against the authoritative lesson type and
 download policy. A generic completion request cannot complete a video.
 

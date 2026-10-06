@@ -2,7 +2,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function SidebarSkeleton() {
   return (
-    <div role="status" aria-label="Đang tải giáo trình" className="space-y-4 p-4">
+    <div
+      role="status"
+      aria-label="Đang tải giáo trình"
+      className="space-y-4 p-4"
+    >
       {[0, 1].map((chapter) => (
         <div key={chapter} className="space-y-2">
           <Skeleton className="h-5 w-3/4" />

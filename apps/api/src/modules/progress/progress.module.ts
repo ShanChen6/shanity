@@ -6,11 +6,18 @@ import { ProgressController } from './progress.controller.js';
 import { ProgressService } from './progress.service.js';
 import { CoursesModule } from '../../courses/courses.module.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
+import { CourseProgressEngine } from './services/course-progress-engine.service.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, CoursesModule],
   controllers: [ProgressController],
-  providers: [ProgressService, OriginGuard, SessionGuard, LessonAccessGuard],
-  exports: [ProgressService],
+  providers: [
+    ProgressService,
+    CourseProgressEngine,
+    OriginGuard,
+    SessionGuard,
+    LessonAccessGuard,
+  ],
+  exports: [ProgressService, CourseProgressEngine],
 })
 export class ProgressModule {}

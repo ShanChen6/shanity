@@ -251,6 +251,7 @@ export class LessonsService {
           type: dto.type,
           position,
           isPreview: dto.isPreview ?? false,
+          isRequired: dto.isRequired ?? true,
           isPublished: publishable,
           ...columns,
         }),
@@ -321,6 +322,7 @@ export class LessonsService {
             type: LessonType.VIDEO,
             position: Number(aggregate?.maxPosition ?? -1) + 1,
             isPreview: dto.isPreview ?? false,
+            isRequired: dto.isRequired ?? true,
             isPublished: true,
             ...EMPTY_CONTENT,
             videoAssetId: stored.filePath,
@@ -392,6 +394,9 @@ export class LessonsService {
             ...(dto.title !== undefined ? { title: dto.title } : {}),
             ...(dto.isPreview !== undefined
               ? { isPreview: dto.isPreview }
+              : {}),
+            ...(dto.isRequired !== undefined
+              ? { isRequired: dto.isRequired }
               : {}),
             videoAssetId: stored.filePath,
             videoExternalUrl: null,
@@ -469,6 +474,7 @@ export class LessonsService {
             type: LessonType.DOCUMENT,
             position: Number(aggregate?.maxPosition ?? -1) + 1,
             isPreview: dto.isPreview ?? false,
+            isRequired: dto.isRequired ?? true,
             isPublished: true,
             ...EMPTY_CONTENT,
             documentAssetId: stored.filePath,
@@ -534,6 +540,9 @@ export class LessonsService {
             ...(dto.title !== undefined ? { title: dto.title } : {}),
             ...(dto.isPreview !== undefined
               ? { isPreview: dto.isPreview }
+              : {}),
+            ...(dto.isRequired !== undefined
+              ? { isRequired: dto.isRequired }
               : {}),
             ...(dto.allowDownload !== undefined
               ? { documentDownloadAllowed: dto.allowDownload }
@@ -664,6 +673,7 @@ export class LessonsService {
       const changes: Partial<Lesson> = {};
       if (dto.title !== undefined) changes.title = dto.title;
       if (dto.isPreview !== undefined) changes.isPreview = dto.isPreview;
+      if (dto.isRequired !== undefined) changes.isRequired = dto.isRequired;
       if (dto.type !== undefined) changes.type = dto.type;
       if (dto.content) {
         const { columns, publishable } = buildContent(type, dto.content);
