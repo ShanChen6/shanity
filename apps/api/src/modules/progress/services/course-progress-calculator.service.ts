@@ -1,7 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.module.js';
+import { CurriculumEvents } from '../../curriculum/curriculum-events.js';
+import { ProgressCache } from '../cache/progress-cache.js';
 import { LessonProgressStatus } from '../entities/lesson-progress.entity.js';
 import { CourseProgressSummaryDto } from '../dto/course-progress-summary.dto.js';
+import type { EnrolledCourseDto } from '../dto/enrolled-course.dto.js';
+
+// A course with no published required lessons has nothing left to do.
+export const progressPercentage = (completed: number, total: number) =>
+  total > 0 ? Math.min(100, Math.floor((completed * 100) / total)) : 100;
 
 type SummaryRow = {
   courseId: string;
@@ -14,11 +21,58 @@ type SummaryRow = {
   updatedAt: Date | string;
 };
 
+/**
+ * The single implementation of course progress:
+ *
+ *   percentage = min(100, floor(completed required / published required * 100))
+ *
+ * Nothing stores a percentage. It is derived on every read from
+ * lesson_progress and the course's *current* lessons, so adding, deleting,
+ * unpublishing or toggling isRequired is reflected on the next query with no
+ * migration or backfill. Floor (not round) guarantees 100% means every
+ * required lesson is done: 199/200 is 99%, never "completed".
+ *
+ * The calculation is one read-only statement (one MVCC snapshot), so
+ * concurrent completions/heartbeats cannot interleave into a wrong total and
+ * there is no read-modify-write to lock. Writes stay idempotent through the
+ * (user_id, lesson_id) unique constraint and upserts in ProgressService.
+ */
 @Injectable()
-export class CourseProgressEngine {
-  constructor(private readonly database: DatabaseService) {}
+export class CourseProgressCalculatorService implements OnModuleInit {
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly cache: ProgressCache,
+    private readonly curriculum: CurriculumEvents,
+  ) {}
+
+  onModuleInit() {
+    this.curriculum.onChanged(({ courseId }) =>
+      this.invalidateCourseProgressCache(courseId),
+    );
+  }
+
+  /** Curriculum changed: every student's cached progress is stale. */
+  invalidateCourseProgressCache(courseId: string) {
+    return this.cache.invalidateCourse(courseId);
+  }
+
+  /** One student's lesson progress changed. */
+  invalidateStudentProgress(userId: string, courseId: string) {
+    return this.cache.invalidateStudent(userId, courseId);
+  }
 
   async calculate(
+    userId: string,
+    courseId: string,
+  ): Promise<CourseProgressSummaryDto> {
+    const cached = await this.cache.get(userId, courseId);
+    if (cached) return cached;
+    const summary = await this.compute(userId, courseId);
+    await this.cache.set(summary);
+    return summary;
+  }
+
+  private async compute(
     userId: string,
     courseId: string,
   ): Promise<CourseProgressSummaryDto> {
@@ -53,13 +107,17 @@ export class CourseProgressEngine {
     );
   }
 
-  async enrolledCourses(userId: string) {
+  async enrolledCourses(userId: string): Promise<EnrolledCourseDto[]> {
     const rows = (await this.database.dataSource.query(
       `${this.summarySelect('$2')},
               course.title, course.slug, course.thumbnail,
-              resume_lesson.slug AS "lastAccessedLessonSlug"
+              instructor.display_name AS "instructorName",
+              resume_lesson.slug AS "lastAccessedLessonSlug",
+              enrollment.last_accessed_at AS "lastAccessedAt"
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
+       LEFT JOIN users instructor
+         ON instructor.id = COALESCE(course.instructor_id, course.owner_id)
        LEFT JOIN lessons lesson
          ON lesson.course_id = course.id AND lesson.is_published = true
        LEFT JOIN lesson_progress progress
@@ -72,7 +130,8 @@ export class CourseProgressEngine {
        WHERE enrollment.user_id = $1 AND enrollment.revoked_at IS NULL
        GROUP BY enrollment.user_id, enrollment.enrolled_at,
                 enrollment.last_accessed_lesson_id,
-                enrollment.last_accessed_at, course.id, resume_lesson.slug
+                enrollment.last_accessed_at, course.id,
+                instructor.display_name, resume_lesson.slug
        ORDER BY enrollment.last_accessed_at DESC NULLS LAST,
                 enrollment.enrolled_at DESC`,
       [userId, LessonProgressStatus.COMPLETED],
@@ -81,19 +140,30 @@ export class CourseProgressEngine {
         title: string;
         slug: string;
         thumbnail: string | null;
+        instructorName: string | null;
         lastAccessedLessonSlug: string | null;
+        lastAccessedAt: Date | string | null;
       }
     >;
-    return rows.map((row) => ({
-      course: {
-        id: row.courseId,
+    return rows.map((row) => {
+      const summary = this.toSummary(row);
+      return {
+        courseId: row.courseId,
         title: row.title,
         slug: row.slug,
-        thumbnail: row.thumbnail,
-      },
-      progress: this.toSummary(row),
-      lastAccessedLessonSlug: row.lastAccessedLessonSlug ?? undefined,
-    }));
+        thumbnailUrl: row.thumbnail,
+        instructorName: row.instructorName,
+        progress: {
+          percentage: summary.percentage,
+          completedRequiredLessons: summary.completedRequiredLessons,
+          totalRequiredLessons: summary.totalRequiredLessons,
+          lastAccessedLessonSlug: row.lastAccessedLessonSlug,
+          lastAccessedAt: row.lastAccessedAt
+            ? new Date(row.lastAccessedAt)
+            : null,
+        },
+      };
+    });
   }
 
   private summarySelect(statusParameter: string) {
@@ -117,12 +187,10 @@ export class CourseProgressEngine {
     const totalRequiredLessons = Number(row.totalRequiredLessons);
     const completedLessons = Number(row.completedLessons);
     const completedRequiredLessons = Number(row.completedRequiredLessons);
-    const percentage = totalRequiredLessons
-      ? Math.min(
-          100,
-          Math.round((completedRequiredLessons / totalRequiredLessons) * 100),
-        )
-      : 100;
+    const percentage = progressPercentage(
+      completedRequiredLessons,
+      totalRequiredLessons,
+    );
     return {
       courseId: row.courseId,
       userId: row.userId,

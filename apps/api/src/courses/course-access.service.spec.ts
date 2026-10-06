@@ -16,6 +16,7 @@ describe('CourseAccessService', () => {
     courseStatus: 'published',
     instructorId: 'owner-id',
     isAdmin: false,
+    requiredLesson: null,
     ...overrides,
   });
 
@@ -93,5 +94,41 @@ describe('CourseAccessService', () => {
     await expect(
       service.canAccessLesson('admin-id', 'lesson-id'),
     ).resolves.toEqual({ granted: true, bypass: true });
+  });
+
+  describe('sequential courses', () => {
+    const requiredLesson = { id: 'r1', title: 'Intro', slug: 'intro' };
+
+    it('blocks an enrolled student until the earlier required lesson is completed', async () => {
+      query.mockResolvedValue([lesson({ isEnrolled: true, requiredLesson })]);
+      await expect(
+        service.canAccessLesson('user-id', 'lesson-id'),
+      ).resolves.toEqual({
+        granted: false,
+        reason: 'PREREQUISITE_LESSON_NOT_COMPLETED',
+        requiredLesson,
+      });
+      expect(query.mock.calls[0][0]).toContain('earlier.is_required = true');
+    });
+
+    it('keeps preview lessons open and never locks the owner', async () => {
+      query.mockResolvedValue([
+        lesson({ isEnrolled: true, isPreview: true, requiredLesson }),
+      ]);
+      await expect(
+        service.canAccessLesson('user-id', 'lesson-id'),
+      ).resolves.toEqual({ granted: true });
+      query.mockResolvedValue([lesson({ requiredLesson })]);
+      await expect(
+        service.canAccessLesson('owner-id', 'lesson-id'),
+      ).resolves.toEqual({ granted: true, bypass: true });
+    });
+
+    it('still reports missing enrollment before prerequisites', async () => {
+      query.mockResolvedValue([lesson({ requiredLesson })]);
+      await expect(
+        service.canAccessLesson('user-id', 'lesson-id'),
+      ).resolves.toEqual({ granted: false, reason: 'ENROLLMENT_REQUIRED' });
+    });
   });
 });

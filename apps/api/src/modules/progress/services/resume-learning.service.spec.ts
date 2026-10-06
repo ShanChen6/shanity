@@ -18,6 +18,7 @@ describe('ResumeLearningService', () => {
     const service = new ResumeLearningService(
       { dataSource: { query } } as never,
       {} as never,
+      { requireActive: vi.fn().mockResolvedValue(undefined) } as never,
     );
     await expect(service.course('user-id', 'course-id')).resolves.toEqual({
       lessonSlug: 'lesson-2-1',
@@ -38,6 +39,7 @@ describe('ResumeLearningService', () => {
     const service = new ResumeLearningService(
       { dataSource: { query } } as never,
       { calculate } as never,
+      { requireActive: vi.fn().mockResolvedValue(undefined) } as never,
     );
     await expect(service.latest('user-id')).resolves.toMatchObject({
       hasActiveCourse: true,
@@ -54,6 +56,7 @@ describe('ResumeLearningService', () => {
     const service = new ResumeLearningService(
       { dataSource: { query } } as never,
       {} as never,
+      { requireActive: vi.fn().mockResolvedValue(undefined) } as never,
     );
     await expect(service.latest('user-id')).resolves.toEqual({
       hasActiveCourse: false,

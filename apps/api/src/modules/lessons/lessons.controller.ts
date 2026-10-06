@@ -13,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../curriculum/curriculum-changed.interceptor.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OriginGuard, Roles, SessionGuard } from '../../auth/auth.guards.js';
 import {
@@ -33,7 +34,10 @@ const uuid = () => new ParseUUIDPipe({ version: '4' });
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard, LessonOwnershipGuard)
-@UseInterceptors(LessonRequestSanitizationInterceptor)
+@UseInterceptors(
+  LessonRequestSanitizationInterceptor,
+  CurriculumChangedInterceptor,
+)
 @Roles('instructor', 'admin')
 export class LessonsController {
   constructor(private readonly lessons: LessonsService) {}

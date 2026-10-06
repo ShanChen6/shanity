@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,44 +27,70 @@ const ALLOWED_TAGS = [
   "img",
 ];
 
+// Nearest scrolling ancestor; the learning shell scrolls <main>, not the window.
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
+
+// Share of the lesson body that has scrolled into view (100 when it all fits).
+export function readPercentage(content: DOMRect, viewportBottom: number) {
+  if (content.height <= 0) return 100;
+  const seen = ((viewportBottom - content.top) / content.height) * 100;
+  return Math.round(Math.min(100, Math.max(0, seen)));
+}
+
+const READ_THRESHOLD = 80;
+
 export const TextLessonRenderer = memo(function TextLessonRenderer({
   lesson,
-  onComplete,
+  onEvidence,
 }: LessonRendererProps) {
-  const [scrollPercentage, setScrollPercentage] = useState(0);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const reported = useRef(false);
   useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    reported.current = false;
+    const container = scrollParent(body);
+    const target: HTMLElement | Window = container ?? window;
+    let max = 0;
     const measure = () => {
-      const root = document.documentElement;
-      const available = Math.max(1, root.scrollHeight - window.innerHeight);
-      setScrollPercentage(Math.min(100, (window.scrollY / available) * 100));
+      const viewportBottom = container
+        ? container.getBoundingClientRect().bottom
+        : window.innerHeight;
+      max = Math.max(
+        max,
+        readPercentage(body.getBoundingClientRect(), viewportBottom),
+      );
+      if (max >= READ_THRESHOLD && !reported.current) {
+        reported.current = true;
+        onEvidence?.({ scrollPercentage: max });
+      }
     };
     measure();
-    window.addEventListener("scroll", measure, { passive: true });
-    return () => window.removeEventListener("scroll", measure);
-  }, []);
+    target.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      target.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [lesson.id, onEvidence]);
   const content = useMemo(() => parseContent(lesson.content), [lesson.content]);
-  const completion = (
-    <button
-      type="button"
-      disabled={scrollPercentage < 80}
-      onClick={() => onComplete?.({ scrollPercentage })}
-      className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      Mark as Completed
-    </button>
-  );
   if (typeof content !== "string")
     return (
-      <div data-testid="text-lesson-renderer">
+      <div ref={bodyRef} data-testid="text-lesson-renderer">
         <div className="prose max-w-none dark:prose-invert">
           {content.blocks.map(renderBlock)}
         </div>
-        {completion}
       </div>
     );
   if (!/<[a-z][\s\S]*>/i.test(content))
     return (
-      <div data-testid="text-lesson-renderer">
+      <div ref={bodyRef} data-testid="text-lesson-renderer">
         <div className="prose max-w-none dark:prose-invert">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -87,7 +113,6 @@ export const TextLessonRenderer = memo(function TextLessonRenderer({
             {content}
           </ReactMarkdown>
         </div>
-        {completion}
       </div>
     );
   const sanitized = DOMPurify.sanitize(content, {
@@ -97,12 +122,11 @@ export const TextLessonRenderer = memo(function TextLessonRenderer({
     FORBID_ATTR: ["style"],
   });
   return (
-    <div data-testid="text-lesson-renderer">
+    <div ref={bodyRef} data-testid="text-lesson-renderer">
       <div
         className="prose max-w-none dark:prose-invert text-lesson-content"
         dangerouslySetInnerHTML={{ __html: sanitized }}
       />
-      {completion}
     </div>
   );
 });

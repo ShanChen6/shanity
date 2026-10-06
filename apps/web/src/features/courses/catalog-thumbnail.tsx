@@ -21,9 +21,11 @@ function resolveImageSource(source: string) {
 export function CatalogThumbnail({
   source,
   title,
+  badge = "Đã xuất bản",
 }: {
   source: string | null;
   title: string;
+  badge?: string | null;
 }) {
   const [failed, setFailed] = useState(false);
   const cover = covers[title.length % covers.length]!;
@@ -58,9 +60,11 @@ export function CatalogThumbnail({
           </span>
         </div>
       )}
-      <span className="absolute left-3 top-3 rounded-sm bg-black/60 px-2.5 py-1 text-caption font-semibold text-white backdrop-blur-sm">
-        Đã xuất bản
-      </span>
+      {badge && (
+        <span className="absolute left-3 top-3 rounded-sm bg-black/60 px-2.5 py-1 text-caption font-semibold text-white backdrop-blur-sm">
+          {badge}
+        </span>
+      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { Enrollment } from '../../courses/enrollment.entity.js';
 import { Lesson, LessonType } from '../lessons/entities/lesson.entity.js';
 import {
   LessonProgress,
@@ -26,15 +25,13 @@ function fixture(type: LessonType, downloadAllowed = false) {
       getRepository: vi.fn((entity: unknown) => {
         if (entity === Lesson)
           return { findOneBy: vi.fn().mockResolvedValue(lesson) };
-        if (entity === Enrollment)
-          return {
-            findOneBy: vi.fn().mockResolvedValue({ id: 'enrollment-id' }),
-          };
         return { findOneByOrFail: vi.fn().mockResolvedValue(progress) };
       }),
     },
   };
-  const courseProgressEngine = {
+  const enrollments = { requireActive: vi.fn().mockResolvedValue(undefined) };
+  const progressCalculator = {
+    invalidateStudentProgress: vi.fn().mockResolvedValue(undefined),
     calculate: vi.fn().mockResolvedValue({
       courseId: 'course-id',
       userId: 'user-id',
@@ -50,7 +47,8 @@ function fixture(type: LessonType, downloadAllowed = false) {
   return {
     service: new ProgressService(
       database as never,
-      courseProgressEngine as never,
+      progressCalculator as never,
+      enrollments as never,
     ),
     query,
     progress,

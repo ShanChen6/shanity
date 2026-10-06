@@ -1,12 +1,10 @@
-import { EnrolledCourses } from "@/features/progress/enrolled-courses";
-import { requireUser } from "@/lib/server-session";
+import { redirect } from "next/navigation";
 
-export default async function Page() {
-  await requireUser();
-  return (
-    <main className="container py-16">
-      <h1 className="text-title font-semibold">Khóa học của tôi</h1>
-      <EnrolledCourses />
-    </main>
-  );
+// Legacy route: the learner dashboard moved to /my-learning.
+export default async function Page({ searchParams }: PageProps<"/my-courses">) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams))
+    for (const item of [value ?? []].flat()) query.append(key, item);
+  const search = query.toString();
+  redirect(search ? `/my-learning?${search}` : "/my-learning");
 }

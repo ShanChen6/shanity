@@ -11,7 +11,7 @@ import type { LessonRendererProps } from "./types";
 export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
   lesson,
   userAccess,
-  onComplete,
+  onEvidence,
 }: LessonRendererProps) {
   const allowDownload = Boolean(
     userAccess.canDownload &&
@@ -58,6 +58,10 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
     },
     [objectUrl],
   );
+  // The viewer exposes every page once loaded; that is the completion evidence.
+  useEffect(() => {
+    if (objectUrl) onEvidence?.({ reachedLastPage: true });
+  }, [objectUrl, onEvidence]);
   if (!userAccess.canView)
     return <p role="alert">You do not have access to this document.</p>;
   if (document.error)
@@ -80,7 +84,7 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
           <a
             href={downloadUrl}
             className="inline-flex items-center gap-2 rounded-md border border-border-strong px-3 py-2 text-sm font-semibold"
-            onClick={() => onComplete?.({ downloaded: true })}
+            onClick={() => onEvidence?.({ downloaded: true })}
           >
             <Download aria-hidden size={17} />
             Tải tài liệu về máy
@@ -109,13 +113,6 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
           </div>
         ) : null}
       </div>
-      <button
-        type="button"
-        onClick={() => onComplete?.({ reachedLastPage: true })}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white"
-      >
-        Mark as Completed
-      </button>
     </section>
   );
 });

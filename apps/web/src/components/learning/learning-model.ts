@@ -17,13 +17,20 @@ export type SyllabusChapter = {
 };
 
 export type Syllabus = {
-  course: { id: string; title: string; slug: string };
+  course: {
+    id: string;
+    title: string;
+    slug: string;
+    // Students must complete required lessons in order.
+    isSequential?: boolean;
+  };
   instructor: { id: string } | null;
   curriculum: SyllabusChapter[];
 };
 
-export type LessonStatus =
-  "active" | "completed" | "locked" | "preview" | "default";
+// Sidebar status. "Active" (the open lesson) is highlighted separately.
+export type LessonProgressStatus =
+  "COMPLETED" | "IN_PROGRESS" | "LOCKED" | "NOT_STARTED";
 
 export type FlatLesson = SyllabusLesson & {
   chapterId: string;
@@ -57,35 +64,42 @@ export function getAdjacentLessons(
   };
 }
 
-export function lessonStatus(
+export function lessonProgressStatus(
   lesson: SyllabusLesson,
   context: {
-    activeSlug?: string;
-    completed: ReadonlySet<string>;
+    statuses: ReadonlyMap<string, "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED">;
     isLocked: (lesson: SyllabusLesson) => boolean;
   },
-): LessonStatus {
-  if (lesson.slug === context.activeSlug) return "active";
-  if (context.completed.has(lesson.id)) return "completed";
-  if (context.isLocked(lesson)) return "locked";
-  if (lesson.isPreview) return "preview";
-  return "default";
+): LessonProgressStatus {
+  if (context.isLocked(lesson)) return "LOCKED";
+  return context.statuses.get(lesson.id) ?? "NOT_STARTED";
 }
 
-export const STATUS_SYMBOL: Record<LessonStatus, string> = {
-  active: "→",
-  completed: "✓",
-  locked: "🔒",
-  preview: "👁️",
-  default: "○",
-};
+export type PrerequisiteLesson = { id: string; title: string; slug: string };
 
-export const STATUS_LABEL: Record<LessonStatus, string> = {
-  active: "Đang học",
-  completed: "Đã hoàn thành",
-  locked: "Bị khóa",
-  preview: "Xem thử",
-  default: "Chưa học",
+// Mirror of the server rule (CourseAccessService): in a sequential course a
+// lesson is locked behind the first earlier required lesson not yet completed.
+// Optional lessons never block; previews are never locked (they are public).
+// Returns lessonId -> the lesson to complete first.
+export function sequentialLocks(
+  curriculum: SyllabusChapter[],
+  isCompleted: (lessonId: string) => boolean,
+): ReadonlyMap<string, PrerequisiteLesson> {
+  const locks = new Map<string, PrerequisiteLesson>();
+  let blocker: PrerequisiteLesson | null = null;
+  for (const lesson of flattenLessons(curriculum)) {
+    if (blocker && !lesson.isPreview) locks.set(lesson.id, blocker);
+    if (!blocker && lesson.isRequired && !isCompleted(lesson.id))
+      blocker = { id: lesson.id, title: lesson.title, slug: lesson.slug };
+  }
+  return locks;
+}
+
+export const STATUS_LABEL: Record<LessonProgressStatus, string> = {
+  COMPLETED: "Đã hoàn thành",
+  IN_PROGRESS: "Đang học dở",
+  LOCKED: "Bị khóa",
+  NOT_STARTED: "Chưa học",
 };
 
 export const learningPath = (courseSlug: string, lessonSlug: string) =>

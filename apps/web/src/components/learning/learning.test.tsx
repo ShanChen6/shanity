@@ -2,9 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCurriculumNavigation } from "@/hooks/useCurriculumNavigation";
+import { sequentialLocks } from "./learning-model";
 import { CurriculumSidebar } from "./CurriculumSidebar";
-import { LearningFooter } from "./LearningFooter";
-import type { SyllabusChapter } from "./learning-model";
+import { LessonActionBar } from "./LessonActionBar";
+import type {
+  LessonProgressStatus,
+  SyllabusChapter,
+  SyllabusLesson,
+} from "./learning-model";
 
 const push = vi.fn();
 const prefetch = vi.fn();
@@ -89,8 +94,7 @@ describe("CurriculumSidebar", () => {
         courseSlug="course-one"
         curriculum={optional}
         activeSlug="l-1"
-        completed={new Set()}
-        isLocked={() => false}
+        statusOf={() => "NOT_STARTED"}
       />,
     );
     expect(screen.getByText("Optional")).toBeInTheDocument();
@@ -107,8 +111,7 @@ describe("CurriculumSidebar", () => {
         courseSlug="course-one"
         curriculum={curriculum}
         activeSlug="l-3"
-        completed={new Set()}
-        isLocked={() => false}
+        statusOf={() => "NOT_STARTED"}
       />,
     );
     const active = screen.getByRole("link", { name: /Lesson 3/ });
@@ -126,14 +129,14 @@ describe("CurriculumSidebar", () => {
   });
 });
 
-describe("LearningFooter", () => {
+describe("LessonActionBar navigation", () => {
   const renderFooter = (activeSlug: string, locked = false) =>
     render(
-      <LearningFooter
+      <LessonActionBar
         courseSlug="course-one"
         curriculum={curriculum}
         activeSlug={activeSlug}
-        isLocked={(target) => locked && target.id === "3"}
+        isLocked={(target: SyllabusLesson) => locked && target.id === "3"}
       />,
     );
 
@@ -141,18 +144,22 @@ describe("LearningFooter", () => {
     renderFooter("l-2");
     expect(prefetch).toHaveBeenCalledWith("/learn/course-one/l-1");
     expect(prefetch).toHaveBeenCalledWith("/learn/course-one/l-3");
-    await userEvent.click(screen.getByRole("button", { name: "Next Lesson" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Bài tiếp theo" }),
+    );
     expect(push).toHaveBeenCalledWith("/learn/course-one/l-3");
   });
 
   it("disables boundary and locked navigation", () => {
     const { unmount } = renderFooter("l-1");
     expect(
-      screen.getByRole("button", { name: "Previous Lesson" }),
+      screen.getByRole("button", { name: "Quay lại bài trước" }),
     ).toBeDisabled();
     unmount();
     renderFooter("l-2", true);
-    expect(screen.getByRole("button", { name: "Next Lesson" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Bài tiếp theo" }),
+    ).toBeDisabled();
   });
 
   it("handles arrow/bracket shortcuts and ignores typing targets", () => {
@@ -166,5 +173,161 @@ describe("LearningFooter", () => {
     input.remove();
     fireEvent.keyDown(window, { key: "[" });
     expect(push).toHaveBeenCalledWith("/learn/course-one/l-1");
+  });
+});
+
+describe("CurriculumSidebar statuses", () => {
+  it("renders one icon per server status and highlights the active lesson separately", () => {
+    const statuses: Record<string, LessonProgressStatus> = {
+      "1": "COMPLETED",
+      "2": "IN_PROGRESS",
+      "3": "LOCKED",
+      "4": "NOT_STARTED",
+    };
+    render(
+      <CurriculumSidebar
+        courseSlug="course-one"
+        curriculum={curriculum.map((chapter) => ({ ...chapter }))}
+        activeSlug="l-2"
+        statusOf={(item) => statuses[item.id]}
+      />,
+    );
+    // Open the second chapter too.
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    for (const [id, status] of Object.entries(statuses))
+      expect(screen.getByTestId(`lesson-status-${id}`)).toHaveAttribute(
+        "data-icon",
+        status,
+      );
+    const active = screen.getByRole("link", { name: /Lesson 2/ });
+    expect(active).toHaveAttribute("aria-current", "page");
+    expect(active).toHaveAttribute("data-status", "IN_PROGRESS");
+    expect(screen.getByRole("link", { name: /Lesson 1/ })).toHaveTextContent(
+      "Đã hoàn thành",
+    );
+    expect(screen.getByRole("button", { name: /Basics/ })).toHaveTextContent(
+      "1/2",
+    );
+  });
+});
+
+describe("LessonActionBar completion", () => {
+  const renderBar = (
+    activeSlug: string,
+    completion: Parameters<typeof LessonActionBar>[0]["completion"],
+    onComplete = vi.fn(async () => true),
+  ) => {
+    render(
+      <LessonActionBar
+        courseSlug="course-one"
+        curriculum={curriculum}
+        activeSlug={activeSlug}
+        isLocked={() => false}
+        completion={completion}
+        onComplete={onComplete}
+      />,
+    );
+    return onComplete;
+  };
+
+  it("blocks completion until evidence exists and explains why", () => {
+    renderBar("l-2", { kind: "incomplete", hint: "Đọc ít nhất 80%" });
+    expect(
+      screen.getByRole("button", {
+        name: "Đánh dấu Hoàn thành & Sang bài tiếp theo",
+      }),
+    ).toBeDisabled();
+    expect(screen.getByText("Đọc ít nhất 80%")).toBeInTheDocument();
+  });
+
+  it("completes and then routes to the next lesson", async () => {
+    const onComplete = renderBar("l-2", { kind: "incomplete" });
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Đánh dấu Hoàn thành & Sang bài tiếp theo",
+      }),
+    );
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("/learn/course-one/l-3");
+  });
+
+  it("stays on the lesson when completion fails or the course is finished", async () => {
+    renderBar(
+      "l-2",
+      { kind: "incomplete" },
+      vi.fn(async () => false),
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Đánh dấu Hoàn thành & Sang bài tiếp theo",
+      }),
+    );
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("offers course completion on the last lesson", () => {
+    renderBar("l-4", { kind: "incomplete" });
+    expect(
+      screen.getByRole("button", { name: "Hoàn thành khóa học" }),
+    ).toBeEnabled();
+  });
+
+  it("shows the done badge with next-lesson and review CTAs", () => {
+    const { unmount } = render(
+      <LessonActionBar
+        courseSlug="course-one"
+        curriculum={curriculum}
+        activeSlug="l-2"
+        isLocked={() => false}
+        completion={{ kind: "completed" }}
+      />,
+    );
+    expect(screen.getByTestId("lesson-completed")).toHaveTextContent(
+      "Đã hoàn thành",
+    );
+    expect(screen.getByRole("button", { name: "Bài tiếp theo" })).toBeEnabled();
+    unmount();
+    renderBar("l-4", { kind: "completed" });
+    expect(
+      screen.getByRole("button", { name: "Xem lại từ đầu" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("sequentialLocks", () => {
+  const done =
+    (...ids: string[]) =>
+    (id: string) =>
+      ids.includes(id);
+  const mixed: SyllabusChapter[] = [
+    {
+      ...curriculum[0]!,
+      lessons: [
+        { ...lesson("1", 0), isRequired: true },
+        { ...lesson("2", 1), isRequired: false },
+      ],
+    },
+    {
+      ...curriculum[1]!,
+      lessons: [lesson("3", 0), { ...lesson("4", 1), isPreview: true }],
+    },
+  ];
+  const blockers = (completed: (id: string) => boolean) =>
+    Object.fromEntries(
+      [...sequentialLocks(mixed, completed)].map(([id, by]) => [id, by.id]),
+    );
+
+  it("locks everything after the first incomplete required lesson except previews", () => {
+    expect(blockers(done())).toEqual({ "2": "1", "3": "1" });
+  });
+
+  it("lets optional lessons be skipped and crosses chapters", () => {
+    expect(blockers(done("1"))).toEqual({});
+    expect(blockers(done("1", "2"))).toEqual({});
+  });
+
+  it("re-locks behind an earlier gap even if later lessons were completed", () => {
+    // e.g. the course became sequential after the student skipped ahead.
+    expect(blockers(done("3"))).toEqual({ "2": "1", "3": "1" });
   });
 });

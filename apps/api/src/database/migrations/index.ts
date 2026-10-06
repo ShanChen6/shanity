@@ -17,6 +17,8 @@ import { DocumentLessonMetadata1791158400004 } from './202610050004_document_les
 import { LessonProgress1791244800001 } from './202610060001_lesson_progress.js';
 import { AddIsRequiredToLessons1791244800002 } from './202610060002_lesson_required.js';
 import { ResumeLearning1791244800003 } from './202610060003_resume_learning.js';
+import { SequentialCourses1791331200001 } from './202610070001_sequential_courses.js';
+import { EnrollmentsCourseActiveIndex1791331200002 } from './202610070002_enrollments_course_active_idx.js';
 
 export const migrationHistory = [
   {
@@ -132,6 +134,18 @@ export const migrationHistory = [
     name: 'ResumeLearning1791244800003',
     timestamp: 1791244800003,
     migration: ResumeLearning1791244800003,
+  },
+  {
+    legacy: null,
+    name: 'SequentialCourses1791331200001',
+    timestamp: 1791331200001,
+    migration: SequentialCourses1791331200001,
+  },
+  {
+    legacy: null,
+    name: 'EnrollmentsCourseActiveIndex1791331200002',
+    timestamp: 1791331200002,
+    migration: EnrollmentsCourseActiveIndex1791331200002,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);
