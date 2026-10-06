@@ -1,30 +1,44 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Lock } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  Circle,
+  Lock,
+  PlayCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   STATUS_LABEL,
   learningPath,
-  lessonStatus,
+  type LessonProgressStatus,
+  type PrerequisiteLesson,
   type SyllabusChapter,
   type SyllabusLesson,
 } from "./learning-model";
+
+const STATUS_ICON: Record<LessonProgressStatus, ReactNode> = {
+  COMPLETED: <CheckCircle2 size={17} className="text-success" />,
+  IN_PROGRESS: <PlayCircle size={17} className="text-primary" />,
+  LOCKED: <Lock size={16} className="text-muted" />,
+  NOT_STARTED: <Circle size={17} className="text-border-strong" />,
+};
 
 export function CurriculumSidebar({
   courseSlug,
   curriculum,
   activeSlug,
-  completed,
-  isLocked,
+  statusOf,
+  prerequisiteOf,
   onNavigate,
 }: {
   courseSlug: string;
   curriculum: SyllabusChapter[];
   activeSlug?: string;
-  completed: ReadonlySet<string>;
-  isLocked: (lesson: SyllabusLesson) => boolean;
+  statusOf: (lesson: SyllabusLesson) => LessonProgressStatus;
+  prerequisiteOf?: (lesson: SyllabusLesson) => PrerequisiteLesson | null;
   onNavigate?: () => void;
 }) {
   const activeChapter = curriculum.find((chapter) =>
@@ -36,7 +50,7 @@ export function CurriculumSidebar({
         curriculum.filter(({ id }) => id !== activeChapter).map(({ id }) => id),
       ),
   );
-  const activeRef = useRef<HTMLAnchorElement>(null);
+  const activeRef = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     activeRef.current?.scrollIntoView?.({
@@ -52,6 +66,9 @@ export function CurriculumSidebar({
       {curriculum.map((chapter, index) => {
         const isOpen =
           chapter.id === activeChapter || !collapsed.has(chapter.id);
+        const done = chapter.lessons.filter(
+          (lesson) => statusOf(lesson) === "COMPLETED",
+        ).length;
         return (
           <section key={chapter.id} aria-labelledby={`chapter-${chapter.id}`}>
             <button
@@ -74,50 +91,82 @@ export function CurriculumSidebar({
                 size={16}
                 className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
               />
-              Chương {index + 1}: {chapter.title}
+              <span className="min-w-0 flex-1">
+                Chương {index + 1}: {chapter.title}
+              </span>
+              <span
+                className={`shrink-0 tabular-nums normal-case ${done === chapter.lessons.length && done ? "text-success" : ""}`}
+              >
+                {done}/{chapter.lessons.length}
+                <span className="sr-only"> bài đã hoàn thành</span>
+              </span>
             </button>
             {isOpen ? (
               <ul id={`chapter-lessons-${chapter.id}`} className="space-y-1">
                 {chapter.lessons.map((lesson) => {
-                  const status = lessonStatus(lesson, {
-                    activeSlug,
-                    completed,
-                    isLocked,
-                  });
-                  return (
-                    <li key={lesson.id}>
-                      <Link
-                        ref={status === "active" ? activeRef : undefined}
-                        href={learningPath(courseSlug, lesson.slug)}
-                        aria-current={status === "active" ? "page" : undefined}
-                        data-status={status}
-                        onClick={onNavigate}
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                          status === "active"
-                            ? "border-primary bg-secondary font-semibold text-secondary-foreground"
-                            : "border-transparent hover:bg-surface-hover"
-                        } ${status === "locked" ? "text-muted" : ""}`}
+                  const status = statusOf(lesson);
+                  const active = lesson.slug === activeSlug;
+                  const prerequisite = prerequisiteOf?.(lesson) ?? null;
+                  const className = `flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors duration-normal ${
+                    active
+                      ? "border-primary/60 bg-secondary font-semibold text-secondary-foreground shadow-sm"
+                      : prerequisite
+                        ? "cursor-not-allowed border-transparent opacity-70"
+                        : "border-transparent hover:bg-surface-hover"
+                  } ${status === "LOCKED" ? "text-muted" : ""}`;
+                  const content = (
+                    <>
+                      <span
+                        className="flex w-5 shrink-0 justify-center"
+                        aria-hidden
+                        data-testid={`lesson-status-${lesson.id}`}
+                        data-icon={status}
                       >
-                        <span className="w-5 shrink-0" aria-hidden>
-                          {status === "completed" ? (
-                            <CheckCircle2 size={17} />
-                          ) : status === "locked" ? (
-                            <Lock size={17} />
-                          ) : (
-                            <ChevronRight size={17} />
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">
-                          {lesson.title}
-                        </span>
-                        <span className="sr-only">{STATUS_LABEL[status]}</span>
-                        {lesson.isPreview ? (
-                          <Badge tone="success">Preview</Badge>
+                        {STATUS_ICON[status]}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{lesson.title}</span>
+                        {prerequisite ? (
+                          <span className="block truncate text-xs font-normal">
+                            Hoàn thành “{prerequisite.title}” để mở khóa
+                          </span>
                         ) : null}
-                        {!lesson.isRequired ? (
-                          <Badge tone="warning">Optional</Badge>
-                        ) : null}
-                      </Link>
+                      </span>
+                      <span className="sr-only">{STATUS_LABEL[status]}</span>
+                      {lesson.isPreview ? (
+                        <Badge tone="success">Preview</Badge>
+                      ) : null}
+                      {!lesson.isRequired ? (
+                        <Badge tone="warning">Optional</Badge>
+                      ) : null}
+                    </>
+                  );
+                  return (
+                    <li key={lesson.id} ref={active ? activeRef : undefined}>
+                      {prerequisite ? (
+                        // Sequentially locked: not navigable. (Lessons locked
+                        // only by enrollment stay links to the enroll prompt.)
+                        <span
+                          role="link"
+                          aria-disabled="true"
+                          aria-current={active ? "page" : undefined}
+                          data-status={status}
+                          title={`Bạn cần hoàn thành bài “${prerequisite.title}” trước`}
+                          className={className}
+                        >
+                          {content}
+                        </span>
+                      ) : (
+                        <Link
+                          href={learningPath(courseSlug, lesson.slug)}
+                          aria-current={active ? "page" : undefined}
+                          data-status={status}
+                          onClick={onNavigate}
+                          className={className}
+                        >
+                          {content}
+                        </Link>
+                      )}
                     </li>
                   );
                 })}

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.module.js';
-import { CourseProgressEngine } from './course-progress-engine.service.js';
+import { CourseProgressCalculatorService } from './course-progress-calculator.service.js';
+import { EnrollmentPolicy } from './enrollment-policy.js';
 
 type ResumeRow = {
   courseId: string;
@@ -17,10 +18,12 @@ type ResumeRow = {
 export class ResumeLearningService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly courseProgressEngine: CourseProgressEngine,
+    private readonly progressCalculator: CourseProgressCalculatorService,
+    private readonly enrollments: EnrollmentPolicy,
   ) {}
 
   async course(userId: string, courseId: string) {
+    await this.enrollments.requireActive(userId, courseId);
     const row = await this.resolve(userId, courseId);
     if (!row) throw new ForbiddenException('Active enrollment required');
     return {
@@ -49,7 +52,7 @@ export class ResumeLearningService {
 
     const row = await this.resolve(userId, latest.courseId);
     if (!row?.lessonId) return { hasActiveCourse: false };
-    const progress = await this.courseProgressEngine.calculate(
+    const progress = await this.progressCalculator.calculate(
       userId,
       row.courseId,
     );

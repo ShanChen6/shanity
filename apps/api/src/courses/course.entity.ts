@@ -46,6 +46,10 @@ export class Course {
   @Column({ type: 'integer', default: 0 })
   price: number;
 
+  // Students must complete each required lesson before opening later ones.
+  @Column({ name: 'is_sequential', type: 'boolean', default: false })
+  isSequential: boolean;
+
   @Column({
     type: 'enum',
     enum: CourseStatus,

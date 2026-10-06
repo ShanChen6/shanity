@@ -17,6 +17,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   IsArray,
@@ -121,6 +122,7 @@ function lessonContent(dto: LessonDto): LessonContentDto {
 @UseGuards(OriginGuard, SessionGuard, CourseOwnershipGuard)
 @Roles('instructor', 'admin')
 @RequireCourseOwnership({ resource: 'course', param: 'courseId' })
+@UseInterceptors(CurriculumChangedInterceptor)
 export class InstructorContentController {
   constructor(
     private readonly database: DataSource,

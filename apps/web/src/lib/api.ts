@@ -16,8 +16,14 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public messages: string[],
+    // Parsed error body, for structured errors such as
+    // { code: "PREREQUISITE_LESSON_NOT_COMPLETED", requiredLesson }.
+    public data: Record<string, unknown> = {},
   ) {
     super(messages.join(" "));
+  }
+  get code(): string | undefined {
+    return typeof this.data.code === "string" ? this.data.code : undefined;
   }
 }
 export const SESSION_LOST = "shanity:session-lost";
@@ -44,14 +50,18 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   const data = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new ApiError(response.status, [
-      ...(Array.isArray(data.message)
-        ? data.message
-        : [data.message ?? "Yêu cầu không thành công."]),
-      ...(Array.isArray(data.errors)
-        ? data.errors.filter((item: unknown) => typeof item === "string")
-        : []),
-    ]);
+    throw new ApiError(
+      response.status,
+      [
+        ...(Array.isArray(data.message)
+          ? data.message
+          : [data.message ?? "Yêu cầu không thành công."]),
+        ...(Array.isArray(data.errors)
+          ? data.errors.filter((item: unknown) => typeof item === "string")
+          : []),
+      ],
+      data && typeof data === "object" ? data : {},
+    );
   return data as T;
 }
 

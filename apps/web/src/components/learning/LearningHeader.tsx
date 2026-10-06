@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 export function LearningHeader({
   courseTitle,
   courseProgress,
+  showProgress = true,
   onOpenMenu,
 }: {
   courseTitle: string;
@@ -15,38 +16,68 @@ export function LearningHeader({
     totalRequiredLessons: number;
     percentage: number;
   };
+  // Only enrolled students have server-side progress to show.
+  showProgress?: boolean;
   onOpenMenu: () => void;
 }) {
+  const { percentage } = courseProgress;
+  const done = percentage >= 100;
+  // Slow, eased width change so a completion visibly "fills" the bar.
+  const indicator = `${done ? "bg-lesson-completed" : "bg-course-progress"} duration-slow ease-out`;
   return (
-    <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3">
-      <Button
-        variant="outline"
-        size="sm"
-        className="lg:hidden"
-        data-testid="curriculum-toggle"
-        aria-label="Mở giáo trình"
-        onClick={onOpenMenu}
-      >
-        <Icon name="menu" className="size-4" aria-hidden="true" />
-        Giáo trình
-      </Button>
-      <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
-        {courseTitle}
-      </h1>
-      <div className="hidden w-80 items-center gap-2 sm:flex">
-        <Progress
-          className="flex-1"
-          value={courseProgress.percentage}
-          label="Tiến độ khóa học"
-        />
-        <span className="text-xs text-muted">
-          Đã hoàn thành {courseProgress.completedRequiredLessons}/
-          {courseProgress.totalRequiredLessons} bài học bắt buộc
-        </span>
+    <header className="relative shrink-0 border-b border-border bg-surface">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <Button
+          variant="outline"
+          size="sm"
+          className="lg:hidden"
+          data-testid="curriculum-toggle"
+          aria-label="Mở giáo trình"
+          onClick={onOpenMenu}
+        >
+          <Icon name="menu" className="size-4" aria-hidden="true" />
+          Giáo trình
+        </Button>
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+          {courseTitle}
+        </h1>
+        {showProgress && (
+          <div
+            className="flex shrink-0 items-center gap-3 sm:w-80"
+            data-testid="course-progress"
+          >
+            <Progress
+              className="hidden flex-1 sm:block"
+              value={percentage}
+              label="Tiến độ khóa học"
+              indicatorClassName={indicator}
+            />
+            <span
+              className={`text-sm font-semibold tabular-nums ${done ? "text-success" : "text-foreground"}`}
+              aria-live="polite"
+              title={`Đã hoàn thành ${courseProgress.completedRequiredLessons}/${courseProgress.totalRequiredLessons} bài học bắt buộc`}
+            >
+              <span className="hidden text-muted sm:inline">Tiến độ: </span>
+              {percentage}%
+            </span>
+          </div>
+        )}
+        <Link
+          href="/my-learning"
+          className="hidden shrink-0 text-sm text-primary underline md:inline"
+        >
+          Góc học tập
+        </Link>
       </div>
-      <Link href="/courses" className="shrink-0 text-sm text-primary underline">
-        Danh mục khóa học
-      </Link>
+      {showProgress && (
+        <Progress
+          className="absolute inset-x-0 bottom-0 h-0.5 rounded-none sm:hidden"
+          value={percentage}
+          label="Tiến độ khóa học"
+          aria-hidden
+          indicatorClassName={indicator}
+        />
+      )}
     </header>
   );
 }
