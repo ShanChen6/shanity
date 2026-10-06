@@ -8,7 +8,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Transform } from 'class-transformer';
-import { IsOptional, ValidateIf, IsString, Length, Matches, IsIn, IsInt, Min, Max, } from 'class-validator';
+import { IsBoolean, IsOptional, ValidateIf, IsString, Length, Matches, IsIn, IsInt, Min, Max, } from 'class-validator';
 const trimString = ({ value }) => typeof value === 'string' ? value.trim() : value;
 export class CreateCourseDto {
     category;
@@ -86,6 +86,7 @@ export class UpdateCourseDto {
     description;
     shortDescription;
     thumbnail;
+    isSequential;
 }
 __decorate([
     ValidateIf((_object, value) => value !== undefined),
@@ -144,4 +145,9 @@ __decorate([
     IsString(),
     __metadata("design:type", Object)
 ], UpdateCourseDto.prototype, "thumbnail", void 0);
+__decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], UpdateCourseDto.prototype, "isSequential", void 0);
 //# sourceMappingURL=courses.dto.js.map

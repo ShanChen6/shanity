@@ -34,7 +34,12 @@ let SessionGuard = class SessionGuard {
         ]);
         if (roles?.length &&
             !roles.some((role) => req.principal.roles.includes(role)))
-            throw new ForbiddenException();
+            throw new ForbiddenException({
+                statusCode: 403,
+                message: 'Forbidden resource',
+                error: 'Forbidden',
+                code: 'FORBIDDEN_RESOURCE',
+            });
         return true;
     }
 };

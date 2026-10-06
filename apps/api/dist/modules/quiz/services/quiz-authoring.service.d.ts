@@ -1,0 +1,138 @@
+import { ConflictException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import type { Principal } from '../../../auth/auth.service.js';
+import { CurriculumEvents } from '../../curriculum/curriculum-events.js';
+import type { CreateQuizDto, ListQuizzesQueryDto, UpdateQuizDto } from '../dto/quiz-authoring.dto.js';
+import { GradingPolicy, QuizScope, QuizStatus, ReviewPolicy } from '../entities/quiz.entity.js';
+import { CourseOwnershipService } from '../../../courses/course-ownership.service.js';
+import { QuizQuestionsService } from './quiz-questions.service.js';
+import { QuizTargetValidationService } from './quiz-target-validation.service.js';
+export declare const quizNotEditable: () => ConflictException;
+export declare class QuizAuthoringService {
+    private readonly dataSource;
+    private readonly validation;
+    private readonly ownership;
+    private readonly questions;
+    private readonly curriculum;
+    constructor(dataSource: DataSource, validation: QuizTargetValidationService, ownership: CourseOwnershipService, questions: QuizQuestionsService, curriculum: CurriculumEvents);
+    create(principal: Principal, dto: CreateQuizDto): Promise<{
+        courseId: string | null;
+        author: {
+            id: string;
+            displayName: string;
+        } | null;
+        attemptCount: number;
+        questions: import("../dto/quiz-question-response.dto.js").InstructorQuestionResponseDto[];
+        id: string;
+        title: string;
+        slug: string | null;
+        description: string | null;
+        scope: QuizScope;
+        targetId: string | null;
+        status: QuizStatus;
+        version: number;
+        passingScore: number;
+        maxAttempts: number | null;
+        durationMinutes: number | null;
+        isRequired: boolean;
+        reviewPolicy: ReviewPolicy;
+        gradingPolicy: GradingPolicy;
+        shuffleQuestions: boolean;
+        shuffleOptions: boolean;
+        createdBy: string;
+        publishedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    list(principal: Principal, query: ListQuizzesQueryDto): Promise<{
+        quizzes: {
+            id: string;
+            title: string;
+            slug: string | null;
+            scope: QuizScope;
+            targetId: string | null;
+            courseId: string | null;
+            status: QuizStatus;
+            version: number;
+            isRequired: boolean;
+            questionCount: number;
+            createdBy: string;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            totalItems: number;
+            totalPages: number;
+        };
+    }>;
+    detail(quizId: string, courseId: string | null): Promise<{
+        courseId: string | null;
+        author: {
+            id: string;
+            displayName: string;
+        } | null;
+        attemptCount: number;
+        questions: import("../dto/quiz-question-response.dto.js").InstructorQuestionResponseDto[];
+        id: string;
+        title: string;
+        slug: string | null;
+        description: string | null;
+        scope: QuizScope;
+        targetId: string | null;
+        status: QuizStatus;
+        version: number;
+        passingScore: number;
+        maxAttempts: number | null;
+        durationMinutes: number | null;
+        isRequired: boolean;
+        reviewPolicy: ReviewPolicy;
+        gradingPolicy: GradingPolicy;
+        shuffleQuestions: boolean;
+        shuffleOptions: boolean;
+        createdBy: string;
+        publishedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    update(quizId: string, courseId: string | null, dto: UpdateQuizDto): Promise<{
+        courseId: string | null;
+        author: {
+            id: string;
+            displayName: string;
+        } | null;
+        attemptCount: number;
+        questions: import("../dto/quiz-question-response.dto.js").InstructorQuestionResponseDto[];
+        id: string;
+        title: string;
+        slug: string | null;
+        description: string | null;
+        scope: QuizScope;
+        targetId: string | null;
+        status: QuizStatus;
+        version: number;
+        passingScore: number;
+        maxAttempts: number | null;
+        durationMinutes: number | null;
+        isRequired: boolean;
+        reviewPolicy: ReviewPolicy;
+        gradingPolicy: GradingPolicy;
+        shuffleQuestions: boolean;
+        shuffleOptions: boolean;
+        createdBy: string;
+        publishedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    remove(quizId: string, courseId: string | null): Promise<{
+        id: string;
+        outcome: "DELETED";
+        status: null;
+    } | {
+        id: string;
+        outcome: "ARCHIVED";
+        status: QuizStatus;
+    }>;
+    private lockQuiz;
+}

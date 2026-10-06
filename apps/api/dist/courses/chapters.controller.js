@@ -10,7 +10,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Delete, Get, Header, HttpCode, Param, Patch, Post, Req, UseGuards, } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, Param, Patch, Post, Req, UseGuards, UseInterceptors, } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import { CourseOwnershipGuard, RequireCourseOwnership, } from './course-ownership.guard.js';
 import { CreateChapterDto, ReorderChaptersDto, UpdateChapterDto, } from './chapters.dto.js';
@@ -98,6 +99,7 @@ __decorate([
 ChaptersController = __decorate([
     Controller(),
     UseGuards(OriginGuard, SessionGuard),
+    UseInterceptors(CurriculumChangedInterceptor),
     __metadata("design:paramtypes", [ChaptersService])
 ], ChaptersController);
 export { ChaptersController };

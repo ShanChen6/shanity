@@ -7,7 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException, } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, } from '@nestjs/common';
 import { AuthConfig } from '../../../auth/auth.config.js';
 import { cookie } from '../../../auth/auth.guards.js';
 import { AuthService } from '../../../auth/auth.service.js';
@@ -18,16 +18,29 @@ export function rejectLessonAccess(result) {
         case 'LESSON_NOT_FOUND':
             throw new NotFoundException('Lesson not found');
         case 'AUTHENTICATION_REQUIRED':
-            throw new UnauthorizedException({
-                statusCode: 401,
-                message: 'AUTHENTICATION_REQUIRED',
-                code: 'AUTHENTICATION_REQUIRED',
+            throw new ForbiddenException({
+                statusCode: 403,
+                message: 'ENROLLMENT_REQUIRED',
+                code: 'ENROLLMENT_REQUIRED',
             });
         case 'ENROLLMENT_REQUIRED':
             throw new ForbiddenException({
                 statusCode: 403,
                 message: 'ENROLLMENT_REQUIRED',
                 code: 'ENROLLMENT_REQUIRED',
+            });
+        case 'ENROLLMENT_SUSPENDED':
+            throw new ForbiddenException({
+                statusCode: 403,
+                message: 'Enrollment Suspended',
+                code: 'ENROLLMENT_SUSPENDED',
+            });
+        case 'PREREQUISITE_LESSON_NOT_COMPLETED':
+            throw new ForbiddenException({
+                statusCode: 403,
+                message: 'PREREQUISITE_LESSON_NOT_COMPLETED',
+                code: 'PREREQUISITE_LESSON_NOT_COMPLETED',
+                requiredLesson: result.requiredLesson,
             });
         default:
             throw new ForbiddenException({
@@ -48,8 +61,8 @@ let LessonAccessGuard = class LessonAccessGuard {
     }
     async canActivate(context) {
         const request = context.switchToHttp().getRequest();
-        const lessonId = request.params
-            .id;
+        const params = request.params;
+        const lessonId = params.id ?? params.lessonId;
         if (!lessonId || !UUID.test(lessonId))
             throw new NotFoundException('Lesson not found');
         const token = cookie(request, this.config.cookieName('access'));

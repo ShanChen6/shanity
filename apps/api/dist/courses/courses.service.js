@@ -251,6 +251,7 @@ let CoursesService = class CoursesService {
             .addSelect('course.shortDescription', 'shortDescription')
             .addSelect('course.thumbnail', 'thumbnail')
             .addSelect('course.publishedAt', 'publishedAt')
+            .addSelect('course.isSequential', 'isSequential')
             .addSelect('instructor.id', 'instructorId')
             .addSelect('instructor.displayName', 'instructorDisplayName')
             .addSelect('instructor.avatarKey', 'instructorAvatarKey')
@@ -277,6 +278,7 @@ let CoursesService = class CoursesService {
                 shortDescription: course.shortDescription,
                 thumbnail: course.thumbnail,
                 publishedAt: course.publishedAt,
+                isSequential: course.isSequential === true,
             },
             instructor: course.instructorId
                 ? {
@@ -306,7 +308,8 @@ let CoursesService = class CoursesService {
           lesson.slug,
           lesson.type,
           lesson.position,
-          lesson.is_preview AS "isPreview"
+          lesson.is_preview AS "isPreview",
+          lesson.is_required AS "isRequired"
         FROM lessons lesson
         INNER JOIN courses course ON course.id = lesson.course_id
         WHERE course.id = $1
@@ -330,6 +333,7 @@ let CoursesService = class CoursesService {
                     type: lesson.type,
                     position: lesson.position,
                     isPreview: lesson.isPreview,
+                    isRequired: lesson.isRequired,
                 })),
             })),
         };

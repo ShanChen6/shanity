@@ -11,6 +11,7 @@ export declare class CreateLessonDto {
     title: string;
     type: LessonType;
     isPreview?: boolean;
+    isRequired?: boolean;
     content: LessonContentDto;
     position?: number;
 }
@@ -18,6 +19,7 @@ export declare class UpdateLessonDto {
     title?: string;
     type?: LessonType;
     isPreview?: boolean;
+    isRequired?: boolean;
     isPublished?: boolean;
     content?: LessonContentDto;
     position?: number;
@@ -32,11 +34,13 @@ export declare class ReorderLessonsDto {
 export declare class VideoUploadDto {
     title?: string;
     isPreview?: boolean;
+    isRequired?: boolean;
     durationSeconds?: number;
 }
 export declare class DocumentUploadDto {
     title?: string;
     isPreview?: boolean;
+    isRequired?: boolean;
     allowDownload?: boolean;
 }
 export declare class DocumentSettingsDto {

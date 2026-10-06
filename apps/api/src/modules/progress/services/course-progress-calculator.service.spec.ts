@@ -31,6 +31,33 @@ function engineWith(row: Record<string, unknown>) {
 }
 
 describe('CourseProgressCalculatorService', () => {
+  it('separates the progress bar from the completion gate', async () => {
+    const lessonsDone = {
+      totalRequiredLessons: 9,
+      completedRequiredLessons: 9,
+    };
+    // A failed required quiz: high bar, not completed.
+    await expect(
+      engineWith({
+        ...lessonsDone,
+        totalQuizzes: 1,
+        totalRequiredQuizzes: 1,
+        passedQuizzes: 0,
+        passedRequiredQuizzes: 0,
+      }).engine.calculate('user-id', 'course-id'),
+    ).resolves.toMatchObject({ percentage: 90, isCompleted: false });
+    // An optional quiz left: completed below 100%.
+    await expect(
+      engineWith({
+        ...lessonsDone,
+        totalQuizzes: 1,
+        totalRequiredQuizzes: 0,
+        passedQuizzes: 0,
+        passedRequiredQuizzes: 0,
+      }).engine.calculate('user-id', 'course-id'),
+    ).resolves.toMatchObject({ percentage: 90, isCompleted: true });
+  });
+
   it('is the single formula implementation for required lesson progress', async () => {
     const { engine, query } = engineWith({});
     await expect(
@@ -97,6 +124,7 @@ describe('CourseProgressCalculatorService', () => {
           percentage: 72,
           completedRequiredLessons: 18,
           totalRequiredLessons: 25,
+          isCompleted: false,
           lastAccessedLessonSlug: 'react-hooks-overview',
           lastAccessedAt: new Date('2026-10-06T10:00:00.000Z'),
         },

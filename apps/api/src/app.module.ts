@@ -9,6 +9,7 @@ import { LessonsModule } from './modules/lessons/lessons.module.js';
 import { ProgressModule } from './modules/progress/progress.module.js';
 import { InstructorModule } from './modules/instructor/instructor.module.js';
 import { CurriculumEventsModule } from './modules/curriculum/curriculum-events.module.js';
+import { QuizModule } from './modules/quiz/quiz.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CurriculumEventsModule } from './modules/curriculum/curriculum-events.m
     LessonsModule,
     ProgressModule,
     InstructorModule,
+    QuizModule,
   ],
   controllers: [AppController],
   providers: [AppService],

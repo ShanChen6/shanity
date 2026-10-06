@@ -23,6 +23,7 @@ let Course = class Course {
     level;
     language;
     price;
+    isSequential;
     status;
     instructorId;
     instructor;
@@ -73,6 +74,10 @@ __decorate([
     Column({ type: 'integer', default: 0 }),
     __metadata("design:type", Number)
 ], Course.prototype, "price", void 0);
+__decorate([
+    Column({ name: 'is_sequential', type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], Course.prototype, "isSequential", void 0);
 __decorate([
     Column({
         type: 'enum',

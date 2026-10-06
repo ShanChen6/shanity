@@ -53,6 +53,7 @@ export declare class CoursesService {
             shortDescription: string | null;
             thumbnail: string | null;
             publishedAt: Date | null;
+            isSequential: boolean;
         };
         instructor: {
             id: string;
@@ -76,6 +77,7 @@ export declare class CoursesService {
                 type: string;
                 position: number;
                 isPreview: boolean;
+                isRequired: boolean;
             }[];
             id: string | null;
             title: string | null;
@@ -90,6 +92,7 @@ export declare class CoursesService {
             shortDescription: string | null;
             thumbnail: string | null;
             publishedAt: Date | null;
+            isSequential: boolean;
         };
         instructor: {
             id: string;

@@ -19,4 +19,5 @@ export declare class UpdateCourseDto {
     description?: string | null;
     shortDescription?: string | null;
     thumbnail?: string | null;
+    isSequential?: boolean;
 }

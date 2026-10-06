@@ -5,7 +5,7 @@ export function configureApp(app) {
     app.enableCors({
         origin: app.get(AuthConfig).origin,
         credentials: true,
-        methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     });
     app.enableShutdownHooks();
 }

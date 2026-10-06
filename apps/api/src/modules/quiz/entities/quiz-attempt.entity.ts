@@ -1,0 +1,103 @@
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
+import type { Relation } from 'typeorm';
+import { User } from '../../../users/user.entity.js';
+import { QuizEntity } from './quiz.entity.js';
+import { AttemptAnswerEntity } from './attempt-answer.entity.js';
+import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
+
+export enum QuizAttemptStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  SUBMITTED = 'SUBMITTED',
+  TIMED_OUT = 'TIMED_OUT',
+  ABANDONED = 'ABANDONED',
+}
+
+@Entity('quiz_attempts')
+@Index('IDX_quiz_attempts_user_quiz', ['userId', 'quizId', 'status'])
+@Index('UQ_quiz_attempts_active', ['userId', 'quizId'], {
+  unique: true,
+  where: `status = 'IN_PROGRESS'`,
+})
+@Unique('UQ_quiz_attempts_user_quiz_number', [
+  'userId',
+  'quizId',
+  'attemptNumber',
+])
+export class QuizAttemptEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
+
+  @ManyToOne(() => User, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'user_id',
+    foreignKeyConstraintName: 'FK_quiz_attempts_users',
+  })
+  user: Relation<User>;
+
+  @Column({ name: 'quiz_id', type: 'uuid' })
+  quizId: string;
+
+  @ManyToOne(() => QuizEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'quiz_id',
+    foreignKeyConstraintName: 'FK_quiz_attempts_quizzes',
+  })
+  quiz: Relation<QuizEntity>;
+
+  @Column({ name: 'quiz_version', type: 'integer' })
+  quizVersion: number;
+
+  @Column({ name: 'attempt_number', type: 'smallint' })
+  attemptNumber: number;
+
+  // Frozen at start, answer key included: server-side only, never serialized
+  // to learners as-is.
+  @Column({ name: 'quiz_snapshot', type: 'jsonb' })
+  quizSnapshot: QuizAttemptSnapshot;
+
+  @Column({
+    type: 'enum',
+    enum: QuizAttemptStatus,
+    enumName: 'QuizAttemptStatus',
+    default: QuizAttemptStatus.IN_PROGRESS,
+  })
+  status: QuizAttemptStatus;
+
+  @Column({ name: 'started_at', type: 'timestamptz', default: () => 'now()' })
+  startedAt: Date;
+
+  @Column({ name: 'expires_at', type: 'timestamptz', nullable: true })
+  expiresAt: Date | null;
+
+  @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
+  submittedAt: Date | null;
+
+  // Percentage 0..100.
+  @Column({ type: 'smallint', nullable: true })
+  score: number | null;
+
+  @Column({ name: 'is_passed', type: 'boolean', nullable: true })
+  isPassed: boolean | null;
+
+  @OneToMany(() => AttemptAnswerEntity, (answer) => answer.attempt)
+  answers: Relation<AttemptAnswerEntity[]>;
+
+  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
+  createdAt: Date;
+
+  // PostgreSQL's trigger updates this for ORM and direct SQL writes.
+  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
+  updatedAt: Date;
+}

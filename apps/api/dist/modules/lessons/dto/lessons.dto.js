@@ -59,6 +59,7 @@ export class CreateLessonDto {
     title;
     type;
     isPreview;
+    isRequired;
     content;
     position;
 }
@@ -79,6 +80,11 @@ __decorate([
     __metadata("design:type", Boolean)
 ], CreateLessonDto.prototype, "isPreview", void 0);
 __decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], CreateLessonDto.prototype, "isRequired", void 0);
+__decorate([
     IsObject(),
     ValidateNested(),
     Type(() => LessonContentDto),
@@ -95,6 +101,7 @@ export class UpdateLessonDto {
     title;
     type;
     isPreview;
+    isRequired;
     isPublished;
     content;
     position;
@@ -117,6 +124,11 @@ __decorate([
     IsBoolean(),
     __metadata("design:type", Boolean)
 ], UpdateLessonDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], UpdateLessonDto.prototype, "isRequired", void 0);
 __decorate([
     IsOptional(),
     IsBoolean(),
@@ -163,6 +175,7 @@ __decorate([
 export class VideoUploadDto {
     title;
     isPreview;
+    isRequired;
     durationSeconds;
 }
 __decorate([
@@ -185,6 +198,16 @@ __decorate([
 ], VideoUploadDto.prototype, "isPreview", void 0);
 __decorate([
     IsOptional(),
+    Transform(({ value }) => value === true || value === 'true'
+        ? true
+        : value === false || value === 'false'
+            ? false
+            : value),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], VideoUploadDto.prototype, "isRequired", void 0);
+__decorate([
+    IsOptional(),
     Type(() => Number),
     IsInt(),
     Min(0),
@@ -194,6 +217,7 @@ __decorate([
 export class DocumentUploadDto {
     title;
     isPreview;
+    isRequired;
     allowDownload;
 }
 __decorate([
@@ -214,6 +238,16 @@ __decorate([
     IsBoolean(),
     __metadata("design:type", Boolean)
 ], DocumentUploadDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    Transform(({ value }) => value === true || value === 'true'
+        ? true
+        : value === false || value === 'false'
+            ? false
+            : value),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], DocumentUploadDto.prototype, "isRequired", void 0);
 __decorate([
     IsOptional(),
     Transform(({ value }) => value === true || value === 'true'

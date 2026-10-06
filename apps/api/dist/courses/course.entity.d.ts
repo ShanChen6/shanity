@@ -13,6 +13,7 @@ export declare class Course {
     level: string;
     language: string;
     price: number;
+    isSequential: boolean;
     status: CourseStatus;
     instructorId: string | null;
     instructor: User | null;

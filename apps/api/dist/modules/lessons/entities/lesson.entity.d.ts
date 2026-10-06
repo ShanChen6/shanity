@@ -33,6 +33,7 @@ export declare class Lesson {
     position: number;
     isPreview: boolean;
     isPublished: boolean;
+    isRequired: boolean;
     textBody: string | null;
     videoAssetId: string | null;
     videoExternalUrl: string | null;

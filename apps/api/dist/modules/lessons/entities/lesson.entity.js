@@ -46,6 +46,7 @@ let Lesson = class Lesson {
     position;
     isPreview;
     isPublished;
+    isRequired;
     textBody;
     videoAssetId;
     videoExternalUrl;
@@ -108,6 +109,10 @@ __decorate([
     Column({ name: 'is_published', type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], Lesson.prototype, "isPublished", void 0);
+__decorate([
+    Column({ name: 'is_required', type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], Lesson.prototype, "isRequired", void 0);
 __decorate([
     Column({ name: 'text_body', type: 'text', nullable: true }),
     __metadata("design:type", Object)

@@ -11,6 +11,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Req, StreamableFile, UploadedFile, UseGuards, UseInterceptors, } from '@nestjs/common';
+import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsArray, ArrayUnique, IsBoolean, IsIn, IsOptional, IsString, IsUUID, Length, Matches, } from 'class-validator';
 import { DataSource } from 'typeorm';
@@ -25,6 +26,7 @@ class LessonDto {
     body;
     videoUrl;
     isPreview;
+    isRequired;
 }
 __decorate([
     IsString(),
@@ -53,6 +55,11 @@ __decorate([
     IsBoolean(),
     __metadata("design:type", Boolean)
 ], LessonDto.prototype, "isPreview", void 0);
+__decorate([
+    IsOptional(),
+    IsBoolean(),
+    __metadata("design:type", Boolean)
+], LessonDto.prototype, "isRequired", void 0);
 class LessonOrderDto {
     ids;
 }
@@ -73,7 +80,7 @@ const fields = `id, chapter_id AS "chapterId", title,
    video_external_url AS "videoUrl",
    video_asset_id AS "videoAssetId",
    document_asset_id AS "documentAssetId",
-   is_preview AS "isPreview", position`;
+   is_preview AS "isPreview", is_required AS "isRequired", position`;
 function legacyLesson(lesson) {
     return {
         id: lesson.id,
@@ -90,6 +97,7 @@ function legacyLesson(lesson) {
         videoAssetId: lesson.videoAssetId,
         documentAssetId: lesson.documentAssetId,
         isPreview: lesson.isPreview,
+        isRequired: lesson.isRequired,
         position: lesson.position,
     };
 }
@@ -142,6 +150,7 @@ let InstructorContentController = class InstructorContentController {
             title: dto.title,
             type: lessonType(dto.type),
             isPreview: dto.isPreview,
+            isRequired: dto.isRequired,
             content: lessonContent(dto),
         };
         return legacyLesson(await this.lessons.create(chapterId, input));
@@ -164,6 +173,7 @@ let InstructorContentController = class InstructorContentController {
             title: dto.title,
             type: lessonType(dto.type),
             isPreview: dto.isPreview,
+            isRequired: dto.isRequired,
             content: lessonContent(dto),
         };
         return legacyLesson(await this.lessons.update(id, input));
@@ -238,6 +248,7 @@ InstructorContentController = __decorate([
     UseGuards(OriginGuard, SessionGuard, CourseOwnershipGuard),
     Roles('instructor', 'admin'),
     RequireCourseOwnership({ resource: 'course', param: 'courseId' }),
+    UseInterceptors(CurriculumChangedInterceptor),
     __metadata("design:paramtypes", [DataSource,
         LessonsService])
 ], InstructorContentController);
