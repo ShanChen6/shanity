@@ -121,6 +121,10 @@ export class QuizEntity {
   })
   creator: Relation<User>;
 
+  // Set only by the publish endpoint.
+  @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
+  publishedAt: Date | null;
+
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
 

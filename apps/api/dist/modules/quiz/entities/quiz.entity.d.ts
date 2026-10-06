@@ -40,6 +40,7 @@ export declare class QuizEntity {
     version: number;
     createdBy: string;
     creator: Relation<User>;
+    publishedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
 }

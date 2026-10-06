@@ -39,7 +39,13 @@ export class SessionGuard implements CanActivate {
       roles?.length &&
       !roles.some((role) => req.principal.roles.includes(role))
     )
-      throw new ForbiddenException();
+      // Same message/error as a bare ForbiddenException, plus a stable code.
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Forbidden resource',
+        error: 'Forbidden',
+        code: 'FORBIDDEN_RESOURCE',
+      });
     return true;
   }
 }

@@ -13,6 +13,8 @@ export declare class CourseProgressCalculatorService implements OnModuleInit {
     onModuleInit(): void;
     invalidateCourseProgressCache(courseId: string): Promise<void>;
     invalidateStudentProgress(userId: string, courseId: string): Promise<void>;
+    calculateLearningProgressPercentage(userId: string, courseId: string): Promise<number>;
+    evaluateCourseCompletion(userId: string, courseId: string): Promise<boolean>;
     calculate(userId: string, courseId: string): Promise<CourseProgressSummaryDto>;
     private compute;
     enrolledCourses(userId: string): Promise<EnrolledCourseDto[]>;

@@ -3,23 +3,27 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { DataSource } from 'typeorm';
 import type { AuthRequest } from '../../../auth/auth.guards.js';
 import type { Principal } from '../../../auth/auth.service.js';
+import { CourseOwnershipService } from '../../../courses/course-ownership.service.js';
 import { QuizEntity, QuizScope } from '../entities/quiz.entity.js';
 import {
   QuizCourseResolverService,
   QuizTargetNotFoundError,
 } from '../services/quiz-course-resolver.service.js';
 
-export const QUIZ_FORBIDDEN = {
+const forbiddenBody = (code: string) => ({
   statusCode: 403,
-  message: 'QUIZ_FORBIDDEN',
-  code: 'QUIZ_FORBIDDEN',
-};
+  message: code,
+  code,
+});
+export const QUIZ_FORBIDDEN = forbiddenBody('QUIZ_FORBIDDEN');
+// Creating a quiz on a target in a course the caller does not manage.
+export const TARGET_COURSE_FORBIDDEN = forbiddenBody('TARGET_COURSE_FORBIDDEN');
+export const FORBIDDEN_RESOURCE = forbiddenBody('FORBIDDEN_RESOURCE');
 
 export type AuthorizedQuiz = Pick<
   QuizEntity,
@@ -30,22 +34,34 @@ export type AuthorizedQuiz = Pick<
 };
 export type QuizAuthorizationRequest = AuthRequest & { quiz?: AuthorizedQuiz };
 
+type QuizAuthorization = { quiz: AuthorizedQuiz } | { denied: true };
+
+const AUTHORING_ROLES = ['instructor', 'admin'];
+
 /**
- * Gate for instructor edit/delete on a quiz (`:quizId`, falling back to `:id`).
- * Runs after SessionGuard.
+ * The single authorization gate for quiz authoring routes. Runs after
+ * SessionGuard. The quiz is found from `:quizId`, `:id`, `:questionId` or
+ * `:optionId` (in that order) and attached as `request.quiz`.
  *
- * - admin: any quiz.
- * - contextual quiz: instructors who own, teach or are assigned to the Course
- *   resolved from the quiz target.
- * - STANDALONE quiz: only its author (`created_by`).
+ * | principal  | quiz                         | result                      |
+ * | ---------- | ---------------------------- | --------------------------- |
+ * | admin      | any                          | allowed                     |
+ * | instructor | course-bound, manages course | allowed                     |
+ * | instructor | course-bound, otherwise      | 403 QUIZ_FORBIDDEN          |
+ * | instructor | STANDALONE, is the author    | allowed                     |
+ * | instructor | STANDALONE, otherwise        | 403 QUIZ_FORBIDDEN          |
+ * | anyone     | id unknown or malformed      | 403 QUIZ_FORBIDDEN          |
+ * | other role | any                          | 403 FORBIDDEN_RESOURCE      |
  *
- * A missing quiz answers 403 to non-admins so ids cannot be probed.
+ * Every denial on an existing quiz answers exactly like an unknown id (admins
+ * included), so ids, scopes and ownership cannot be probed.
  */
 @Injectable()
 export class QuizAuthorizationGuard implements CanActivate {
   constructor(
     private readonly dataSource: DataSource,
     private readonly resolver: QuizCourseResolverService,
+    private readonly ownership: CourseOwnershipService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -53,45 +69,53 @@ export class QuizAuthorizationGuard implements CanActivate {
       .switchToHttp()
       .getRequest<QuizAuthorizationRequest>();
     const principal = request.principal;
-    if (!principal) throw new ForbiddenException(QUIZ_FORBIDDEN);
-    const isAdmin = principal.roles.includes('admin');
-    const params = request.params as Record<string, string | undefined>;
-    const quizId = params.quizId ?? params.id;
+    if (!principal?.roles.some((role) => AUTHORING_ROLES.includes(role)))
+      throw new ForbiddenException(FORBIDDEN_RESOURCE);
 
-    const quiz =
-      quizId && isUUID(quizId)
-        ? await this.dataSource.getRepository(QuizEntity).findOne({
-            where: { id: quizId },
-            select: {
-              id: true,
-              scope: true,
-              targetId: true,
-              status: true,
-              createdBy: true,
-            },
-          })
-        : null;
-    if (!quiz) {
-      if (isAdmin) throw new NotFoundException('Quiz not found');
-      throw new ForbiddenException(QUIZ_FORBIDDEN);
-    }
+    const quizId = await this.quizIdFrom(
+      request.params as Record<string, string | undefined>,
+    );
+    const quiz = quizId
+      ? await this.dataSource.getRepository(QuizEntity).findOne({
+          where: { id: quizId },
+          select: {
+            id: true,
+            scope: true,
+            targetId: true,
+            status: true,
+            createdBy: true,
+          },
+        })
+      : null;
+    if (!quiz) throw new ForbiddenException(QUIZ_FORBIDDEN);
 
-    const authorized = await this.authorize(principal, quiz);
-    if (!authorized) throw new ForbiddenException(QUIZ_FORBIDDEN);
-    request.quiz = authorized;
+    const decision = await this.decide(principal, quiz);
+    if ('denied' in decision) throw new ForbiddenException(QUIZ_FORBIDDEN);
+    request.quiz = decision.quiz;
     return true;
   }
 
-  /** The quiz with its resolved Course when the principal may manage it. */
+  /**
+   * The quiz with its resolved Course when the principal may manage it, else
+   * null. Also used outside HTTP guards, e.g. for author previews.
+   */
   async authorize(
     principal: Pick<Principal, 'id' | 'roles'>,
     quiz: Omit<AuthorizedQuiz, 'courseId'>,
   ): Promise<AuthorizedQuiz | null> {
+    const decision = await this.decide(principal, quiz);
+    return 'quiz' in decision ? decision.quiz : null;
+  }
+
+  private async decide(
+    principal: Pick<Principal, 'id' | 'roles'>,
+    quiz: Omit<AuthorizedQuiz, 'courseId'>,
+  ): Promise<QuizAuthorization> {
     const isAdmin = principal.roles.includes('admin');
     if (quiz.scope === QuizScope.STANDALONE)
       return isAdmin || quiz.createdBy === principal.id
-        ? { ...quiz, courseId: null }
-        : null;
+        ? { quiz: { ...quiz, courseId: null } }
+        : { denied: true };
 
     let courseId: string | null;
     try {
@@ -100,30 +124,39 @@ export class QuizAuthorizationGuard implements CanActivate {
       // A dangling target (archived quiz whose target was deleted) has no
       // Course authority left; only an admin may still manage it.
       if (!(error instanceof QuizTargetNotFoundError)) throw error;
-      return isAdmin ? { ...quiz, courseId: null } : null;
+      return isAdmin ? { quiz: { ...quiz, courseId: null } } : { denied: true };
     }
-    if (isAdmin) return { ...quiz, courseId };
-    if (!principal.roles.includes('instructor')) return null;
-    return (await this.teachesCourse(principal.id, courseId))
-      ? { ...quiz, courseId }
-      : null;
+    return (await this.ownership.canManageCourse(principal, courseId))
+      ? { quiz: { ...quiz, courseId } }
+      : { denied: true };
   }
 
-  private async teachesCourse(userId: string, courseId: string | null) {
-    if (!courseId) return false;
-    const [row] = await this.dataSource.query<Array<{ allowed: boolean }>>(
-      `SELECT EXISTS (
-         SELECT 1 FROM courses course
-         WHERE course.id = $1
-           AND ($2 IN (course.owner_id, course.instructor_id)
-             OR EXISTS (
-               SELECT 1 FROM course_instructors assignment
-               WHERE assignment.course_id = course.id
-                 AND assignment.user_id = $2
-             ))
-       ) AS allowed`,
-      [courseId, userId],
-    );
-    return row?.allowed === true;
+  /** Null for a missing, malformed or unknown id. */
+  private async quizIdFrom(params: Record<string, string | undefined>) {
+    const valid = (id: string | undefined) =>
+      id !== undefined && isUUID(id) ? id : null;
+    const direct = params.quizId ?? params.id;
+    if (direct !== undefined) return valid(direct);
+
+    const questionId = valid(params.questionId);
+    if (questionId) {
+      const [row] = await this.dataSource.query<Array<{ quizId: string }>>(
+        'SELECT quiz_id AS "quizId" FROM quiz_questions WHERE id = $1',
+        [questionId],
+      );
+      return row?.quizId ?? null;
+    }
+    const optionId = valid(params.optionId);
+    if (optionId) {
+      const [row] = await this.dataSource.query<Array<{ quizId: string }>>(
+        `SELECT question.quiz_id AS "quizId"
+         FROM quiz_options option
+         INNER JOIN quiz_questions question ON question.id = option.question_id
+         WHERE option.id = $1`,
+        [optionId],
+      );
+      return row?.quizId ?? null;
+    }
+    return null;
   }
 }

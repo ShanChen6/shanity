@@ -30,6 +30,35 @@ const TARGET_COURSE_SQL = {
     FROM chapters WHERE id = $1`,
     [QuizScope.COURSE]: `SELECT id AS "courseId" FROM courses WHERE id = $1`,
 };
+export const QUIZ_COURSE_JOINS = `
+  LEFT JOIN chapters target_chapter
+    ON quiz.scope = 'CHAPTER' AND target_chapter.id = quiz.target_id
+  LEFT JOIN lessons target_lesson
+    ON quiz.scope = 'LESSON' AND target_lesson.id = quiz.target_id
+  LEFT JOIN chapters target_lesson_chapter
+    ON target_lesson_chapter.id = target_lesson.chapter_id`;
+export const QUIZ_COURSE_ID = `CASE quiz.scope
+    WHEN 'COURSE' THEN quiz.target_id
+    WHEN 'CHAPTER' THEN target_chapter.course_id
+    WHEN 'LESSON' THEN target_lesson_chapter.course_id
+  END`;
+export const courseQuizzesSql = (courseIdSql) => `
+  SELECT quiz.id, quiz.is_required FROM quizzes quiz
+  WHERE quiz.scope = 'COURSE' AND quiz.target_id = ${courseIdSql}
+    AND quiz.status = 'PUBLISHED'
+  UNION ALL
+  SELECT quiz.id, quiz.is_required FROM chapters target_chapter
+  INNER JOIN quizzes quiz
+    ON quiz.scope = 'CHAPTER' AND quiz.target_id = target_chapter.id
+  WHERE target_chapter.course_id = ${courseIdSql} AND quiz.status = 'PUBLISHED'
+  UNION ALL
+  SELECT quiz.id, quiz.is_required FROM chapters target_chapter
+  INNER JOIN lessons target_lesson
+    ON target_lesson.chapter_id = target_chapter.id
+   AND target_lesson.is_published = true
+  INNER JOIN quizzes quiz
+    ON quiz.scope = 'LESSON' AND quiz.target_id = target_lesson.id
+  WHERE target_chapter.course_id = ${courseIdSql} AND quiz.status = 'PUBLISHED'`;
 let QuizCourseResolverService = class QuizCourseResolverService {
     dataSource;
     constructor(dataSource) {

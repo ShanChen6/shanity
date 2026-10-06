@@ -23,6 +23,8 @@ import { QuizCoreSchema1791417600001 } from './202610080001_quiz_core_schema.js'
 import { QuizTargetIntegrity1791417600002 } from './202610080002_quiz_target_integrity.js';
 import { QuizQuestionsOptions1791417600003 } from './202610080003_quiz_questions_options.js';
 import { QuizAttempts1791417600004 } from './202610080004_quiz_attempts.js';
+import { QuizStandaloneNotRequired1791417600005 } from './202610080005_quiz_standalone_not_required.js';
+import { QuizPublishedAt1791417600006 } from './202610080006_quiz_published_at.js';
 export const migrationHistory = [
     {
         legacy: '202609270001_foundation.mjs',
@@ -173,6 +175,18 @@ export const migrationHistory = [
         name: 'QuizAttempts1791417600004',
         timestamp: 1791417600004,
         migration: QuizAttempts1791417600004,
+    },
+    {
+        legacy: null,
+        name: 'QuizStandaloneNotRequired1791417600005',
+        timestamp: 1791417600005,
+        migration: QuizStandaloneNotRequired1791417600005,
+    },
+    {
+        legacy: null,
+        name: 'QuizPublishedAt1791417600006',
+        timestamp: 1791417600006,
+        migration: QuizPublishedAt1791417600006,
     },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

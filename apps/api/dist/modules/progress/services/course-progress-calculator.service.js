@@ -12,7 +12,27 @@ import { DatabaseService } from '../../../database/database.module.js';
 import { CurriculumEvents } from '../../curriculum/curriculum-events.js';
 import { ProgressCache } from '../cache/progress-cache.js';
 import { LessonProgressStatus } from '../entities/lesson-progress.entity.js';
+import { courseQuizzesSql } from '../../quiz/services/quiz-course-resolver.service.js';
 export const progressPercentage = (completed, total) => total > 0 ? Math.min(100, Math.floor((completed * 100) / total)) : 100;
+const QUIZ_STATS_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE course_quiz.is_required)::int AS required,
+      count(*) FILTER (WHERE result.passed)::int AS passed,
+      count(*) FILTER (
+        WHERE course_quiz.is_required AND result.passed
+      )::int AS passed_required
+    FROM (${courseQuizzesSql('course.id')}) course_quiz
+    CROSS JOIN LATERAL (
+      SELECT EXISTS (
+        SELECT 1 FROM quiz_attempts attempt
+        WHERE attempt.user_id = enrollment.user_id
+          AND attempt.quiz_id = course_quiz.id
+          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+          AND attempt.is_passed
+      ) AS passed
+    ) result
+  ) quiz_stats ON true`;
 let CourseProgressCalculatorService = class CourseProgressCalculatorService {
     database;
     cache;
@@ -31,6 +51,12 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
     invalidateStudentProgress(userId, courseId) {
         return this.cache.invalidateStudent(userId, courseId);
     }
+    async calculateLearningProgressPercentage(userId, courseId) {
+        return (await this.calculate(userId, courseId)).percentage;
+    }
+    async evaluateCourseCompletion(userId, courseId) {
+        return (await this.calculate(userId, courseId)).isCompleted;
+    }
     async calculate(userId, courseId) {
         const cached = await this.cache.get(userId, courseId);
         if (cached)
@@ -43,6 +69,7 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
         const [row] = (await this.database.dataSource.query(`${this.summarySelect('$3')}
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
+       ${QUIZ_STATS_JOIN}
        LEFT JOIN lessons lesson
          ON lesson.course_id = course.id AND lesson.is_published = true
        LEFT JOIN lesson_progress progress
@@ -73,6 +100,7 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
               enrollment.last_accessed_at AS "lastAccessedAt"
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
+       ${QUIZ_STATS_JOIN}
        LEFT JOIN users instructor
          ON instructor.id = COALESCE(course.instructor_id, course.owner_id)
        LEFT JOIN lessons lesson
@@ -103,6 +131,7 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
                     percentage: summary.percentage,
                     completedRequiredLessons: summary.completedRequiredLessons,
                     totalRequiredLessons: summary.totalRequiredLessons,
+                    isCompleted: summary.isCompleted,
                     lastAccessedLessonSlug: row.lastAccessedLessonSlug,
                     lastAccessedAt: row.lastAccessedAt
                         ? new Date(row.lastAccessedAt)
@@ -119,6 +148,11 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
       COUNT(progress.id) FILTER (
         WHERE lesson.is_required = true AND progress.status = ${statusParameter}
       )::int AS "completedRequiredLessons",
+      -- One value per enrollment row; MAX only collapses the lesson fan-out.
+      MAX(quiz_stats.total) AS "totalQuizzes",
+      MAX(quiz_stats.required) AS "totalRequiredQuizzes",
+      MAX(quiz_stats.passed) AS "passedQuizzes",
+      MAX(quiz_stats.passed_required) AS "passedRequiredQuizzes",
       enrollment.last_accessed_lesson_id AS "lastAccessedLessonId",
       COALESCE(
         enrollment.last_accessed_at,
@@ -131,7 +165,11 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
         const totalRequiredLessons = Number(row.totalRequiredLessons);
         const completedLessons = Number(row.completedLessons);
         const completedRequiredLessons = Number(row.completedRequiredLessons);
-        const percentage = progressPercentage(completedRequiredLessons, totalRequiredLessons);
+        const totalQuizzes = Number(row.totalQuizzes ?? 0);
+        const totalRequiredQuizzes = Number(row.totalRequiredQuizzes ?? 0);
+        const passedQuizzes = Number(row.passedQuizzes ?? 0);
+        const passedRequiredQuizzes = Number(row.passedRequiredQuizzes ?? 0);
+        const percentage = progressPercentage(completedRequiredLessons + passedQuizzes, totalRequiredLessons + totalQuizzes);
         return {
             courseId: row.courseId,
             userId: row.userId,
@@ -139,8 +177,13 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
             totalRequiredLessons,
             completedLessons,
             completedRequiredLessons,
+            totalQuizzes,
+            totalRequiredQuizzes,
+            passedQuizzes,
+            passedRequiredQuizzes,
             percentage,
-            isCompleted: percentage === 100,
+            isCompleted: completedRequiredLessons >= totalRequiredLessons &&
+                passedRequiredQuizzes >= totalRequiredQuizzes,
             ...(row.lastAccessedLessonId
                 ? { lastAccessedLessonId: row.lastAccessedLessonId }
                 : {}),

@@ -32,6 +32,48 @@ const TARGET_COURSE_SQL: Partial<Record<QuizScope, string>> = {
 };
 
 /**
+ * Set-based twin of resolveCourseIdByQuiz for list queries over `quizzes quiz`:
+ * join QUIZ_COURSE_JOINS, then select QUIZ_COURSE_ID. COURSE trusts target_id
+ * exactly like the resolver does.
+ */
+export const QUIZ_COURSE_JOINS = `
+  LEFT JOIN chapters target_chapter
+    ON quiz.scope = 'CHAPTER' AND target_chapter.id = quiz.target_id
+  LEFT JOIN lessons target_lesson
+    ON quiz.scope = 'LESSON' AND target_lesson.id = quiz.target_id
+  LEFT JOIN chapters target_lesson_chapter
+    ON target_lesson_chapter.id = target_lesson.chapter_id`;
+export const QUIZ_COURSE_ID = `CASE quiz.scope
+    WHEN 'COURSE' THEN quiz.target_id
+    WHEN 'CHAPTER' THEN target_chapter.course_id
+    WHEN 'LESSON' THEN target_lesson_chapter.course_id
+  END`;
+
+/**
+ * `(id, is_required)` of every PUBLISHED course-bound quiz that belongs to the
+ * course `courseIdSql` (a SQL expression, never user input). LESSON quizzes on
+ * unpublished lessons are left out, like their lesson. STANDALONE quizzes can
+ * never appear. Three index lookups on IDX_quizzes_scope_target, no scan.
+ */
+export const courseQuizzesSql = (courseIdSql: string) => `
+  SELECT quiz.id, quiz.is_required FROM quizzes quiz
+  WHERE quiz.scope = 'COURSE' AND quiz.target_id = ${courseIdSql}
+    AND quiz.status = 'PUBLISHED'
+  UNION ALL
+  SELECT quiz.id, quiz.is_required FROM chapters target_chapter
+  INNER JOIN quizzes quiz
+    ON quiz.scope = 'CHAPTER' AND quiz.target_id = target_chapter.id
+  WHERE target_chapter.course_id = ${courseIdSql} AND quiz.status = 'PUBLISHED'
+  UNION ALL
+  SELECT quiz.id, quiz.is_required FROM chapters target_chapter
+  INNER JOIN lessons target_lesson
+    ON target_lesson.chapter_id = target_chapter.id
+   AND target_lesson.is_published = true
+  INNER JOIN quizzes quiz
+    ON quiz.scope = 'LESSON' AND quiz.target_id = target_lesson.id
+  WHERE target_chapter.course_id = ${courseIdSql} AND quiz.status = 'PUBLISHED'`;
+
+/**
  * Traces any quiz target back to the Course that holds authority over it.
  * Shared by authoring authorization, attempts and grading.
  */

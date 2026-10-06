@@ -26,6 +26,7 @@ import {
   QuizCourseResolverService,
   QuizTargetNotFoundError,
 } from './quiz-course-resolver.service.js';
+import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import { gradeAttempt } from './quiz-grading.js';
 import {
   QuizLearnerAccessService,
@@ -54,11 +55,31 @@ export class QuizAttemptsService {
   // Overridable so tests can pin the order; production always shuffles securely.
   shuffle: ShuffleFn = secureShuffle;
 
+  // Attempts closed inside a transaction, keyed by its manager, so progress
+  // caches are invalidated only once the grade has committed.
+  private readonly closedIn = new WeakMap<
+    EntityManager,
+    Array<{ userId: string; courseId: string }>
+  >();
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly access: QuizLearnerAccessService,
     private readonly resolver: QuizCourseResolverService,
+    private readonly progress: CourseProgressCalculatorService,
   ) {}
+
+  private async transaction<T>(work: (manager: EntityManager) => Promise<T>) {
+    const closed: Array<{ userId: string; courseId: string }> = [];
+    const result = await this.dataSource.transaction((manager) => {
+      this.closedIn.set(manager, closed);
+      return work(manager);
+    });
+    // A pass can complete a course (or move its progress bar).
+    for (const { userId, courseId } of closed)
+      await this.progress.invalidateStudentProgress(userId, courseId);
+    return result;
+  }
 
   /**
    * Resumes the learner's running attempt, or freezes the current quiz into a
@@ -70,7 +91,7 @@ export class QuizAttemptsService {
       await this.access.loadPublishedQuiz(quizId),
     );
 
-    const result = await this.dataSource.transaction(
+    const result = await this.transaction(
       async (manager): Promise<Started | Rejected> => {
         await manager.query(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
@@ -145,7 +166,7 @@ export class QuizAttemptsService {
       principal,
       await this.access.loadQuiz(quizId),
     );
-    const attempt = await this.dataSource.transaction(async (manager) => {
+    const attempt = await this.transaction(async (manager) => {
       const active = await this.lockActive(manager, principal.id, quizId);
       if (!active) return null;
       if (active.expired)
@@ -167,7 +188,7 @@ export class QuizAttemptsService {
     answer: SaveAttemptAnswerDto,
   ) {
     await this.assertOwnAttempt(principal, attemptId);
-    const result = await this.dataSource.transaction(
+    const result = await this.transaction(
       async (manager): Promise<{ saved: SavedAnswerRow } | Rejected> => {
         const attempt = await this.lockAttempt(manager, attemptId);
         if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
@@ -202,7 +223,7 @@ export class QuizAttemptsService {
   /** Closes and grades the attempt; repeating it returns the same result. */
   async submit(principal: Principal, attemptId: string) {
     await this.assertOwnAttempt(principal, attemptId);
-    const result = await this.dataSource.transaction(async (manager) => {
+    const result = await this.transaction(async (manager) => {
       const attempt = await this.lockAttempt(manager, attemptId);
       if (attempt.status === QuizAttemptStatus.ABANDONED) return null;
       if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
@@ -310,6 +331,9 @@ export class QuizAttemptsService {
       [attempt.id],
     );
     const grade = gradeAttempt(attempt.quizSnapshot, saved);
+    const { courseId } = attempt.quizSnapshot.quiz;
+    if (courseId)
+      this.closedIn.get(manager)?.push({ userId: attempt.userId, courseId });
     await manager.query(
       `UPDATE attempt_answers answer
        SET is_correct = graded.is_correct, points_earned = graded.points

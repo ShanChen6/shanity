@@ -5,8 +5,9 @@ import { ProgressCache } from '../cache/progress-cache.js';
 import { LessonProgressStatus } from '../entities/lesson-progress.entity.js';
 import { CourseProgressSummaryDto } from '../dto/course-progress-summary.dto.js';
 import type { EnrolledCourseDto } from '../dto/enrolled-course.dto.js';
+import { courseQuizzesSql } from '../../quiz/services/quiz-course-resolver.service.js';
 
-// A course with no published required lessons has nothing left to do.
+// A course with nothing to do counts as fully done.
 export const progressPercentage = (completed: number, total: number) =>
   total > 0 ? Math.min(100, Math.floor((completed * 100) / total)) : 100;
 
@@ -17,20 +18,59 @@ type SummaryRow = {
   totalRequiredLessons: number | string;
   completedLessons: number | string;
   completedRequiredLessons: number | string;
+  // Absent (0) for courses without course-bound quizzes.
+  totalQuizzes?: number | string | null;
+  totalRequiredQuizzes?: number | string | null;
+  passedQuizzes?: number | string | null;
+  passedRequiredQuizzes?: number | string | null;
   lastAccessedLessonId: string | null;
   updatedAt: Date | string;
 };
 
+// Per enrollment row: the course's published course-bound quizzes and which
+// of them this learner has passed. A pass is any closed (SUBMITTED or
+// TIMED_OUT) attempt with is_passed, so achieved completion is monotonic: a
+// later failing attempt never takes it back. STANDALONE quizzes never count.
+const QUIZ_STATS_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE course_quiz.is_required)::int AS required,
+      count(*) FILTER (WHERE result.passed)::int AS passed,
+      count(*) FILTER (
+        WHERE course_quiz.is_required AND result.passed
+      )::int AS passed_required
+    FROM (${courseQuizzesSql('course.id')}) course_quiz
+    CROSS JOIN LATERAL (
+      SELECT EXISTS (
+        SELECT 1 FROM quiz_attempts attempt
+        WHERE attempt.user_id = enrollment.user_id
+          AND attempt.quiz_id = course_quiz.id
+          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+          AND attempt.is_passed
+      ) AS passed
+    ) result
+  ) quiz_stats ON true`;
+
 /**
- * The single implementation of course progress:
+ * The single implementation of course progress. Two separate figures:
  *
- *   percentage = min(100, floor(completed required / published required * 100))
+ *   Learning progress (UI bar), over required lessons and course-bound quizzes:
+ *     percentage = min(100, floor((completed required lessons + passed quizzes)
+ *                               / (required lessons + quizzes) * 100))
  *
- * Nothing stores a percentage. It is derived on every read from
- * lesson_progress and the course's *current* lessons, so adding, deleting,
- * unpublishing or toggling isRequired is reflected on the next query with no
- * migration or backfill. Floor (not round) guarantees 100% means every
- * required lesson is done: 199/200 is 99%, never "completed".
+ *   Course completion (the gate):
+ *     isCompleted = every published required lesson completed
+ *               AND every published required course-bound quiz passed
+ *
+ * Optional quizzes move the bar but never block completion; STANDALONE quizzes
+ * affect neither. So a learner can be completed below 100% (an optional quiz
+ * left), and 100% always implies completed.
+ *
+ * Nothing stores either figure. Both are derived on every read from
+ * lesson_progress, quiz_attempts and the course's *current* lessons and
+ * quizzes, so curriculum edits are reflected on the next query with no
+ * migration or backfill. Floor (not round) guarantees 100% means everything
+ * counted is done: 199/200 is 99%.
  *
  * The calculation is one read-only statement (one MVCC snapshot), so
  * concurrent completions/heartbeats cannot interleave into a wrong total and
@@ -61,6 +101,16 @@ export class CourseProgressCalculatorService implements OnModuleInit {
     return this.cache.invalidateStudent(userId, courseId);
   }
 
+  /** The UI progress bar: lessons and course-bound quizzes done / total. */
+  async calculateLearningProgressPercentage(userId: string, courseId: string) {
+    return (await this.calculate(userId, courseId)).percentage;
+  }
+
+  /** Required lessons completed and required course-bound quizzes passed. */
+  async evaluateCourseCompletion(userId: string, courseId: string) {
+    return (await this.calculate(userId, courseId)).isCompleted;
+  }
+
   async calculate(
     userId: string,
     courseId: string,
@@ -80,6 +130,7 @@ export class CourseProgressCalculatorService implements OnModuleInit {
       `${this.summarySelect('$3')}
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
+       ${QUIZ_STATS_JOIN}
        LEFT JOIN lessons lesson
          ON lesson.course_id = course.id AND lesson.is_published = true
        LEFT JOIN lesson_progress progress
@@ -116,6 +167,7 @@ export class CourseProgressCalculatorService implements OnModuleInit {
               enrollment.last_accessed_at AS "lastAccessedAt"
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
+       ${QUIZ_STATS_JOIN}
        LEFT JOIN users instructor
          ON instructor.id = COALESCE(course.instructor_id, course.owner_id)
        LEFT JOIN lessons lesson
@@ -157,6 +209,7 @@ export class CourseProgressCalculatorService implements OnModuleInit {
           percentage: summary.percentage,
           completedRequiredLessons: summary.completedRequiredLessons,
           totalRequiredLessons: summary.totalRequiredLessons,
+          isCompleted: summary.isCompleted,
           lastAccessedLessonSlug: row.lastAccessedLessonSlug,
           lastAccessedAt: row.lastAccessedAt
             ? new Date(row.lastAccessedAt)
@@ -174,6 +227,11 @@ export class CourseProgressCalculatorService implements OnModuleInit {
       COUNT(progress.id) FILTER (
         WHERE lesson.is_required = true AND progress.status = ${statusParameter}
       )::int AS "completedRequiredLessons",
+      -- One value per enrollment row; MAX only collapses the lesson fan-out.
+      MAX(quiz_stats.total) AS "totalQuizzes",
+      MAX(quiz_stats.required) AS "totalRequiredQuizzes",
+      MAX(quiz_stats.passed) AS "passedQuizzes",
+      MAX(quiz_stats.passed_required) AS "passedRequiredQuizzes",
       enrollment.last_accessed_lesson_id AS "lastAccessedLessonId",
       COALESCE(
         enrollment.last_accessed_at,
@@ -187,9 +245,13 @@ export class CourseProgressCalculatorService implements OnModuleInit {
     const totalRequiredLessons = Number(row.totalRequiredLessons);
     const completedLessons = Number(row.completedLessons);
     const completedRequiredLessons = Number(row.completedRequiredLessons);
+    const totalQuizzes = Number(row.totalQuizzes ?? 0);
+    const totalRequiredQuizzes = Number(row.totalRequiredQuizzes ?? 0);
+    const passedQuizzes = Number(row.passedQuizzes ?? 0);
+    const passedRequiredQuizzes = Number(row.passedRequiredQuizzes ?? 0);
     const percentage = progressPercentage(
-      completedRequiredLessons,
-      totalRequiredLessons,
+      completedRequiredLessons + passedQuizzes,
+      totalRequiredLessons + totalQuizzes,
     );
     return {
       courseId: row.courseId,
@@ -198,8 +260,14 @@ export class CourseProgressCalculatorService implements OnModuleInit {
       totalRequiredLessons,
       completedLessons,
       completedRequiredLessons,
+      totalQuizzes,
+      totalRequiredQuizzes,
+      passedQuizzes,
+      passedRequiredQuizzes,
       percentage,
-      isCompleted: percentage === 100,
+      isCompleted:
+        completedRequiredLessons >= totalRequiredLessons &&
+        passedRequiredQuizzes >= totalRequiredQuizzes,
       ...(row.lastAccessedLessonId
         ? { lastAccessedLessonId: row.lastAccessedLessonId }
         : {}),

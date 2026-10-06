@@ -2,6 +2,7 @@ export declare class EnrolledCourseProgressDto {
     percentage: number;
     completedRequiredLessons: number;
     totalRequiredLessons: number;
+    isCompleted: boolean;
     lastAccessedLessonSlug: string | null;
     lastAccessedAt: Date | null;
 }

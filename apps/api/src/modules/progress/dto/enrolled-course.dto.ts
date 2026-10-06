@@ -2,6 +2,8 @@ export class EnrolledCourseProgressDto {
   percentage!: number;
   completedRequiredLessons!: number;
   totalRequiredLessons!: number;
+  // Completion gate, independent of percentage (see CourseProgressSummaryDto).
+  isCompleted!: boolean;
   lastAccessedLessonSlug!: string | null;
   lastAccessedAt!: Date | null;
 }

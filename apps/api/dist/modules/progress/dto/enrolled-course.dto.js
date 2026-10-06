@@ -2,6 +2,7 @@ export class EnrolledCourseProgressDto {
     percentage;
     completedRequiredLessons;
     totalRequiredLessons;
+    isCompleted;
     lastAccessedLessonSlug;
     lastAccessedAt;
 }

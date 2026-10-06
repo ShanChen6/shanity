@@ -53,6 +53,7 @@ let QuizEntity = class QuizEntity {
     version;
     createdBy;
     creator;
+    publishedAt;
     createdAt;
     updatedAt;
 };
@@ -154,6 +155,10 @@ __decorate([
     }),
     __metadata("design:type", Object)
 ], QuizEntity.prototype, "creator", void 0);
+__decorate([
+    Column({ name: 'published_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], QuizEntity.prototype, "publishedAt", void 0);
 __decorate([
     Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' }),
     __metadata("design:type", Date)

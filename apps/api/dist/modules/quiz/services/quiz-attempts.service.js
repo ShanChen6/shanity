@@ -15,6 +15,7 @@ import { QuizQuestionType } from '../entities/quiz-question.entity.js';
 import { QuizQuestionEntity } from '../entities/quiz-question.entity.js';
 import { buildQuizSnapshot, secureShuffle, } from './quiz-attempt-snapshot.js';
 import { QuizCourseResolverService, QuizTargetNotFoundError, } from './quiz-course-resolver.service.js';
+import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import { gradeAttempt } from './quiz-grading.js';
 import { QuizLearnerAccessService, quizForbidden, } from './quiz-learner-access.service.js';
 const ATTEMPT_COLUMNS = `id, user_id AS "userId", quiz_id AS "quizId",
@@ -29,15 +30,28 @@ let QuizAttemptsService = class QuizAttemptsService {
     dataSource;
     access;
     resolver;
+    progress;
     shuffle = secureShuffle;
-    constructor(dataSource, access, resolver) {
+    closedIn = new WeakMap();
+    constructor(dataSource, access, resolver, progress) {
         this.dataSource = dataSource;
         this.access = access;
         this.resolver = resolver;
+        this.progress = progress;
+    }
+    async transaction(work) {
+        const closed = [];
+        const result = await this.dataSource.transaction((manager) => {
+            this.closedIn.set(manager, closed);
+            return work(manager);
+        });
+        for (const { userId, courseId } of closed)
+            await this.progress.invalidateStudentProgress(userId, courseId);
+        return result;
     }
     async start(principal, quizId) {
         await this.access.assertCanTake(principal, await this.access.loadPublishedQuiz(quizId));
-        const result = await this.dataSource.transaction(async (manager) => {
+        const result = await this.transaction(async (manager) => {
             await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`quiz-attempt:${principal.id}:${quizId}`]);
             const active = await this.lockActive(manager, principal.id, quizId);
             if (active && !active.expired)
@@ -84,7 +98,7 @@ let QuizAttemptsService = class QuizAttemptsService {
     }
     async activeAttempt(principal, quizId) {
         await this.access.assertCanTake(principal, await this.access.loadQuiz(quizId));
-        const attempt = await this.dataSource.transaction(async (manager) => {
+        const attempt = await this.transaction(async (manager) => {
             const active = await this.lockActive(manager, principal.id, quizId);
             if (!active)
                 return null;
@@ -101,7 +115,7 @@ let QuizAttemptsService = class QuizAttemptsService {
     }
     async saveAnswer(principal, attemptId, answer) {
         await this.assertOwnAttempt(principal, attemptId);
-        const result = await this.dataSource.transaction(async (manager) => {
+        const result = await this.transaction(async (manager) => {
             const attempt = await this.lockAttempt(manager, attemptId);
             if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
                 return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
@@ -128,7 +142,7 @@ let QuizAttemptsService = class QuizAttemptsService {
     }
     async submit(principal, attemptId) {
         await this.assertOwnAttempt(principal, attemptId);
-        const result = await this.dataSource.transaction(async (manager) => {
+        const result = await this.transaction(async (manager) => {
             const attempt = await this.lockAttempt(manager, attemptId);
             if (attempt.status === QuizAttemptStatus.ABANDONED)
                 return null;
@@ -187,6 +201,9 @@ let QuizAttemptsService = class QuizAttemptsService {
         const saved = await manager.query(`SELECT question_id AS "questionId", selected_option_ids AS "selectedOptionIds"
        FROM attempt_answers WHERE attempt_id = $1`, [attempt.id]);
         const grade = gradeAttempt(attempt.quizSnapshot, saved);
+        const { courseId } = attempt.quizSnapshot.quiz;
+        if (courseId)
+            this.closedIn.get(manager)?.push({ userId: attempt.userId, courseId });
         await manager.query(`UPDATE attempt_answers answer
        SET is_correct = graded.is_correct, points_earned = graded.points
        FROM unnest($2::uuid[], $3::boolean[], $4::int[])
@@ -197,7 +214,7 @@ let QuizAttemptsService = class QuizAttemptsService {
             grade.answers.map(({ isCorrect }) => isCorrect),
             grade.answers.map(({ pointsEarned }) => pointsEarned),
         ]);
-        const [closed] = await manager.query(`UPDATE quiz_attempts
+        const [[closed]] = await manager.query(`UPDATE quiz_attempts
        SET status = $2::"QuizAttemptStatus",
          submitted_at = CASE WHEN $2 = 'TIMED_OUT'
            THEN LEAST(expires_at, clock_timestamp()) ELSE clock_timestamp() END,
@@ -229,7 +246,8 @@ QuizAttemptsService = __decorate([
     Injectable(),
     __metadata("design:paramtypes", [DataSource,
         QuizLearnerAccessService,
-        QuizCourseResolverService])
+        QuizCourseResolverService,
+        CourseProgressCalculatorService])
 ], QuizAttemptsService);
 export { QuizAttemptsService };
 //# sourceMappingURL=quiz-attempts.service.js.map

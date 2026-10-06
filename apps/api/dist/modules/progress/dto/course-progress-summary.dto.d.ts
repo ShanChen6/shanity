@@ -5,6 +5,10 @@ export declare class CourseProgressSummaryDto {
     totalRequiredLessons: number;
     completedLessons: number;
     completedRequiredLessons: number;
+    totalQuizzes: number;
+    totalRequiredQuizzes: number;
+    passedQuizzes: number;
+    passedRequiredQuizzes: number;
     percentage: number;
     isCompleted: boolean;
     lastAccessedLessonId?: string;

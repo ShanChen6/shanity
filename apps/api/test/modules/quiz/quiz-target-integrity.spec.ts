@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { DataSourceOptions } from 'typeorm';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CourseOwnershipService } from '../../../src/courses/course-ownership.service.js';
 import { createAppDataSource } from '../../../src/database/typeorm.js';
 import { migrateDatabase } from '../../../src/database/migrate.js';
 import {
@@ -436,7 +433,11 @@ describe('Q3 course ownership resolver', () => {
 describe('Q3 QuizAuthorizationGuard', () => {
   async function guardSetup() {
     const fixture = await setup();
-    const guard = new QuizAuthorizationGuard(fixture.db, fixture.resolver);
+    const guard = new QuizAuthorizationGuard(
+      fixture.db,
+      fixture.resolver,
+      new CourseOwnershipService(fixture.db),
+    );
     const run = (
       principal: { id: string; roles: string[] },
       quizId: string,
@@ -509,7 +510,7 @@ describe('Q3 QuizAuthorizationGuard', () => {
     ).resolves.toBe(true);
   });
 
-  it('hides missing quizzes from non-admins and reports 404 to admins', async () => {
+  it('masks missing quizzes as 403 QUIZ_FORBIDDEN, admins included', async () => {
     const { run, owner } = await guardSetup();
     const missing = randomUUID();
 
@@ -521,7 +522,7 @@ describe('Q3 QuizAuthorizationGuard', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
       run({ id: owner.id, roles: ['admin'] }, missing).result,
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({ response: { code: 'QUIZ_FORBIDDEN' } });
   });
 
   it('leaves a quiz with a dangling target to admins only', async () => {

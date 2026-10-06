@@ -5,6 +5,10 @@ export class CourseProgressSummaryDto {
     totalRequiredLessons;
     completedLessons;
     completedRequiredLessons;
+    totalQuizzes;
+    totalRequiredQuizzes;
+    passedQuizzes;
+    passedRequiredQuizzes;
     percentage;
     isCompleted;
     lastAccessedLessonId;
