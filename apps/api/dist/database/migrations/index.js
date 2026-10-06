@@ -10,6 +10,7 @@ import { UserAvatar1790899200001 } from './202610020001_user_avatar.js';
 import { CourseSchema1790899200002 } from './202610020002_course_schema.js';
 import { Chapters1790899200003 } from './202610020003_chapters.js';
 import { Enrollments1790899200004 } from './202610020004_enrollments.js';
+import { LessonProgress1791244800001 } from './202610060001_lesson_progress.js';
 export const migrationHistory = [
     {
         legacy: '202609270001_foundation.mjs',
@@ -82,6 +83,12 @@ export const migrationHistory = [
         name: 'LessonDomain1790899200007',
         timestamp: 1790899200007,
         migration: LessonDomain1790899200007,
+    },
+    {
+        legacy: null,
+        name: 'LessonProgress1791244800001',
+        timestamp: 1791244800001,
+        migration: LessonProgress1791244800001,
     },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);
