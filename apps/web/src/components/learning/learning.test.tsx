@@ -19,6 +19,7 @@ const lesson = (id: string, position: number, isPreview = false) => ({
   type: "TEXT" as const,
   position,
   isPreview,
+  isRequired: true,
 });
 
 // Positions are deliberately non-monotonic: traversal must preserve API order.
@@ -45,8 +46,15 @@ beforeEach(() => {
 describe("curriculum navigation", () => {
   it("preserves persisted API order and adds chapter/global metadata", () => {
     const result = buildCurriculumNavigation(curriculum, "l-2");
-    expect(result.flattenedLessons.map(({ id }) => id)).toEqual(["1", "2", "3", "4"]);
-    expect(result.flattenedLessons.map(({ globalIndex }) => globalIndex)).toEqual([0, 1, 2, 3]);
+    expect(result.flattenedLessons.map(({ id }) => id)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+    ]);
+    expect(
+      result.flattenedLessons.map(({ globalIndex }) => globalIndex),
+    ).toEqual([0, 1, 2, 3]);
     expect(result.currentLesson).toMatchObject({
       id: "2",
       chapterId: "ch1",
@@ -55,14 +63,39 @@ describe("curriculum navigation", () => {
   });
 
   it("traverses chapter boundaries and returns null at both ends", () => {
-    expect(buildCurriculumNavigation(curriculum, "l-2").nextLesson?.id).toBe("3");
-    expect(buildCurriculumNavigation(curriculum, "l-3").previousLesson?.id).toBe("2");
-    expect(buildCurriculumNavigation(curriculum, "l-1").previousLesson).toBeNull();
+    expect(buildCurriculumNavigation(curriculum, "l-2").nextLesson?.id).toBe(
+      "3",
+    );
+    expect(
+      buildCurriculumNavigation(curriculum, "l-3").previousLesson?.id,
+    ).toBe("2");
+    expect(
+      buildCurriculumNavigation(curriculum, "l-1").previousLesson,
+    ).toBeNull();
     expect(buildCurriculumNavigation(curriculum, "l-4").nextLesson).toBeNull();
   });
 });
 
 describe("CurriculumSidebar", () => {
+  it("labels optional lessons", () => {
+    const optional = curriculum.map((chapter) => ({
+      ...chapter,
+      lessons: chapter.lessons.map((item) =>
+        item.id === "1" ? { ...item, isRequired: false } : item,
+      ),
+    }));
+    render(
+      <CurriculumSidebar
+        courseSlug="course-one"
+        curriculum={optional}
+        activeSlug="l-1"
+        completed={new Set()}
+        isLocked={() => false}
+      />,
+    );
+    expect(screen.getByText("Optional")).toBeInTheDocument();
+  });
+
   it("expands the active chapter, highlights and scrolls the active lesson", async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
@@ -114,7 +147,9 @@ describe("LearningFooter", () => {
 
   it("disables boundary and locked navigation", () => {
     const { unmount } = renderFooter("l-1");
-    expect(screen.getByRole("button", { name: "Previous Lesson" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Previous Lesson" }),
+    ).toBeDisabled();
     unmount();
     renderFooter("l-2", true);
     expect(screen.getByRole("button", { name: "Next Lesson" })).toBeDisabled();

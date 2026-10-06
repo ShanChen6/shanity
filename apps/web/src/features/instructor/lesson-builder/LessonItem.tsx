@@ -62,8 +62,11 @@ function LessonItemBase({
         {lesson.type}
         <span className="sr-only"> ({TYPE_LABEL[lesson.type]})</span>
       </Badge>
-      <span className="min-w-0 flex-1 truncate font-medium">{lesson.title}</span>
+      <span className="min-w-0 flex-1 truncate font-medium">
+        {lesson.title}
+      </span>
       {lesson.isPreview && <Badge tone="success">Preview</Badge>}
+      {!lesson.isRequired && <Badge tone="warning">Optional</Badge>}
       <label className="flex items-center gap-2 text-xs">
         <Switch
           checked={lesson.isPublished}
@@ -106,4 +109,3 @@ function LessonItemBase({
 }
 
 export const LessonItem = memo(LessonItemBase);
-

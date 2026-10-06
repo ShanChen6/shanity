@@ -89,6 +89,7 @@ function mediaForm(values: LessonFormValues, type: LessonType) {
   const form = new FormData();
   form.append("title", values.title.trim());
   form.append("isPreview", String(values.isPreview));
+  form.append("isRequired", String(values.isRequired));
   if (type === "DOCUMENT")
     form.append("allowDownload", String(values.allowDownload));
   form.append("file", values.file!);
@@ -111,6 +112,7 @@ export async function saveLesson(
           title,
           type,
           isPreview: values.isPreview,
+          isRequired: values.isRequired,
           content: { textBody: values.textBody },
         }),
       });
@@ -121,6 +123,7 @@ export async function saveLesson(
           title,
           type,
           isPreview: values.isPreview,
+          isRequired: values.isRequired,
           content: { videoUrl: values.videoUrl.trim() },
         }),
       });
@@ -136,6 +139,8 @@ export async function saveLesson(
   const patch: Record<string, unknown> = {};
   if (title !== lesson.title) patch.title = title;
   if (values.isPreview !== lesson.isPreview) patch.isPreview = values.isPreview;
+  if (values.isRequired !== lesson.isRequired)
+    patch.isRequired = values.isRequired;
   if (lesson.type === "TEXT" && values.textBody !== (lesson.textBody ?? ""))
     patch.content = { textBody: values.textBody };
   if (
@@ -200,7 +205,9 @@ export function useLessonMutations(courseId: string, chapterId: string) {
       changes,
     }: {
       id: string;
-      changes: Partial<Pick<ApiLesson, "isPreview" | "isPublished">>;
+      changes: Partial<
+        Pick<ApiLesson, "isPreview" | "isPublished" | "isRequired">
+      >;
     }) =>
       api<ApiLesson>(`/lessons/${id}`, {
         method: "PATCH",
@@ -210,7 +217,9 @@ export function useLessonMutations(courseId: string, chapterId: string) {
       await client.cancelQueries({ queryKey: key });
       const previous = client.getQueryData<ApiLesson[]>(key);
       client.setQueryData<ApiLesson[]>(key, (current = []) =>
-        current.map((item) => (item.id === id ? { ...item, ...changes } : item)),
+        current.map((item) =>
+          item.id === id ? { ...item, ...changes } : item,
+        ),
       );
       return { previous };
     },

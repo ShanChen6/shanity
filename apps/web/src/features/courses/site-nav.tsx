@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
 import { useSession } from "@/features/auth/session-provider";
 import { loginUrl } from "@/lib/auth-redirect";
+import { api } from "@/lib/api";
 
 const linkClass = (active: boolean) =>
   `rounded-md px-3 py-2 text-sm font-semibold transition-colors hover:bg-surface-hover ${
-    active
-      ? "text-primary"
-      : "text-foreground-secondary hover:text-foreground"
+    active ? "text-primary" : "text-foreground-secondary hover:text-foreground"
   }`;
 
 export function SiteNav() {
@@ -71,17 +71,74 @@ export function SiteNav() {
   );
 }
 
-export function CourseCta({ slug }: { slug: string }) {
+export function CourseCta({
+  courseId,
+  slug,
+}: {
+  courseId: string;
+  slug: string;
+}) {
   const { user, status } = useSession();
-  if (user)
+  const queryClient = useQueryClient();
+  const isStudent = Boolean(user?.roles.includes("student"));
+  const enrollment = useQuery({
+    queryKey: ["course", "enrollment", courseId, user?.id],
+    queryFn: ({ signal }) =>
+      api<{ isEnrolled: boolean }>(`/courses/${courseId}/enrollment-status`, {
+        signal,
+      }),
+    enabled: isStudent,
+    retry: false,
+  });
+  const resume = useQuery({
+    queryKey: ["course", "resume", courseId, user?.id],
+    queryFn: ({ signal }) =>
+      api<{
+        lessonSlug: string | null;
+        lessonTitle: string | null;
+        lastPosition: number;
+        hasStarted: boolean;
+      }>(`/courses/${courseId}/resume-lesson`, { signal }),
+    enabled: isStudent && enrollment.data?.isEnrolled === true,
+    retry: false,
+  });
+  const enroll = useMutation({
+    mutationFn: () => api(`/courses/${courseId}/enroll`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["course", "enrollment", courseId, user?.id],
+      });
+    },
+  });
+
+  if (isStudent && enrollment.data?.isEnrolled === false)
+    return (
+      <button
+        type="button"
+        disabled={enroll.isPending}
+        onClick={() => enroll.mutate()}
+        className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
+      >
+        {enroll.isPending ? "Đang đăng ký…" : "Đăng ký ngay"}
+      </button>
+    );
+  if (user) {
+    const lessonSlug = resume.data?.lessonSlug;
     return (
       <Link
-        href={`/learn/${encodeURIComponent(slug)}`}
+        href={
+          lessonSlug
+            ? `/learn/${encodeURIComponent(slug)}/${encodeURIComponent(lessonSlug)}`
+            : `/learn/${encodeURIComponent(slug)}`
+        }
         className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
       >
-        Vào học
+        {resume.data?.hasStarted
+          ? `Tiếp tục học (Bài: ${resume.data.lessonTitle})`
+          : "Bắt đầu học"}
       </Link>
     );
+  }
   return (
     <>
       <Link
@@ -93,7 +150,10 @@ export function CourseCta({ slug }: { slug: string }) {
       </Link>
       <p className="mt-3 text-center text-caption text-muted">
         Chưa có tài khoản?{" "}
-        <Link href="/register" className="font-semibold text-primary hover:underline">
+        <Link
+          href="/register"
+          className="font-semibold text-primary hover:underline"
+        >
           Tạo tài khoản
         </Link>
       </p>

@@ -2,7 +2,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function LearningSkeletonLoader() {
   return (
-    <div role="status" aria-label="Đang tải giao diện học tập" className="grid min-h-[70dvh] grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)]">
+    <div
+      role="status"
+      aria-label="Đang tải giao diện học tập"
+      className="grid min-h-[70dvh] grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)]"
+    >
       <div className="hidden space-y-4 border-r border-border p-4 lg:block">
         {[0, 1, 2].map((chapter) => (
           <div key={chapter} className="space-y-2">

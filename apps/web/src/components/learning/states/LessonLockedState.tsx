@@ -72,7 +72,10 @@ export function LessonLockedState({
           {error}
         </p>
       )}
-      <Link href={`/courses/${courseSlug}`} className="text-sm text-primary underline">
+      <Link
+        href={`/courses/${courseSlug}`}
+        className="text-sm text-primary underline"
+      >
         Xem thông tin khóa học
       </Link>
     </div>

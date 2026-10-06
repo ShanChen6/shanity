@@ -15,5 +15,9 @@ export function LearningRedirect() {
   useEffect(() => {
     if (first) router.replace(learningPath(courseSlug, first.slug));
   }, [first, courseSlug, router]);
-  return first ? <LessonSkeleton /> : <LearningNotFound scope="lesson" courseSlug={courseSlug} />;
+  return first ? (
+    <LessonSkeleton />
+  ) : (
+    <LearningNotFound scope="lesson" courseSlug={courseSlug} />
+  );
 }

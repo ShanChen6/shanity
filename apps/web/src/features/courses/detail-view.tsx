@@ -212,7 +212,7 @@ export function PublicCourseDetailView({
                   </span>
                 </div>
                 <div className="mt-4 border-t border-border pt-4">
-                  <CourseCta slug={course.slug} />
+                  <CourseCta courseId={course.id} slug={course.slug} />
                 </div>
               </div>
             </div>

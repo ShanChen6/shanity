@@ -78,6 +78,9 @@ export class Lesson {
   @Column({ name: 'is_published', type: 'boolean', default: true })
   isPublished: boolean;
 
+  @Column({ name: 'is_required', type: 'boolean', default: true })
+  isRequired: boolean;
+
   @Column({ name: 'text_body', type: 'text', nullable: true })
   textBody: string | null;
 

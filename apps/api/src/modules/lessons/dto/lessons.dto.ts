@@ -67,6 +67,10 @@ export class CreateLessonDto {
   @IsBoolean()
   isPreview?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isRequired?: boolean;
+
   @IsObject()
   @ValidateNested()
   @Type(() => LessonContentDto)
@@ -94,6 +98,10 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsBoolean()
   isPreview?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isRequired?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -150,6 +158,17 @@ export class VideoUploadDto {
   isPreview?: boolean;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  isRequired?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -175,6 +194,17 @@ export class DocumentUploadDto {
   )
   @IsBoolean()
   isPreview?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  isRequired?: boolean;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>

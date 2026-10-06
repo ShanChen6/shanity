@@ -37,6 +37,7 @@ const fields = z.object({
     .min(1, "Nhập tiêu đề bài học.")
     .max(255, "Tiêu đề tối đa 255 ký tự."),
   isPreview: z.boolean(),
+  isRequired: z.boolean(),
   textBody: z.string(),
   source: z.enum(["url", "upload"]),
   videoUrl: z.string(),

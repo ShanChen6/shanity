@@ -20,7 +20,10 @@ export const LessonContentRenderer = memo(function LessonContentRenderer(
   const Renderer = renderers[props.lesson.type];
   if (!Renderer)
     return (
-      <div role="alert" className="rounded-md border border-danger p-6 text-danger">
+      <div
+        role="alert"
+        className="rounded-md border border-danger p-6 text-danger"
+      >
         Unsupported Lesson Type
       </div>
     );

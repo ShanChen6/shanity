@@ -5,6 +5,7 @@ export type SyllabusLesson = {
   type: "TEXT" | "VIDEO" | "DOCUMENT";
   position: number;
   isPreview: boolean;
+  isRequired: boolean;
 };
 
 export type SyllabusChapter = {
@@ -21,7 +22,8 @@ export type Syllabus = {
   curriculum: SyllabusChapter[];
 };
 
-export type LessonStatus = "active" | "completed" | "locked" | "preview" | "default";
+export type LessonStatus =
+  "active" | "completed" | "locked" | "preview" | "default";
 
 export type FlatLesson = SyllabusLesson & {
   chapterId: string;
@@ -42,7 +44,10 @@ export function flattenLessons(curriculum: SyllabusChapter[]): FlatLesson[] {
 }
 
 // Crosses chapter boundaries: first lesson of the next chapter follows the last of the previous one.
-export function getAdjacentLessons(curriculum: SyllabusChapter[], slug: string) {
+export function getAdjacentLessons(
+  curriculum: SyllabusChapter[],
+  slug: string,
+) {
   const flat = flattenLessons(curriculum);
   const index = flat.findIndex((lesson) => lesson.slug === slug);
   return {

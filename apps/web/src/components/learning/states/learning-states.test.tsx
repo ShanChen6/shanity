@@ -7,7 +7,10 @@ import { AccessDeniedCard } from "./AccessDeniedCard";
 import { LearningSkeletonLoader } from "./LearningSkeletonLoader";
 import { MobileCurriculumSheet } from "./MobileCurriculumSheet";
 import { NotFoundCard } from "./NotFoundCard";
-import { LEARNING_RESUME_KEY, SessionExpiredState } from "./SessionExpiredState";
+import {
+  LEARNING_RESUME_KEY,
+  SessionExpiredState,
+} from "./SessionExpiredState";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -15,7 +18,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 const access = { canView: true, canDownload: false };
-const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = () =>
+  new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 describe("learning failure and responsive states", () => {
   beforeEach(() => replace.mockReset());
@@ -27,7 +31,9 @@ describe("learning failure and responsive states", () => {
 
   it("renders content/sidebar skeletons and a responsive mobile sheet", () => {
     const { unmount } = render(<LearningSkeletonLoader />);
-    expect(screen.getByRole("status", { name: "Đang tải giao diện học tập" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Đang tải giao diện học tập" }),
+    ).toBeInTheDocument();
     unmount();
     render(
       <MobileCurriculumSheet open onClose={vi.fn()}>
@@ -48,16 +54,17 @@ describe("learning failure and responsive states", () => {
     );
     unmount();
     render(<NotFoundCard scope="lesson" />);
-    expect(screen.getByRole("link", { name: /Quay lại danh sách/ })).toHaveAttribute(
-      "href",
-      "/courses",
-    );
+    expect(
+      screen.getByRole("link", { name: /Quay lại danh sách/ }),
+    ).toHaveAttribute("href", "/courses");
   });
 
   it("stores the current lesson and redirects after session expiration", () => {
     vi.useFakeTimers();
     render(<SessionExpiredState courseSlug="course" lessonSlug="lesson" />);
-    expect(localStorage.getItem(LEARNING_RESUME_KEY)).toBe("/learn/course/lesson");
+    expect(localStorage.getItem(LEARNING_RESUME_KEY)).toBe(
+      "/learn/course/lesson",
+    );
     vi.advanceTimersByTime(900);
     expect(replace).toHaveBeenCalledWith(
       "/login?redirect=%2Flearn%2Fcourse%2Flesson",

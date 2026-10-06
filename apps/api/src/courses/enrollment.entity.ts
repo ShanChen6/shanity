@@ -10,11 +10,13 @@ import {
 import type { Relation } from 'typeorm';
 import { Course } from './course.entity.js';
 import { User } from '../users/user.entity.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
 
 @Entity('enrollments')
 @Unique('enrollments_user_id_course_id_key', ['userId', 'courseId'])
 @Index('enrollments_user_idx', ['userId'])
 @Index('enrollments_course_idx', ['courseId'])
+@Index('idx_enrollments_user_last_accessed', ['userId', 'lastAccessedAt'])
 export class Enrollment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -50,4 +52,17 @@ export class Enrollment {
 
   @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
   revokedAt: Date | null;
+
+  @Column({ name: 'last_accessed_lesson_id', type: 'uuid', nullable: true })
+  lastAccessedLessonId: string | null;
+
+  @ManyToOne(() => Lesson, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({
+    name: 'last_accessed_lesson_id',
+    foreignKeyConstraintName: 'FK_enrollments_last_accessed_lesson',
+  })
+  lastAccessedLesson: Relation<Lesson> | null;
+
+  @Column({ name: 'last_accessed_at', type: 'timestamptz', nullable: true })
+  lastAccessedAt: Date | null;
 }

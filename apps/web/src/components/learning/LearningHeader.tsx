@@ -3,21 +3,20 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Progress } from "@/components/ui/progress";
-import { flattenLessons, type SyllabusChapter } from "./learning-model";
 
 export function LearningHeader({
   courseTitle,
-  curriculum,
-  completed,
+  courseProgress,
   onOpenMenu,
 }: {
   courseTitle: string;
-  curriculum: SyllabusChapter[];
-  completed: ReadonlySet<string>;
+  courseProgress: {
+    completedRequiredLessons: number;
+    totalRequiredLessons: number;
+    percentage: number;
+  };
   onOpenMenu: () => void;
 }) {
-  const lessons = flattenLessons(curriculum);
-  const done = lessons.filter((lesson) => completed.has(lesson.id)).length;
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3">
       <Button
@@ -31,15 +30,18 @@ export function LearningHeader({
         <Icon name="menu" className="size-4" aria-hidden="true" />
         Giáo trình
       </Button>
-      <h1 className="min-w-0 flex-1 truncate text-base font-semibold">{courseTitle}</h1>
-      <div className="hidden w-48 items-center gap-2 sm:flex">
+      <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+        {courseTitle}
+      </h1>
+      <div className="hidden w-80 items-center gap-2 sm:flex">
         <Progress
           className="flex-1"
-          value={lessons.length ? (done / lessons.length) * 100 : 0}
+          value={courseProgress.percentage}
           label="Tiến độ khóa học"
         />
         <span className="text-xs text-muted">
-          {done}/{lessons.length}
+          Đã hoàn thành {courseProgress.completedRequiredLessons}/
+          {courseProgress.totalRequiredLessons} bài học bắt buộc
         </span>
       </div>
       <Link href="/courses" className="shrink-0 text-sm text-primary underline">

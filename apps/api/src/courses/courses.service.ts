@@ -383,6 +383,7 @@ export class CoursesService {
         type: string;
         position: number;
         isPreview: boolean;
+        isRequired: boolean;
       }[]
     >(
       `SELECT lesson.id,
@@ -391,7 +392,8 @@ export class CoursesService {
           lesson.slug,
           lesson.type,
           lesson.position,
-          lesson.is_preview AS "isPreview"
+          lesson.is_preview AS "isPreview",
+          lesson.is_required AS "isRequired"
         FROM lessons lesson
         INNER JOIN courses course ON course.id = lesson.course_id
         WHERE course.id = $1
@@ -417,6 +419,7 @@ export class CoursesService {
           type: lesson.type,
           position: lesson.position,
           isPreview: lesson.isPreview,
+          isRequired: lesson.isRequired,
         })),
       })),
     };

@@ -14,6 +14,9 @@ import { VideoLessonMetadata1791158400001 } from './202610050001_video_lesson_me
 import { VideoProviderConstraint1791158400002 } from './202610050002_video_provider_constraint.js';
 import { VideoMetadataDiscriminator1791158400003 } from './202610050003_video_metadata_discriminator.js';
 import { DocumentLessonMetadata1791158400004 } from './202610050004_document_lesson_metadata.js';
+import { LessonProgress1791244800001 } from './202610060001_lesson_progress.js';
+import { AddIsRequiredToLessons1791244800002 } from './202610060002_lesson_required.js';
+import { ResumeLearning1791244800003 } from './202610060003_resume_learning.js';
 
 export const migrationHistory = [
   {
@@ -111,6 +114,24 @@ export const migrationHistory = [
     name: 'DocumentLessonMetadata1791158400004',
     timestamp: 1791158400004,
     migration: DocumentLessonMetadata1791158400004,
+  },
+  {
+    legacy: null,
+    name: 'LessonProgress1791244800001',
+    timestamp: 1791244800001,
+    migration: LessonProgress1791244800001,
+  },
+  {
+    legacy: null,
+    name: 'AddIsRequiredToLessons1791244800002',
+    timestamp: 1791244800002,
+    migration: AddIsRequiredToLessons1791244800002,
+  },
+  {
+    legacy: null,
+    name: 'ResumeLearning1791244800003',
+    timestamp: 1791244800003,
+    migration: ResumeLearning1791244800003,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);
