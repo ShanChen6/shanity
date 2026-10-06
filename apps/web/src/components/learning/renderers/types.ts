@@ -39,6 +39,7 @@ export type AccessRights = {
 
 export type LessonRendererProps = {
   lesson: LessonData;
+  initialPosition?: number;
   userAccess: AccessRights;
   onComplete?: (evidence?: {
     scrollPercentage?: number;

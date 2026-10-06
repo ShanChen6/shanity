@@ -42,11 +42,18 @@ export class ProgressService {
   async start(userId: string, lessonId: string) {
     const lesson = await this.lessonForStudent(userId, lessonId);
     await this.database.dataSource.query(
-      `INSERT INTO lesson_progress
+      `WITH saved_progress AS (
+       INSERT INTO lesson_progress
         (id, user_id, lesson_id, course_id, status, last_position, started_at)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 0, now())
        ON CONFLICT (user_id, lesson_id) DO UPDATE
-         SET last_accessed_at = CURRENT_TIMESTAMP`,
+         SET last_accessed_at = CURRENT_TIMESTAMP
+       RETURNING course_id
+       )
+       UPDATE enrollments SET
+         last_accessed_lesson_id = $2,
+         last_accessed_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND course_id = $3 AND revoked_at IS NULL`,
       [userId, lesson.id, lesson.courseId, LessonProgressStatus.IN_PROGRESS],
     );
     return this.find(userId, lesson.id);
@@ -70,12 +77,19 @@ export class ProgressService {
   ) {
     const lesson = await this.lessonForStudent(userId, lessonId);
     await this.database.dataSource.query(
-      `INSERT INTO lesson_progress
+      `WITH saved_progress AS (
+       INSERT INTO lesson_progress
         (id, user_id, lesson_id, course_id, status, last_position, started_at, last_accessed_at)
        VALUES (public.uuid_generate_v4(), $1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id, lesson_id) DO UPDATE SET
          last_position = EXCLUDED.last_position,
-         last_accessed_at = CURRENT_TIMESTAMP`,
+         last_accessed_at = CURRENT_TIMESTAMP
+       RETURNING course_id
+       )
+       UPDATE enrollments SET
+         last_accessed_lesson_id = $2,
+         last_accessed_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND course_id = $3 AND revoked_at IS NULL`,
       [
         userId,
         lesson.id,
@@ -149,11 +163,18 @@ export class ProgressService {
       };
     }
     await this.database.dataSource.query(
-      `UPDATE lesson_progress SET
-         last_position = GREATEST(COALESCE(last_position, 0), $3),
+      `WITH saved_progress AS (
+       UPDATE lesson_progress SET
+         last_position = GREATEST(COALESCE(last_position, 0), $4),
          last_accessed_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1 AND lesson_id = $2`,
-      [userId, lessonId, dto.seconds],
+       WHERE user_id = $1 AND lesson_id = $2
+       RETURNING course_id
+       )
+       UPDATE enrollments SET
+         last_accessed_lesson_id = $2,
+         last_accessed_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND course_id = $3 AND revoked_at IS NULL`,
+      [userId, lessonId, lesson.courseId, dto.seconds],
     );
     const progress = await this.find(userId, lessonId);
     return {
@@ -207,7 +228,8 @@ export class ProgressService {
     lastPosition = 0,
   ) {
     await this.database.dataSource.query(
-      `INSERT INTO lesson_progress
+      `WITH saved_progress AS (
+       INSERT INTO lesson_progress
         (id, user_id, lesson_id, course_id, status, last_position,
          started_at, last_accessed_at, completed_at)
        VALUES (public.uuid_generate_v4(), $1, $2, $3, $4, $5,
@@ -216,7 +238,13 @@ export class ProgressService {
          status = $4,
          completed_at = COALESCE(lesson_progress.completed_at, CURRENT_TIMESTAMP),
          last_position = GREATEST(COALESCE(lesson_progress.last_position, 0), $5),
-         last_accessed_at = CURRENT_TIMESTAMP`,
+         last_accessed_at = CURRENT_TIMESTAMP
+       RETURNING course_id
+       )
+       UPDATE enrollments SET
+         last_accessed_lesson_id = $2,
+         last_accessed_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND course_id = $3 AND revoked_at IS NULL`,
       [
         userId,
         lesson.id,

@@ -21,6 +21,7 @@ import { UpdateProgressDto } from './dto/update-progress.dto.js';
 import { ProgressService } from './progress.service.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
 import { CourseProgressEngine } from './services/course-progress-engine.service.js';
+import { ResumeLearningService } from './services/resume-learning.service.js';
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard)
@@ -29,7 +30,23 @@ export class ProgressController {
   constructor(
     private readonly progress: ProgressService,
     private readonly courseProgressEngine: CourseProgressEngine,
+    private readonly resumeLearning: ResumeLearningService,
   ) {}
+
+  @Get('student/resume-course')
+  @Header('Cache-Control', 'no-store')
+  resumeCourse(@Req() req: AuthRequest) {
+    return this.resumeLearning.latest(req.principal.id);
+  }
+
+  @Get('courses/:courseId/resume-lesson')
+  @Header('Cache-Control', 'no-store')
+  resumeLesson(
+    @Req() req: AuthRequest,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+  ) {
+    return this.resumeLearning.course(req.principal.id, courseId);
+  }
 
   @Get('student/enrolled-courses')
   @Header('Cache-Control', 'no-store')

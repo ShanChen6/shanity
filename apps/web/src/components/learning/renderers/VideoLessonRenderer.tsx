@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { API_URL, api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
@@ -11,6 +11,7 @@ type VideoAccess = { url: string; expiresInSeconds: number | null };
 
 export const VideoLessonRenderer = memo(function VideoLessonRenderer({
   lesson,
+  initialPosition = 0,
   userAccess,
   onComplete,
   onVideoProgress,
@@ -30,7 +31,24 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
     retry: false,
   });
   const completed = useRef(false);
+  const sought = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const lastSync = useRef(0);
+  useEffect(() => {
+    const element = videoRef.current;
+    if (
+      element &&
+      element.readyState >= 1 &&
+      !sought.current &&
+      initialPosition > 0
+    ) {
+      element.currentTime = Math.min(
+        initialPosition,
+        element.duration || initialPosition,
+      );
+      sought.current = true;
+    }
+  }, [initialPosition, retryVersion]);
   const reportProgress = useCallback(
     (element: HTMLVideoElement) => {
       if (
@@ -96,6 +114,7 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
         onRetry={() => {
           setMediaFailed(false);
           setBuffering(true);
+          sought.current = false;
           setRetryVersion((value) => value + 1);
         }}
       />
@@ -103,6 +122,7 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
       <video
+        ref={videoRef}
         key={retryVersion}
         data-testid="video-lesson-renderer"
         className="h-full w-full object-contain"
@@ -112,6 +132,16 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
         controlsList="nodownload"
         preload="metadata"
         onLoadStart={() => setBuffering(true)}
+        onLoadedMetadata={(event) => {
+          const element = event.currentTarget;
+          if (!sought.current && initialPosition > 0) {
+            element.currentTime = Math.min(
+              initialPosition,
+              element.duration || initialPosition,
+            );
+            sought.current = true;
+          }
+        }}
         onWaiting={() => setBuffering(true)}
         onCanPlay={() => setBuffering(false)}
         onPlaying={() => setBuffering(false)}

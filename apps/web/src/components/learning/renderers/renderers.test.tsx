@@ -127,4 +127,32 @@ describe("LessonContentRenderer", () => {
     video.dispatchEvent(new Event("timeupdate", { bubbles: true }));
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+
+  it("seeks a video to the server-provided resume position", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <LessonContentRenderer
+          lesson={lesson({
+            type: "VIDEO",
+            videoProvider: "EXTERNAL_EMBED",
+            videoExternalUrl: "https://cdn.example.test/video.mp4",
+          })}
+          initialPosition={90}
+          userAccess={access}
+        />
+      </QueryClientProvider>,
+    );
+    const video = screen.getByTestId(
+      "video-lesson-renderer",
+    ) as HTMLVideoElement;
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 300 },
+      currentTime: { configurable: true, writable: true, value: 0 },
+    });
+    video.dispatchEvent(new Event("loadedmetadata", { bubbles: true }));
+    expect(video.currentTime).toBe(90);
+  });
 });

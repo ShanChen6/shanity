@@ -26,6 +26,7 @@ import {
 } from '../dist/modules/progress/entities/lesson-progress.entity.js';
 import { ProgressService } from '../dist/modules/progress/progress.service.js';
 import { CourseProgressEngine } from '../dist/modules/progress/services/course-progress-engine.service.js';
+import { ResumeLearningService } from '../dist/modules/progress/services/resume-learning.service.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
 import { seed as seedAdmin } from './seeds/002_super_admin.mjs';
 
@@ -530,6 +531,69 @@ test('P5 progress SSOT: detail, enrolled list and completion share one summary',
     assert.equal(detail.lastAccessedLessonId, lessons[3].id);
     assert.equal(enrolled.progress.lastAccessedLessonId, lessons[3].id);
     assert.equal(enrolled.lastAccessedLessonSlug, lessons[3].slug);
+  }));
+
+test('P6 resume learning: persists server state, seeks cross-device and falls back safely', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p6@example.invalid', displayName: 'P6 Student' }),
+    );
+    const newcomer = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p6-new@example.invalid', displayName: 'P6 New' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P6 Course', slug: 'p6-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P6 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (let position = 0; position < 3; position += 1) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `P6 Lesson ${position + 1}`,
+          slug: `p6-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save([
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+      db.getRepository(Enrollment).create({ userId: newcomer.id, courseId: course.id }),
+    ]);
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const progress = new ProgressService({ dataSource: db }, engine);
+    const resume = new ResumeLearningService({ dataSource: db }, engine);
+    await progress.startLesson(user.id, lessons[1].id);
+    await progress.updateHeartbeat(user.id, lessons[1].id, { lastPosition: 90 });
+
+    const persisted = await db.getRepository(Enrollment).findOneByOrFail({
+      userId: user.id, courseId: course.id,
+    });
+    assert.equal(persisted.lastAccessedLessonId, lessons[1].id);
+    assert.ok(persisted.lastAccessedAt instanceof Date);
+    assert.deepEqual(await resume.course(user.id, course.id), {
+      lessonSlug: lessons[1].slug,
+      lessonTitle: lessons[1].title,
+      lastPosition: 90,
+      hasStarted: true,
+    });
+    assert.equal((await resume.latest(user.id)).resumeLesson.lastPosition, 90);
+
+    assert.deepEqual(await resume.course(newcomer.id, course.id), {
+      lessonSlug: lessons[0].slug,
+      lessonTitle: lessons[0].title,
+      lastPosition: 0,
+      hasStarted: false,
+    });
+    await db.getRepository(Lesson).update(lessons[1].id, { isPublished: false });
+    assert.equal((await resume.course(user.id, course.id)).lessonSlug, lessons[0].slug);
+
+    const indexes = await db.query(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = current_schema() AND indexname = 'idx_enrollments_user_last_accessed'`,
+    );
+    assert.equal(indexes.length, 1);
   }));
 
 test('C4 enrollment schema: preserves legacy rows, relations, constraints, cascades and Down/Up', async () =>

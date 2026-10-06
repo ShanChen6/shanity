@@ -7,6 +7,7 @@ import { ProgressService } from './progress.service.js';
 import { CoursesModule } from '../../courses/courses.module.js';
 import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
 import { CourseProgressEngine } from './services/course-progress-engine.service.js';
+import { ResumeLearningService } from './services/resume-learning.service.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, CoursesModule],
@@ -14,10 +15,11 @@ import { CourseProgressEngine } from './services/course-progress-engine.service.
   providers: [
     ProgressService,
     CourseProgressEngine,
+    ResumeLearningService,
     OriginGuard,
     SessionGuard,
     LessonAccessGuard,
   ],
-  exports: [ProgressService, CourseProgressEngine],
+  exports: [ProgressService, CourseProgressEngine, ResumeLearningService],
 })
 export class ProgressModule {}

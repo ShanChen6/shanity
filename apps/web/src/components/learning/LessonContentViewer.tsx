@@ -42,7 +42,10 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
     });
   const start = useMutation({
     mutationFn: () =>
-      api(`/lessons/${target!.id}/progress/start`, { method: "POST" }),
+      api<{ progress: { lastPosition: number | null } }>(
+        `/lessons/${target!.id}/progress/start`,
+        { method: "POST" },
+      ),
   });
   const complete = useMutation({
     mutationFn: (evidence: object = {}) =>
@@ -101,6 +104,7 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
       <div data-testid="lesson-renderer">
         <LessonContentRenderer
           lesson={lesson}
+          initialPosition={start.data?.progress.lastPosition ?? 0}
           userAccess={{
             canView: true,
             canDownload: privileged || lesson.allowDownload === true,

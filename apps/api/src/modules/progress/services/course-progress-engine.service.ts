@@ -34,7 +34,9 @@ export class CourseProgressEngine {
         AND progress.course_id = course.id
        WHERE enrollment.user_id = $1 AND enrollment.course_id = $2
          AND enrollment.revoked_at IS NULL
-       GROUP BY enrollment.user_id, enrollment.enrolled_at, course.id`,
+       GROUP BY enrollment.user_id, enrollment.enrolled_at,
+                enrollment.last_accessed_lesson_id,
+                enrollment.last_accessed_at, course.id`,
       [userId, courseId, LessonProgressStatus.COMPLETED],
     )) as SummaryRow[];
     return this.toSummary(
@@ -55,8 +57,7 @@ export class CourseProgressEngine {
     const rows = (await this.database.dataSource.query(
       `${this.summarySelect('$2')},
               course.title, course.slug, course.thumbnail,
-              (ARRAY_AGG(lesson.slug ORDER BY progress.last_accessed_at DESC)
-                FILTER (WHERE progress.id IS NOT NULL))[1] AS "lastAccessedLessonSlug"
+              resume_lesson.slug AS "lastAccessedLessonSlug"
        FROM enrollments enrollment
        INNER JOIN courses course ON course.id = enrollment.course_id
        LEFT JOIN lessons lesson
@@ -65,9 +66,15 @@ export class CourseProgressEngine {
          ON progress.lesson_id = lesson.id
         AND progress.user_id = enrollment.user_id
         AND progress.course_id = course.id
+       LEFT JOIN lessons resume_lesson
+         ON resume_lesson.id = enrollment.last_accessed_lesson_id
+        AND resume_lesson.is_published = true
        WHERE enrollment.user_id = $1 AND enrollment.revoked_at IS NULL
-       GROUP BY enrollment.user_id, enrollment.enrolled_at, course.id
-       ORDER BY enrollment.enrolled_at DESC`,
+       GROUP BY enrollment.user_id, enrollment.enrolled_at,
+                enrollment.last_accessed_lesson_id,
+                enrollment.last_accessed_at, course.id, resume_lesson.slug
+       ORDER BY enrollment.last_accessed_at DESC NULLS LAST,
+                enrollment.enrolled_at DESC`,
       [userId, LessonProgressStatus.COMPLETED],
     )) as Array<
       SummaryRow & {
@@ -97,9 +104,9 @@ export class CourseProgressEngine {
       COUNT(progress.id) FILTER (
         WHERE lesson.is_required = true AND progress.status = ${statusParameter}
       )::int AS "completedRequiredLessons",
-      (ARRAY_AGG(progress.lesson_id ORDER BY progress.last_accessed_at DESC)
-        FILTER (WHERE progress.id IS NOT NULL))[1] AS "lastAccessedLessonId",
+      enrollment.last_accessed_lesson_id AS "lastAccessedLessonId",
       COALESCE(
+        enrollment.last_accessed_at,
         MAX(GREATEST(progress.updated_at, progress.last_accessed_at)),
         enrollment.enrolled_at
       ) AS "updatedAt"`;

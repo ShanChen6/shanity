@@ -75,8 +75,11 @@ describe('ProgressService state machine', () => {
       percentage: 84.99,
     });
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('GREATEST(COALESCE(last_position, 0), $3)'),
-      ['user-id', 'lesson-id', 42],
+      expect.stringContaining('GREATEST(COALESCE(last_position, 0), $4)'),
+      ['user-id', 'lesson-id', 'course-id', 42],
+    );
+    expect(query.mock.calls.flat().join(' ')).toContain(
+      'last_accessed_lesson_id',
     );
     expect(query.mock.calls.flat().join(' ')).not.toContain(
       'completed_at = COALESCE',
