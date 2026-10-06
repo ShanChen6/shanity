@@ -20,6 +20,13 @@ import { CoursesService } from '../dist/courses/courses.service.js';
 import { CourseAccessService } from '../dist/courses/course-access.service.js';
 import { User } from '../dist/users/user.entity.js';
 import { CourseStatus } from '../dist/courses/course-status.js';
+import {
+  LessonProgress,
+  LessonProgressStatus,
+} from '../dist/modules/progress/entities/lesson-progress.entity.js';
+import { ProgressService } from '../dist/modules/progress/progress.service.js';
+import { CourseProgressEngine } from '../dist/modules/progress/services/course-progress-engine.service.js';
+import { ResumeLearningService } from '../dist/modules/progress/services/resume-learning.service.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
 import { seed as seedAdmin } from './seeds/002_super_admin.mjs';
 
@@ -196,7 +203,14 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
     );
     const [protectedLesson] = await db.query(
       'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position,is_preview) VALUES ($1,$2,$3,$4,$5,$6,1,false) RETURNING id',
-      [course.id, chapter.id, 'Protected', 'protected', 'TEXT', 'Protected content'],
+      [
+        course.id,
+        chapter.id,
+        'Protected',
+        'protected',
+        'TEXT',
+        'Protected content',
+      ],
     );
     const access = new CourseAccessService({ dataSource: db });
     assert.deepEqual(await access.canAccessLesson(undefined, preview.id), {
@@ -236,9 +250,350 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
       (await enrollments.enrollmentStatus(user.id, course.id)).isEnrolled,
       true,
     );
-    assert.deepEqual(await access.canAccessLesson(user.id, protectedLesson.id), {
-      granted: true,
+    assert.deepEqual(
+      await access.canAccessLesson(user.id, protectedLesson.id),
+      {
+        granted: true,
+      },
+    );
+  }));
+
+test('P2 lesson progress schema: indexes, unique relation, cascades and Down/Up', async () =>
+  isolated(async (db, schema) => {
+    await migrateDatabase(db);
+    const users = db.getRepository(User);
+    const courses = db.getRepository(Course);
+    const chapters = db.getRepository(Chapter);
+    const lessons = db.getRepository(Lesson);
+    const progress = db.getRepository(LessonProgress);
+    const user = await users.save(
+      users.create({
+        email: 'progress@example.invalid',
+        displayName: 'Progress Student',
+      }),
+    );
+    const course = await courses.save(
+      courses.create({ title: 'Progress Course', slug: 'progress-course' }),
+    );
+    const chapter = await chapters.save(
+      chapters.create({
+        courseId: course.id,
+        title: 'Progress Chapter',
+        position: 0,
+      }),
+    );
+    const lesson = await lessons.save(
+      lessons.create({
+        courseId: course.id,
+        chapterId: chapter.id,
+        title: 'Progress Lesson',
+        slug: 'progress-lesson',
+        type: LessonType.TEXT,
+        position: 0,
+        textBody: 'Body',
+      }),
+    );
+    const row = await progress.save(
+      progress.create({
+        userId: user.id,
+        lessonId: lesson.id,
+        courseId: course.id,
+      }),
+    );
+    assert.equal(row.status, LessonProgressStatus.IN_PROGRESS);
+    assert.ok(row.startedAt instanceof Date);
+    assert.ok(row.lastAccessedAt instanceof Date);
+    assert.ok(row.createdAt instanceof Date);
+    assert.ok(row.updatedAt instanceof Date);
+    const loaded = await progress.findOneOrFail({
+      where: { id: row.id },
+      relations: { user: true, lesson: true, course: true },
     });
+    assert.equal(loaded.user.id, user.id);
+    assert.equal(loaded.lesson.id, lesson.id);
+    assert.equal(loaded.course.id, course.id);
+    await rejectsCode(
+      () =>
+        progress.insert({
+          userId: user.id,
+          lessonId: lesson.id,
+          courseId: course.id,
+        }),
+      '23505',
+      'UQ_lesson_progress_user_lesson',
+    );
+    const indexes = await db.query(
+      "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='lesson_progress'",
+      [schema],
+    );
+    for (const name of [
+      'idx_lesson_progress_user_course',
+      'idx_lesson_progress_user_lesson',
+      'idx_lesson_progress_completed',
+    ])
+      assert.ok(indexes.some((index) => index.indexname === name));
+
+    await users.delete(user.id);
+    assert.equal(await progress.countBy({ id: row.id }), 0);
+    const secondUser = await users.save(
+      users.create({
+        email: 'progress2@example.invalid',
+        displayName: 'Second Student',
+      }),
+    );
+    const second = await progress.save(
+      progress.create({
+        userId: secondUser.id,
+        lessonId: lesson.id,
+        courseId: course.id,
+      }),
+    );
+    await lessons.delete(lesson.id);
+    assert.equal(await progress.countBy({ id: second.id }), 0);
+
+    await migrateDatabase(db, { revert: true });
+    assert.equal(
+      (
+        await db.query('SELECT to_regtype(\'"LessonProgressStatus"\') AS name')
+      )[0].name,
+      null,
+    );
+    const legacyColumns = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='lesson_progress'",
+      [schema],
+    );
+    assert.ok(
+      legacyColumns.some((column) => column.column_name === 'enrollment_id'),
+    );
+    assert.equal((await migrateDatabase(db)).length, 1);
+  }));
+
+test('P3 progress API service: concurrent idempotency, enrollment and aggregation', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p3@example.invalid', displayName: 'P3 Student' }),
+    );
+    const outsider = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p3-outsider@example.invalid', displayName: 'P3 Outsider' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P3 Course', slug: 'p3-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P3 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (let position = 0; position < 6; position += 1) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `Lesson ${position + 1}`,
+          slug: `lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
+    await assert.rejects(
+      () => service.startLesson(outsider.id, lessons[0].id),
+      (error) => error.getStatus() === 403,
+    );
+    await Promise.all(Array.from({ length: 5 }, () =>
+      service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 }),
+    ));
+    assert.equal(await db.getRepository(LessonProgress).countBy({
+      userId: user.id, lessonId: lessons[0].id,
+    }), 1);
+    const firstCompletedAt = (await db.getRepository(LessonProgress).findOneByOrFail({
+      userId: user.id, lessonId: lessons[0].id,
+    })).completedAt.toISOString();
+    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
+    assert.equal((await db.getRepository(LessonProgress).findOneByOrFail({
+      userId: user.id, lessonId: lessons[0].id,
+    })).completedAt.toISOString(), firstCompletedAt);
+    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
+    const result = await service.completeLesson(user.id, lessons[2].id, { scrollPercentage: 80 });
+    assert.equal(result.courseProgress.courseId, course.id);
+    assert.equal(result.courseProgress.completedRequiredLessons, 3);
+    assert.equal(result.courseProgress.totalRequiredLessons, 6);
+    assert.equal(result.courseProgress.percentage, 50);
+  }));
+
+test('P4 required lessons: defaults, optional exclusion and live toggle aggregation', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p4@example.invalid', displayName: 'P4 Student' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P4 Course', slug: 'p4-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P4 Chapter', position: 0 }),
+    );
+    const definitions = [true, true, false, true];
+    const lessons = [];
+    for (const [position, isRequired] of definitions.entries()) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `P4 Lesson ${position + 1}`,
+          slug: `p4-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body', isRequired,
+        }),
+      ));
+    }
+    const [defaulted] = await db.query(
+      `INSERT INTO lessons(course_id,chapter_id,title,slug,type,position,text_body)
+       VALUES ($1,$2,'Default required','default-required','TEXT',4,'Body') RETURNING is_required`,
+      [course.id, chapter.id],
+    );
+    assert.equal(defaulted.is_required, true);
+    await db.getRepository(Lesson).delete({ chapterId: chapter.id, position: 4 });
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
+    const complete = (index) =>
+      service.completeLesson(user.id, lessons[index].id, { scrollPercentage: 80 });
+    assert.equal((await complete(0)).courseProgress.percentage, 33);
+    await db.getRepository(Lesson).update(lessons[3].id, { isRequired: false });
+    const toggled = await service.calculateCourseProgress(user.id, course.id);
+    assert.equal(toggled.completedRequiredLessons, 1);
+    assert.equal(toggled.totalRequiredLessons, 2);
+    assert.equal(toggled.percentage, 50);
+    await db.getRepository(Lesson).update(lessons[3].id, { isRequired: true });
+    assert.equal((await service.calculateCourseProgress(user.id, course.id)).percentage, 33);
+    assert.equal((await complete(2)).courseProgress.percentage, 33);
+    assert.equal((await complete(1)).courseProgress.percentage, 67);
+    assert.equal((await complete(3)).courseProgress.percentage, 100);
+    await migrateDatabase(db, { revert: true });
+    const removed = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name='lessons' AND column_name='is_required'",
+    );
+    assert.equal(removed.length, 0);
+    assert.equal((await migrateDatabase(db)).length, 1);
+    assert.ok((await db.query('SELECT is_required FROM lessons')).every((row) => row.is_required === true));
+  }));
+
+test('P5 progress SSOT: detail, enrolled list and completion share one summary', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p5@example.invalid', displayName: 'P5 Student' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P5 Course', slug: 'p5-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P5 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (const [position, isRequired] of [true, true, true, false, false].entries()) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id,
+          chapterId: chapter.id,
+          title: `P5 Lesson ${position + 1}`,
+          slug: `p5-lesson-${position + 1}`,
+          type: LessonType.TEXT,
+          position,
+          textBody: 'Body',
+          isRequired,
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const service = new ProgressService({ dataSource: db }, engine);
+    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
+    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
+    const completed = await service.completeLesson(user.id, lessons[3].id, { scrollPercentage: 80 });
+    await db.query(
+      `UPDATE lesson_progress SET last_accessed_at = CURRENT_TIMESTAMP + INTERVAL '1 minute'
+       WHERE user_id = $1 AND lesson_id = $2`,
+      [user.id, lessons[3].id],
+    );
+
+    const detail = await service.courseProgress(user.id, course.id);
+    const [enrolled] = await engine.enrolledCourses(user.id);
+    for (const summary of [completed.courseProgress, detail, enrolled.progress]) {
+      assert.equal(summary.percentage, 67);
+      assert.equal(summary.completedLessons, 3);
+      assert.equal(summary.completedRequiredLessons, 2);
+      assert.equal(summary.totalRequiredLessons, 3);
+      assert.equal(summary.totalLessons, 5);
+    }
+    assert.equal(detail.lastAccessedLessonId, lessons[3].id);
+    assert.equal(enrolled.progress.lastAccessedLessonId, lessons[3].id);
+    assert.equal(enrolled.lastAccessedLessonSlug, lessons[3].slug);
+  }));
+
+test('P6 resume learning: persists server state, seeks cross-device and falls back safely', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p6@example.invalid', displayName: 'P6 Student' }),
+    );
+    const newcomer = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p6-new@example.invalid', displayName: 'P6 New' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P6 Course', slug: 'p6-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P6 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (let position = 0; position < 3; position += 1) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `P6 Lesson ${position + 1}`,
+          slug: `p6-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save([
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+      db.getRepository(Enrollment).create({ userId: newcomer.id, courseId: course.id }),
+    ]);
+    const engine = new CourseProgressEngine({ dataSource: db });
+    const progress = new ProgressService({ dataSource: db }, engine);
+    const resume = new ResumeLearningService({ dataSource: db }, engine);
+    await progress.startLesson(user.id, lessons[1].id);
+    await progress.updateHeartbeat(user.id, lessons[1].id, { lastPosition: 90 });
+
+    const persisted = await db.getRepository(Enrollment).findOneByOrFail({
+      userId: user.id, courseId: course.id,
+    });
+    assert.equal(persisted.lastAccessedLessonId, lessons[1].id);
+    assert.ok(persisted.lastAccessedAt instanceof Date);
+    assert.deepEqual(await resume.course(user.id, course.id), {
+      lessonSlug: lessons[1].slug,
+      lessonTitle: lessons[1].title,
+      lastPosition: 90,
+      hasStarted: true,
+    });
+    assert.equal((await resume.latest(user.id)).resumeLesson.lastPosition, 90);
+
+    assert.deepEqual(await resume.course(newcomer.id, course.id), {
+      lessonSlug: lessons[0].slug,
+      lessonTitle: lessons[0].title,
+      lastPosition: 0,
+      hasStarted: false,
+    });
+    await db.getRepository(Lesson).update(lessons[1].id, { isPublished: false });
+    assert.equal((await resume.course(user.id, course.id)).lessonSlug, lessons[0].slug);
+
+    const indexes = await db.query(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = current_schema() AND indexname = 'idx_enrollments_user_last_accessed'`,
+    );
+    assert.equal(indexes.length, 1);
   }));
 
 test('C4 enrollment schema: preserves legacy rows, relations, constraints, cascades and Down/Up', async () =>
@@ -272,11 +627,14 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
     );
     assert.ok(columns.some((column) => column.column_name === 'revoked_at'));
     assert.equal(
-      columns.find((column) => column.column_name === 'id').column_default.includes('uuid_generate_v4'),
+      columns
+        .find((column) => column.column_name === 'id')
+        .column_default.includes('uuid_generate_v4'),
       true,
     );
     assert.equal(
-      columns.find((column) => column.column_name === 'enrolled_at').is_nullable,
+      columns.find((column) => column.column_name === 'enrolled_at')
+        .is_nullable,
       'NO',
     );
 
@@ -284,8 +642,12 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
       "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='enrollments'",
       [schema],
     );
-    assert.ok(indexes.some((index) => index.indexname === 'enrollments_user_idx'));
-    assert.ok(indexes.some((index) => index.indexname === 'enrollments_course_idx'));
+    assert.ok(
+      indexes.some((index) => index.indexname === 'enrollments_user_idx'),
+    );
+    assert.ok(
+      indexes.some((index) => index.indexname === 'enrollments_course_idx'),
+    );
     assert.ok(
       indexes.some(
         (index) => index.indexname === 'enrollments_user_id_course_id_key',
@@ -369,8 +731,12 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
       "SELECT * FROM information_schema.columns WHERE table_schema=$1 AND table_name='chapters'",
       [schema],
     );
-    const column = (name) => columns.find((entry) => entry.column_name === name);
-    assert.equal(column('id').column_default.includes('uuid_generate_v4'), true);
+    const column = (name) =>
+      columns.find((entry) => entry.column_name === name);
+    assert.equal(
+      column('id').column_default.includes('uuid_generate_v4'),
+      true,
+    );
     assert.equal(column('course_id').is_nullable, 'NO');
     assert.equal(column('title').character_maximum_length, 255);
     assert.equal(column('description').is_nullable, 'YES');
@@ -382,8 +748,14 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
       "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='chapters'",
       [schema],
     );
-    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_id_idx'));
-    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_position_idx'));
+    assert.ok(
+      indexes.some((index) => index.indexname === 'chapters_course_id_idx'),
+    );
+    assert.ok(
+      indexes.some(
+        (index) => index.indexname === 'chapters_course_position_idx',
+      ),
+    );
     const foreignKey = await db.query(
       "SELECT confdeltype FROM pg_constraint WHERE conrelid='chapters'::regclass AND conname='FK_chapters_course'",
     );
@@ -408,12 +780,22 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
     assert.equal(loaded.chapters[0].id, chapter.id);
     assert.ok(loaded.chapters[0].createdAt instanceof Date);
     await rejectsCode(
-      () => chapters.insert({ courseId: course.id, title: 'Invalid', position: -1 }),
+      () =>
+        chapters.insert({
+          courseId: course.id,
+          title: 'Invalid',
+          position: -1,
+        }),
       '23514',
       'chapters_position_check',
     );
     await rejectsCode(
-      () => chapters.insert({ courseId: randomUUID(), title: 'Orphan', position: 0 }),
+      () =>
+        chapters.insert({
+          courseId: randomUUID(),
+          title: 'Orphan',
+          position: 0,
+        }),
       '23503',
       'FK_chapters_course',
     );
@@ -452,10 +834,21 @@ test('legacy adoption: explicit, contiguous, unlocked history required; rejected
     await db.query('UPDATE knex_migrations SET name=$1 WHERE id=2', [
       migrationHistory[1].legacy,
     ]);
-    await db.query('ALTER TABLE users RENAME COLUMN avatar_key TO missing_avatar_key');
-    await assert.rejects(() => migrateDatabase(db, { adoptLegacy: true }), /avatar_key/);
-    assert.equal((await db.query("SELECT to_regclass('typeorm_migrations') AS name"))[0].name, null);
-    await db.query('ALTER TABLE users RENAME COLUMN missing_avatar_key TO avatar_key');
+    await db.query(
+      'ALTER TABLE users RENAME COLUMN avatar_key TO missing_avatar_key',
+    );
+    await assert.rejects(
+      () => migrateDatabase(db, { adoptLegacy: true }),
+      /avatar_key/,
+    );
+    assert.equal(
+      (await db.query("SELECT to_regclass('typeorm_migrations') AS name"))[0]
+        .name,
+      null,
+    );
+    await db.query(
+      'ALTER TABLE users RENAME COLUMN missing_avatar_key TO avatar_key',
+    );
     assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 3);
     assert.deepEqual(await migrateDatabase(db), []);
   }));
@@ -466,10 +859,24 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
     const [user] = await db.query(
       "INSERT INTO users(email,display_name,password_hash) VALUES ('c2@example.invalid','Instructor','private-hash') RETURNING *",
     );
-    await db.query("INSERT INTO user_roles(user_id,role_code) VALUES ($1,'student')", [user.id]);
-    await db.query("INSERT INTO auth_sessions(user_id,refresh_hash,expires_at) VALUES ($1,'existing-refresh-hash',now()+interval '1 day')", [user.id]);
-    await db.query("INSERT INTO auth_identities(user_id,provider,provider_subject) VALUES ($1,'google','existing-subject')", [user.id]);
-    const authSnapshot = async () => Promise.all(['users','user_roles','auth_sessions','auth_identities'].map(table => db.query(`SELECT * FROM ${table}`)));
+    await db.query(
+      "INSERT INTO user_roles(user_id,role_code) VALUES ($1,'student')",
+      [user.id],
+    );
+    await db.query(
+      "INSERT INTO auth_sessions(user_id,refresh_hash,expires_at) VALUES ($1,'existing-refresh-hash',now()+interval '1 day')",
+      [user.id],
+    );
+    await db.query(
+      "INSERT INTO auth_identities(user_id,provider,provider_subject) VALUES ($1,'google','existing-subject')",
+      [user.id],
+    );
+    const authSnapshot = async () =>
+      Promise.all(
+        ['users', 'user_roles', 'auth_sessions', 'auth_identities'].map(
+          (table) => db.query(`SELECT * FROM ${table}`),
+        ),
+      );
     const authBefore = await authSnapshot();
     const statuses = Object.values(CourseStatus);
     const existing = [];

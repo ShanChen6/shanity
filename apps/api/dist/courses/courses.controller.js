@@ -162,6 +162,9 @@ let PublicCoursesController = class PublicCoursesController {
     detail(slug) {
         return this.courses.getPublicBySlug(slug);
     }
+    syllabus(slug) {
+        return this.courses.getPublicSyllabus(slug);
+    }
 };
 __decorate([
     Get(),
@@ -179,6 +182,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PublicCoursesController.prototype, "detail", null);
+__decorate([
+    Get(':slug/syllabus'),
+    Header('Cache-Control', 'public, max-age=60'),
+    __param(0, Param('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PublicCoursesController.prototype, "syllabus", null);
 PublicCoursesController = __decorate([
     Controller('public/courses'),
     __metadata("design:paramtypes", [CoursesService])

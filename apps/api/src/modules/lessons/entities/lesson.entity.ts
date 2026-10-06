@@ -17,7 +17,9 @@ export enum LessonType {
 }
 
 export enum VideoProvider {
+  LOCAL = 'LOCAL',
   S3 = 'S3',
+  EXTERNAL_EMBED = 'EXTERNAL_EMBED',
   YOUTUBE = 'YOUTUBE',
   VIMEO = 'VIMEO',
 }
@@ -25,6 +27,13 @@ export enum VideoProvider {
 export enum MediaProcessingStatus {
   PROCESSING = 'PROCESSING',
   READY = 'READY',
+}
+
+export enum DocumentFileType {
+  PDF = 'PDF',
+  SLIDE = 'SLIDE',
+  DOCX = 'DOCX',
+  OTHER = 'OTHER',
 }
 
 @Entity('lessons')
@@ -69,6 +78,9 @@ export class Lesson {
   @Column({ name: 'is_published', type: 'boolean', default: true })
   isPublished: boolean;
 
+  @Column({ name: 'is_required', type: 'boolean', default: true })
+  isRequired: boolean;
+
   @Column({ name: 'text_body', type: 'text', nullable: true })
   textBody: string | null;
 
@@ -90,6 +102,12 @@ export class Lesson {
   @Column({ name: 'video_duration_seconds', type: 'integer', nullable: true })
   videoDurationSeconds: number | null;
 
+  @Column({ name: 'video_file_size', type: 'bigint', nullable: true })
+  videoFileSize: string | null;
+
+  @Column({ name: 'video_mime_type', type: 'text', nullable: true })
+  videoMimeType: string | null;
+
   @Column({
     name: 'video_status',
     type: 'enum',
@@ -107,6 +125,18 @@ export class Lesson {
 
   @Column({ name: 'document_file_size', type: 'bigint', nullable: true })
   documentFileSize: string | null;
+
+  @Column({ name: 'document_mime_type', type: 'text', nullable: true })
+  documentMimeType: string | null;
+
+  @Column({
+    name: 'document_file_type',
+    type: 'enum',
+    enum: DocumentFileType,
+    enumName: 'DocumentFileType',
+    nullable: true,
+  })
+  documentFileType: DocumentFileType | null;
 
   @Column({
     name: 'document_download_allowed',

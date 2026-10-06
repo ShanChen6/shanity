@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { IsNull } from 'typeorm';
-import { CoursePublishabilityValidator } from './course-publishability.validator.js';
+import {
+  CoursePublishabilityValidator,
+  isLessonContentValid,
+  type PublishableLessonContent,
+} from './course-publishability.validator.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
 import { Chapter } from './chapter.entity.js';
@@ -173,17 +177,26 @@ export class CoursesService {
                 WHERE lessons.section_id = section.id
                   AND lessons.course_id = section.course_id
               ))::integer + (SELECT count(*) FROM chapters c WHERE c.course_id = $1 AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.chapter_id = c.id))::integer AS sections_without_lessons,
-          (SELECT count(*) FROM lessons WHERE course_id = $1)::integer AS lesson_count,
-          (SELECT count(*) FROM lessons
-            WHERE course_id = $1
-              AND NOT is_published)::integer AS lessons_without_content`,
+          (SELECT count(*) FROM lessons WHERE course_id = $1)::integer AS lesson_count`,
+        [id],
+      );
+      const lessonContent = await manager.query<PublishableLessonContent[]>(
+        `SELECT type,
+          text_body AS "textBody",
+          video_asset_id AS "videoAssetId",
+          video_external_url AS "videoExternalUrl",
+          document_asset_id AS "documentAssetId"
+        FROM lessons
+        WHERE course_id = $1`,
         [id],
       );
       const errors = this.publishability.validate(course, {
         sectionCount: Number(facts.section_count),
         sectionsWithoutLessons: Number(facts.sections_without_lessons),
         lessonCount: Number(facts.lesson_count),
-        lessonsWithoutContent: Number(facts.lessons_without_content),
+        lessonsWithoutContent: lessonContent.filter(
+          (lesson) => !isLessonContentValid(lesson),
+        ).length,
       });
       if (errors.length)
         throw new BadRequestException({
@@ -356,6 +369,59 @@ export class CoursesService {
           description: row.chapterDescription,
           orderIndex: row.chapterPosition,
         })),
+    };
+  }
+
+  async getPublicSyllabus(slug: string) {
+    const detail = await this.getPublicBySlug(slug);
+    const lessons = await this.database.dataSource.query<
+      {
+        id: string;
+        chapterId: string;
+        title: string;
+        slug: string;
+        type: string;
+        position: number;
+        isPreview: boolean;
+        isRequired: boolean;
+      }[]
+    >(
+      `SELECT lesson.id,
+          lesson.chapter_id AS "chapterId",
+          lesson.title,
+          lesson.slug,
+          lesson.type,
+          lesson.position,
+          lesson.is_preview AS "isPreview",
+          lesson.is_required AS "isRequired"
+        FROM lessons lesson
+        INNER JOIN courses course ON course.id = lesson.course_id
+        WHERE course.id = $1
+          AND course.status = $2
+          AND lesson.is_published = true
+        ORDER BY lesson.position ASC, lesson.id ASC`,
+      [detail.course.id, CourseStatus.PUBLISHED],
+    );
+    const byChapter = new Map<string, typeof lessons>();
+    for (const lesson of lessons) {
+      const chapterLessons = byChapter.get(lesson.chapterId) ?? [];
+      chapterLessons.push(lesson);
+      byChapter.set(lesson.chapterId, chapterLessons);
+    }
+    return {
+      ...detail,
+      curriculum: detail.curriculum.map((chapter) => ({
+        ...chapter,
+        lessons: (byChapter.get(chapter.id!) ?? []).map((lesson) => ({
+          id: lesson.id,
+          title: lesson.title,
+          slug: lesson.slug,
+          type: lesson.type,
+          position: lesson.position,
+          isPreview: lesson.isPreview,
+          isRequired: lesson.isRequired,
+        })),
+      })),
     };
   }
   private assertTransition(current: CourseStatus, next: CourseStatus) {

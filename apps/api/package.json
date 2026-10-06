@@ -27,6 +27,7 @@
     "db:revert": "pnpm build && node database/cli.mjs revert",
     "db:adopt-legacy": "pnpm build && node database/cli.mjs adopt-legacy",
     "db:seed": "pnpm build && node database/cli.mjs seed",
+    "seed:course": "pnpm build && node database/cli.mjs seed-course",
     "db:verify": "pnpm build && node database/verify.mjs"
   },
   "dependencies": {
@@ -36,11 +37,13 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
+    "file-type": "^22.1.1",
     "google-auth-library": "^11.1.0",
     "jose": "^6.2.12",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sanitize-html": "^2.18.0",
     "sharp": "0.35.4",
     "typeorm": "1.1.1"
   },
@@ -54,6 +57,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
+    "@types/sanitize-html": "^2.16.2",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "oxlint": "^1.58.0",

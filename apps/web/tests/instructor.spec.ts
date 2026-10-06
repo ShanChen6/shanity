@@ -94,15 +94,14 @@ test("instructor creates, saves, reorders with rollback, previews and publishes"
   await expect(page.getByRole("status")).toContainText("Đã lưu thứ tự mới");
   for (let i = 0; i < 2; i++) {
     const section = page.locator(".instructor-curriculum > section").nth(i);
-    await section.getByRole("button", { name: "＋ Thêm bài học" }).click();
-    await section.getByLabel("Tiêu đề bài học").fill(`Bài ${i + 1}`);
-    await section.getByLabel("Nội dung bài học").fill("Nội dung học tập");
-    await section
+    await section.getByRole("button", { name: "+ Add Lesson" }).click();
+    await section.getByRole("menuitem", { name: "Text" }).click();
+    await page.getByLabel("Tiêu đề bài học").fill(`Bài ${i + 1}`);
+    await page.getByLabel(/Nội dung bài học/).fill("<p>Nội dung học tập</p>");
+    await page
       .getByRole("button", { name: "Tạo bài học", exact: true })
       .click();
-    await expect(
-      section.getByRole("button", { name: `▤ Bài ${i + 1}` }),
-    ).toBeVisible();
+    await expect(section.getByText(`Bài ${i + 1}`)).toBeVisible();
   }
   await page.getByRole("link", { name: "Xem trước & xuất bản" }).click();
   await expect(

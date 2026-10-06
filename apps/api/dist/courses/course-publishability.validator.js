@@ -5,6 +5,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { Injectable } from '@nestjs/common';
+import { LessonType } from '../modules/lessons/entities/lesson.entity.js';
+const hasText = (value) => !!value?.trim();
+export function isLessonContentValid(lesson) {
+    switch (lesson.type) {
+        case LessonType.TEXT:
+            return hasText(lesson.textBody);
+        case LessonType.VIDEO:
+            return hasText(lesson.videoAssetId) || hasText(lesson.videoExternalUrl);
+        case LessonType.DOCUMENT:
+            return hasText(lesson.documentAssetId);
+        default:
+            return false;
+    }
+}
 let CoursePublishabilityValidator = class CoursePublishabilityValidator {
     validate(course, facts) {
         const errors = [];
@@ -23,7 +37,7 @@ let CoursePublishabilityValidator = class CoursePublishabilityValidator {
         if (facts.lessonCount < 1)
             errors.push('At least one lesson is required');
         if (facts.lessonsWithoutContent > 0)
-            errors.push('Every lesson must have text or video content');
+            errors.push('Every lesson must have valid text, video, or document content');
         return errors;
     }
 };

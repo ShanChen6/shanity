@@ -21,8 +21,11 @@ export type Lesson = {
   chapterId: string;
   title: string;
   type: "Article" | "Video" | "Quiz";
+  contentType: "TEXT" | "VIDEO" | "DOCUMENT";
   body: string;
   videoUrl: string | null;
+  videoAssetId: string | null;
+  documentAssetId: string | null;
   position: number;
 };
 export const courseKey = (id: string) => ["instructor", "course", id];

@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
@@ -11,11 +13,16 @@ import type {
   ReorderChaptersDto,
   UpdateChapterDto,
 } from './chapters.dto.js';
+import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
+import { MEDIA_STORAGE_DRIVER } from '../storage/media-storage.constants.js';
+import type { MediaStorageDriver } from '../storage/media-storage.types.js';
 
 const MAX_POSITION = 2_147_483_647;
 
 function findTemporaryPositions(reservedValues: number[], count: number) {
-  const reserved = [...new Set(reservedValues)].sort((left, right) => left - right);
+  const reserved = [...new Set(reservedValues)].sort(
+    (left, right) => left - right,
+  );
   const positions: number[] = [];
   let candidate = 0;
 
@@ -33,7 +40,13 @@ function findTemporaryPositions(reservedValues: number[], count: number) {
 
 @Injectable()
 export class ChaptersService {
-  constructor(private readonly dataSource: DataSource) {}
+  private readonly logger = new Logger(ChaptersService.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+    @Inject(MEDIA_STORAGE_DRIVER)
+    private readonly mediaStorage: MediaStorageDriver,
+  ) {}
 
   create(courseId: string, dto: CreateChapterDto) {
     return this.dataSource.transaction(async (manager) => {
@@ -101,6 +114,7 @@ export class ChaptersService {
   }
 
   async remove(id: string) {
+    let mediaKeys: { key: string; label: 'Video' | 'Document' }[] = [];
     await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Chapter);
       const existing = await repository.findOne({
@@ -115,9 +129,32 @@ export class ChaptersService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!course) throw new NotFoundException('Course not found');
+      mediaKeys = await manager
+        .getRepository(Lesson)
+        .find({
+          where: { chapterId: id },
+          select: { videoAssetId: true, documentAssetId: true },
+        })
+        .then((lessons) =>
+          lessons.flatMap(({ videoAssetId, documentAssetId }) => [
+            ...(videoAssetId
+              ? [{ key: videoAssetId, label: 'Video' as const }]
+              : []),
+            ...(documentAssetId
+              ? [{ key: documentAssetId, label: 'Document' as const }]
+              : []),
+          ]),
+        );
       const result = await repository.delete({ id, courseId: course.id });
       if (!result.affected) throw new NotFoundException('Chapter not found');
     });
+    for (const media of mediaKeys) {
+      try {
+        await this.mediaStorage.delete(media.key);
+      } catch {
+        this.logger.warn(`${media.label} cleanup deferred for ${media.key}`);
+      }
+    }
   }
 
   reorder(courseId: string, dto: ReorderChaptersDto) {
@@ -136,7 +173,9 @@ export class ChaptersService {
         lock: { mode: 'pessimistic_write' },
       });
       const submittedIds = new Set(dto.chapterOrders.map(({ id }) => id));
-      const submittedPositions = dto.chapterOrders.map(({ position }) => position);
+      const submittedPositions = dto.chapterOrders.map(
+        ({ position }) => position,
+      );
       if (
         dto.chapterOrders.length !== chapters.length ||
         submittedIds.size !== dto.chapterOrders.length ||
@@ -149,10 +188,7 @@ export class ChaptersService {
         throw new BadRequestException('Chapter positions must be unique');
 
       const temporaryPositions = findTemporaryPositions(
-        [
-          ...chapters.map(({ position }) => position),
-          ...submittedPositions,
-        ],
+        [...chapters.map(({ position }) => position), ...submittedPositions],
         chapters.length,
       );
       if (!temporaryPositions)

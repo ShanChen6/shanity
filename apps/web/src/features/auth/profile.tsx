@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
 import { Card } from "@/components/ui/card";
 import { CurrentUserAvatar } from "./current-user-avatar";
@@ -46,6 +47,26 @@ export function Profile() {
           </p>
         </div>
         {session.message && <Alert tone="success">{session.message}</Alert>}
+        <Card>
+          <h2 className="text-lg font-semibold">Học tập</h2>
+          <p className="mt-1 text-muted">
+            Chọn một khóa học, sau đó bấm “Vào học” để mở bài học.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/courses"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Xem khóa học
+            </Link>
+            <Link
+              href="/my-courses"
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-surface-hover"
+            >
+              Khóa học của tôi
+            </Link>
+          </div>
+        </Card>
         <Card>
           <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
             <CurrentUserAvatar className="size-20 text-2xl" />

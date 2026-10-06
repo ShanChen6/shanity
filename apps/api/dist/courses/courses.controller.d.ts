@@ -75,4 +75,35 @@ export declare class PublicCoursesController {
             orderIndex: number | null;
         }[];
     }>;
+    syllabus(slug: string): Promise<{
+        curriculum: {
+            lessons: {
+                id: string;
+                title: string;
+                slug: string;
+                type: string;
+                position: number;
+                isPreview: boolean;
+            }[];
+            id: string | null;
+            title: string | null;
+            description: string | null;
+            orderIndex: number | null;
+        }[];
+        course: {
+            id: string;
+            title: string;
+            slug: string;
+            description: string | null;
+            shortDescription: string | null;
+            thumbnail: string | null;
+            publishedAt: Date | null;
+        };
+        instructor: {
+            id: string;
+            displayName: string | null;
+            avatar: string | null;
+            bio: null;
+        } | null;
+    }>;
 }

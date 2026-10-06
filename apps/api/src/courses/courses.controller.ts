@@ -126,4 +126,10 @@ export class PublicCoursesController {
   detail(@Param('slug') slug: string) {
     return this.courses.getPublicBySlug(slug);
   }
+
+  @Get(':slug/syllabus')
+  @Header('Cache-Control', 'public, max-age=60')
+  syllabus(@Param('slug') slug: string) {
+    return this.courses.getPublicSyllabus(slug);
+  }
 }

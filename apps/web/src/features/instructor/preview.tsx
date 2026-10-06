@@ -14,6 +14,8 @@ import {
 } from "./data";
 import { EditNav, Failure, Notice, StatusBadge, Confirm } from "./shared";
 import { Markdown } from "./markdown";
+import { TextLessonViewer } from "@/features/lessons/text-lesson-viewer";
+import { isLessonContentValid } from "./preview-validation";
 
 function videoEmbedUrl(value: string | null) {
   if (!value) return "";
@@ -22,11 +24,15 @@ function videoEmbedUrl(value: string | null) {
     const host = url.hostname.toLowerCase();
     if (host === "youtu.be" || host.endsWith(".youtu.be")) {
       const id = url.pathname.split("/").filter(Boolean)[0];
-      return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : "";
+      return id
+        ? `https://www.youtube.com/embed/${encodeURIComponent(id)}`
+        : "";
     }
     if (host === "youtube.com" || host.endsWith(".youtube.com")) {
       const id = url.searchParams.get("v");
-      return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : "";
+      return id
+        ? `https://www.youtube.com/embed/${encodeURIComponent(id)}`
+        : "";
     }
     if (host === "vimeo.com" || host.endsWith(".vimeo.com")) {
       const id = url.pathname.split("/").filter(Boolean)[0];
@@ -95,12 +101,9 @@ export function Preview({ id }: { id: string }) {
         ),
     },
     {
-      label: "Mỗi bài có nội dung văn bản hoặc video",
-      ready:
-        content.length > 0 &&
-        content.every(
-          (lesson) => !!lesson.body?.trim() || !!lesson.videoUrl?.trim(),
-        ),
+      label:
+        "Mỗi bài học đều có nội dung hợp lệ (văn bản, video hoặc tài liệu)",
+      ready: content.length > 0 && content.every(isLessonContentValid),
     },
   ];
   return (
@@ -159,7 +162,9 @@ export function Preview({ id }: { id: string }) {
                           allowFullScreen
                         />
                       )}
-                    <Markdown text={lesson.body ?? ""} />
+                    {lesson.type !== "Video" && (
+                      <TextLessonViewer content={lesson.body ?? ""} />
+                    )}
                   </details>
                 ))}
             </section>

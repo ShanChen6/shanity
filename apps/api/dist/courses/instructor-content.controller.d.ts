@@ -2,6 +2,7 @@ import { StreamableFile } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { type AuthRequest } from '../auth/auth.guards.js';
 import { Course } from './course.entity.js';
+import { LessonType } from '../modules/lessons/entities/lesson.entity.js';
 import { LessonsService } from '../modules/lessons/lessons.service.js';
 declare class LessonDto {
     title: string;
@@ -29,8 +30,11 @@ export declare class InstructorContentController {
         chapterId: string;
         title: string;
         type: string;
+        contentType: LessonType;
         body: string;
         videoUrl: string | null;
+        videoAssetId: string | null;
+        documentAssetId: string | null;
         isPreview: boolean;
         position: number;
     }>;
@@ -40,8 +44,11 @@ export declare class InstructorContentController {
         chapterId: string;
         title: string;
         type: string;
+        contentType: LessonType;
         body: string;
         videoUrl: string | null;
+        videoAssetId: string | null;
+        documentAssetId: string | null;
         isPreview: boolean;
         position: number;
     }>;
