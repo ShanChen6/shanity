@@ -20,6 +20,11 @@ import { CoursesService } from '../dist/courses/courses.service.js';
 import { CourseAccessService } from '../dist/courses/course-access.service.js';
 import { User } from '../dist/users/user.entity.js';
 import { CourseStatus } from '../dist/courses/course-status.js';
+import {
+  LessonProgress,
+  LessonProgressStatus,
+} from '../dist/modules/progress/entities/lesson-progress.entity.js';
+import { ProgressService } from '../dist/modules/progress/progress.service.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
 import { seed as seedAdmin } from './seeds/002_super_admin.mjs';
 
@@ -196,7 +201,14 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
     );
     const [protectedLesson] = await db.query(
       'INSERT INTO lessons(course_id,chapter_id,title,slug,type,text_body,position,is_preview) VALUES ($1,$2,$3,$4,$5,$6,1,false) RETURNING id',
-      [course.id, chapter.id, 'Protected', 'protected', 'TEXT', 'Protected content'],
+      [
+        course.id,
+        chapter.id,
+        'Protected',
+        'protected',
+        'TEXT',
+        'Protected content',
+      ],
     );
     const access = new CourseAccessService({ dataSource: db });
     assert.deepEqual(await access.canAccessLesson(undefined, preview.id), {
@@ -236,8 +248,173 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
       (await enrollments.enrollmentStatus(user.id, course.id)).isEnrolled,
       true,
     );
-    assert.deepEqual(await access.canAccessLesson(user.id, protectedLesson.id), {
-      granted: true,
+    assert.deepEqual(
+      await access.canAccessLesson(user.id, protectedLesson.id),
+      {
+        granted: true,
+      },
+    );
+  }));
+
+test('P2 lesson progress schema: indexes, unique relation, cascades and Down/Up', async () =>
+  isolated(async (db, schema) => {
+    await migrateDatabase(db);
+    const users = db.getRepository(User);
+    const courses = db.getRepository(Course);
+    const chapters = db.getRepository(Chapter);
+    const lessons = db.getRepository(Lesson);
+    const progress = db.getRepository(LessonProgress);
+    const user = await users.save(
+      users.create({
+        email: 'progress@example.invalid',
+        displayName: 'Progress Student',
+      }),
+    );
+    const course = await courses.save(
+      courses.create({ title: 'Progress Course', slug: 'progress-course' }),
+    );
+    const chapter = await chapters.save(
+      chapters.create({
+        courseId: course.id,
+        title: 'Progress Chapter',
+        position: 0,
+      }),
+    );
+    const lesson = await lessons.save(
+      lessons.create({
+        courseId: course.id,
+        chapterId: chapter.id,
+        title: 'Progress Lesson',
+        slug: 'progress-lesson',
+        type: LessonType.TEXT,
+        position: 0,
+        textBody: 'Body',
+      }),
+    );
+    const row = await progress.save(
+      progress.create({
+        userId: user.id,
+        lessonId: lesson.id,
+        courseId: course.id,
+      }),
+    );
+    assert.equal(row.status, LessonProgressStatus.IN_PROGRESS);
+    assert.ok(row.startedAt instanceof Date);
+    assert.ok(row.lastAccessedAt instanceof Date);
+    assert.ok(row.createdAt instanceof Date);
+    assert.ok(row.updatedAt instanceof Date);
+    const loaded = await progress.findOneOrFail({
+      where: { id: row.id },
+      relations: { user: true, lesson: true, course: true },
+    });
+    assert.equal(loaded.user.id, user.id);
+    assert.equal(loaded.lesson.id, lesson.id);
+    assert.equal(loaded.course.id, course.id);
+    await rejectsCode(
+      () =>
+        progress.insert({
+          userId: user.id,
+          lessonId: lesson.id,
+          courseId: course.id,
+        }),
+      '23505',
+      'UQ_lesson_progress_user_lesson',
+    );
+    const indexes = await db.query(
+      "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='lesson_progress'",
+      [schema],
+    );
+    for (const name of [
+      'idx_lesson_progress_user_course',
+      'idx_lesson_progress_user_lesson',
+      'idx_lesson_progress_completed',
+    ])
+      assert.ok(indexes.some((index) => index.indexname === name));
+
+    await users.delete(user.id);
+    assert.equal(await progress.countBy({ id: row.id }), 0);
+    const secondUser = await users.save(
+      users.create({
+        email: 'progress2@example.invalid',
+        displayName: 'Second Student',
+      }),
+    );
+    const second = await progress.save(
+      progress.create({
+        userId: secondUser.id,
+        lessonId: lesson.id,
+        courseId: course.id,
+      }),
+    );
+    await lessons.delete(lesson.id);
+    assert.equal(await progress.countBy({ id: second.id }), 0);
+
+    await migrateDatabase(db, { revert: true });
+    assert.equal(
+      (
+        await db.query('SELECT to_regtype(\'"LessonProgressStatus"\') AS name')
+      )[0].name,
+      null,
+    );
+    const legacyColumns = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='lesson_progress'",
+      [schema],
+    );
+    assert.ok(
+      legacyColumns.some((column) => column.column_name === 'enrollment_id'),
+    );
+    assert.equal((await migrateDatabase(db)).length, 1);
+  }));
+
+test('P3 progress API service: concurrent idempotency, enrollment and aggregation', async () =>
+  isolated(async (db) => {
+    await migrateDatabase(db);
+    const user = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p3@example.invalid', displayName: 'P3 Student' }),
+    );
+    const outsider = await db.getRepository(User).save(
+      db.getRepository(User).create({ email: 'p3-outsider@example.invalid', displayName: 'P3 Outsider' }),
+    );
+    const course = await db.getRepository(Course).save(
+      db.getRepository(Course).create({ title: 'P3 Course', slug: 'p3-course' }),
+    );
+    const chapter = await db.getRepository(Chapter).save(
+      db.getRepository(Chapter).create({ courseId: course.id, title: 'P3 Chapter', position: 0 }),
+    );
+    const lessons = [];
+    for (let position = 0; position < 6; position += 1) {
+      lessons.push(await db.getRepository(Lesson).save(
+        db.getRepository(Lesson).create({
+          courseId: course.id, chapterId: chapter.id, title: `Lesson ${position + 1}`,
+          slug: `lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
+        }),
+      ));
+    }
+    await db.getRepository(Enrollment).save(
+      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    );
+    const service = new ProgressService({ dataSource: db });
+    await assert.rejects(
+      () => service.startLesson(outsider.id, lessons[0].id),
+      (error) => error.getStatus() === 403,
+    );
+    await Promise.all(Array.from({ length: 5 }, () =>
+      service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 }),
+    ));
+    assert.equal(await db.getRepository(LessonProgress).countBy({
+      userId: user.id, lessonId: lessons[0].id,
+    }), 1);
+    const firstCompletedAt = (await db.getRepository(LessonProgress).findOneByOrFail({
+      userId: user.id, lessonId: lessons[0].id,
+    })).completedAt.toISOString();
+    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
+    assert.equal((await db.getRepository(LessonProgress).findOneByOrFail({
+      userId: user.id, lessonId: lessons[0].id,
+    })).completedAt.toISOString(), firstCompletedAt);
+    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
+    const result = await service.completeLesson(user.id, lessons[2].id, { scrollPercentage: 80 });
+    assert.deepEqual(result.courseProgress, {
+      courseId: course.id, completedLessons: 3, totalLessons: 6, percentage: 50,
     });
   }));
 
@@ -272,11 +449,14 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
     );
     assert.ok(columns.some((column) => column.column_name === 'revoked_at'));
     assert.equal(
-      columns.find((column) => column.column_name === 'id').column_default.includes('uuid_generate_v4'),
+      columns
+        .find((column) => column.column_name === 'id')
+        .column_default.includes('uuid_generate_v4'),
       true,
     );
     assert.equal(
-      columns.find((column) => column.column_name === 'enrolled_at').is_nullable,
+      columns.find((column) => column.column_name === 'enrolled_at')
+        .is_nullable,
       'NO',
     );
 
@@ -284,8 +464,12 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
       "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='enrollments'",
       [schema],
     );
-    assert.ok(indexes.some((index) => index.indexname === 'enrollments_user_idx'));
-    assert.ok(indexes.some((index) => index.indexname === 'enrollments_course_idx'));
+    assert.ok(
+      indexes.some((index) => index.indexname === 'enrollments_user_idx'),
+    );
+    assert.ok(
+      indexes.some((index) => index.indexname === 'enrollments_course_idx'),
+    );
     assert.ok(
       indexes.some(
         (index) => index.indexname === 'enrollments_user_id_course_id_key',
@@ -369,8 +553,12 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
       "SELECT * FROM information_schema.columns WHERE table_schema=$1 AND table_name='chapters'",
       [schema],
     );
-    const column = (name) => columns.find((entry) => entry.column_name === name);
-    assert.equal(column('id').column_default.includes('uuid_generate_v4'), true);
+    const column = (name) =>
+      columns.find((entry) => entry.column_name === name);
+    assert.equal(
+      column('id').column_default.includes('uuid_generate_v4'),
+      true,
+    );
     assert.equal(column('course_id').is_nullable, 'NO');
     assert.equal(column('title').character_maximum_length, 255);
     assert.equal(column('description').is_nullable, 'YES');
@@ -382,8 +570,14 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
       "SELECT indexname FROM pg_indexes WHERE schemaname=$1 AND tablename='chapters'",
       [schema],
     );
-    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_id_idx'));
-    assert.ok(indexes.some((index) => index.indexname === 'chapters_course_position_idx'));
+    assert.ok(
+      indexes.some((index) => index.indexname === 'chapters_course_id_idx'),
+    );
+    assert.ok(
+      indexes.some(
+        (index) => index.indexname === 'chapters_course_position_idx',
+      ),
+    );
     const foreignKey = await db.query(
       "SELECT confdeltype FROM pg_constraint WHERE conrelid='chapters'::regclass AND conname='FK_chapters_course'",
     );
@@ -408,12 +602,22 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
     assert.equal(loaded.chapters[0].id, chapter.id);
     assert.ok(loaded.chapters[0].createdAt instanceof Date);
     await rejectsCode(
-      () => chapters.insert({ courseId: course.id, title: 'Invalid', position: -1 }),
+      () =>
+        chapters.insert({
+          courseId: course.id,
+          title: 'Invalid',
+          position: -1,
+        }),
       '23514',
       'chapters_position_check',
     );
     await rejectsCode(
-      () => chapters.insert({ courseId: randomUUID(), title: 'Orphan', position: 0 }),
+      () =>
+        chapters.insert({
+          courseId: randomUUID(),
+          title: 'Orphan',
+          position: 0,
+        }),
       '23503',
       'FK_chapters_course',
     );
@@ -452,10 +656,21 @@ test('legacy adoption: explicit, contiguous, unlocked history required; rejected
     await db.query('UPDATE knex_migrations SET name=$1 WHERE id=2', [
       migrationHistory[1].legacy,
     ]);
-    await db.query('ALTER TABLE users RENAME COLUMN avatar_key TO missing_avatar_key');
-    await assert.rejects(() => migrateDatabase(db, { adoptLegacy: true }), /avatar_key/);
-    assert.equal((await db.query("SELECT to_regclass('typeorm_migrations') AS name"))[0].name, null);
-    await db.query('ALTER TABLE users RENAME COLUMN missing_avatar_key TO avatar_key');
+    await db.query(
+      'ALTER TABLE users RENAME COLUMN avatar_key TO missing_avatar_key',
+    );
+    await assert.rejects(
+      () => migrateDatabase(db, { adoptLegacy: true }),
+      /avatar_key/,
+    );
+    assert.equal(
+      (await db.query("SELECT to_regclass('typeorm_migrations') AS name"))[0]
+        .name,
+      null,
+    );
+    await db.query(
+      'ALTER TABLE users RENAME COLUMN missing_avatar_key TO avatar_key',
+    );
     assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 3);
     assert.deepEqual(await migrateDatabase(db), []);
   }));
@@ -466,10 +681,24 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
     const [user] = await db.query(
       "INSERT INTO users(email,display_name,password_hash) VALUES ('c2@example.invalid','Instructor','private-hash') RETURNING *",
     );
-    await db.query("INSERT INTO user_roles(user_id,role_code) VALUES ($1,'student')", [user.id]);
-    await db.query("INSERT INTO auth_sessions(user_id,refresh_hash,expires_at) VALUES ($1,'existing-refresh-hash',now()+interval '1 day')", [user.id]);
-    await db.query("INSERT INTO auth_identities(user_id,provider,provider_subject) VALUES ($1,'google','existing-subject')", [user.id]);
-    const authSnapshot = async () => Promise.all(['users','user_roles','auth_sessions','auth_identities'].map(table => db.query(`SELECT * FROM ${table}`)));
+    await db.query(
+      "INSERT INTO user_roles(user_id,role_code) VALUES ($1,'student')",
+      [user.id],
+    );
+    await db.query(
+      "INSERT INTO auth_sessions(user_id,refresh_hash,expires_at) VALUES ($1,'existing-refresh-hash',now()+interval '1 day')",
+      [user.id],
+    );
+    await db.query(
+      "INSERT INTO auth_identities(user_id,provider,provider_subject) VALUES ($1,'google','existing-subject')",
+      [user.id],
+    );
+    const authSnapshot = async () =>
+      Promise.all(
+        ['users', 'user_roles', 'auth_sessions', 'auth_identities'].map(
+          (table) => db.query(`SELECT * FROM ${table}`),
+        ),
+      );
     const authBefore = await authSnapshot();
     const statuses = Object.values(CourseStatus);
     const existing = [];

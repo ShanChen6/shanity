@@ -2,7 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { Enrollment } from '../../courses/enrollment.entity.js';
 import { Lesson, LessonType } from '../lessons/entities/lesson.entity.js';
-import { LessonProgress, ProgressStatus } from './lesson-progress.entity.js';
+import {
+  LessonProgress,
+  LessonProgressStatus,
+} from './entities/lesson-progress.entity.js';
 import { ProgressService } from './progress.service.js';
 
 function fixture(type: LessonType, downloadAllowed = false) {
@@ -14,7 +17,7 @@ function fixture(type: LessonType, downloadAllowed = false) {
   } as Lesson;
   const progress = {
     lessonId: lesson.id,
-    status: ProgressStatus.IN_PROGRESS,
+    status: LessonProgressStatus.IN_PROGRESS,
   } as LessonProgress;
   const query = vi.fn().mockResolvedValue([]);
   const database = {
@@ -38,12 +41,10 @@ describe('ProgressService state machine', () => {
   it('starts idempotently without completing a lesson', async () => {
     const { service, query, progress } = fixture(LessonType.TEXT);
     await expect(service.start('user-id', 'lesson-id')).resolves.toBe(progress);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('DO NOTHING'), [
-      'user-id',
-      'lesson-id',
-      'course-id',
-      ProgressStatus.IN_PROGRESS,
-    ]);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('last_accessed_at'),
+      ['user-id', 'lesson-id', 'course-id', LessonProgressStatus.IN_PROGRESS],
+    );
     expect(query.mock.calls.flat().join(' ')).not.toContain('completed_at =');
   });
 
@@ -54,7 +55,7 @@ describe('ProgressService state machine', () => {
       percentage: 84.99,
     });
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('GREATEST(last_position, $3)'),
+      expect.stringContaining('GREATEST(COALESCE(last_position, 0), $3)'),
       ['user-id', 'lesson-id', 42],
     );
     expect(query.mock.calls.flat().join(' ')).not.toContain(
@@ -70,7 +71,43 @@ describe('ProgressService state machine', () => {
     });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('completed_at = COALESCE'),
-      ['user-id', 'lesson-id', ProgressStatus.COMPLETED, 85],
+      ['user-id', 'lesson-id', 'course-id', LessonProgressStatus.COMPLETED, 85],
+    );
+  });
+
+  it('uses an atomic upsert and preserves the original completion timestamp', async () => {
+    const { service, query } = fixture(LessonType.TEXT);
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        service.complete('user-id', 'lesson-id', { scrollPercentage: 80 }),
+      ),
+    );
+    const completionSql = query.mock.calls
+      .map(([sql]) => String(sql))
+      .filter((sql) => sql.includes('ON CONFLICT'));
+    expect(completionSql).toHaveLength(5);
+    expect(
+      completionSql.every((sql) => sql.includes('completed_at = COALESCE')),
+    ).toBe(true);
+  });
+
+  it('upserts a heartbeat without changing a completed status', async () => {
+    const { service, query } = fixture(LessonType.TEXT);
+    await service.updateHeartbeat('user-id', 'lesson-id', {
+      lastPosition: 64,
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('last_position = EXCLUDED.last_position'),
+      [
+        'user-id',
+        'lesson-id',
+        'course-id',
+        LessonProgressStatus.IN_PROGRESS,
+        64,
+      ],
+    );
+    expect(query.mock.calls.flat().join(' ')).not.toContain(
+      'status = EXCLUDED.status',
     );
   });
 

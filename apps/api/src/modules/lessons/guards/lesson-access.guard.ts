@@ -62,8 +62,8 @@ export class LessonAccessGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<LessonAccessRequest>();
-    const lessonId = (request.params as Record<string, string | undefined>)
-      .id;
+    const params = request.params as Record<string, string | undefined>;
+    const lessonId = params.id ?? params.lessonId;
     if (!lessonId || !UUID.test(lessonId))
       throw new NotFoundException('Lesson not found');
 

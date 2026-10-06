@@ -17,7 +17,9 @@ import {
   type AuthRequest,
 } from '../../auth/auth.guards.js';
 import { CompleteLessonDto, VideoProgressDto } from './progress.dto.js';
+import { UpdateProgressDto } from './dto/update-progress.dto.js';
 import { ProgressService } from './progress.service.js';
+import { LessonAccessGuard } from '../lessons/guards/lesson-access.guard.js';
 
 @Controller()
 @UseGuards(OriginGuard, SessionGuard)
@@ -34,23 +36,36 @@ export class ProgressController {
     return this.progress.courseProgress(req.principal.id, courseId);
   }
 
-  @Post('lessons/:id/progress/start')
+  @Post('lessons/:lessonId/progress/start')
+  @UseGuards(LessonAccessGuard)
   @Header('Cache-Control', 'no-store')
   start(
     @Req() req: AuthRequest,
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('lessonId', new ParseUUIDPipe({ version: '4' })) lessonId: string,
   ) {
-    return this.progress.start(req.principal.id, id);
+    return this.progress.startLesson(req.principal.id, lessonId);
   }
 
-  @Post(['lessons/:id/progress/complete', 'lessons/:id/complete'])
+  @Patch('lessons/:lessonId/progress/heartbeat')
+  @UseGuards(LessonAccessGuard)
+  @Header('Cache-Control', 'no-store')
+  heartbeat(
+    @Req() req: AuthRequest,
+    @Param('lessonId', new ParseUUIDPipe({ version: '4' })) lessonId: string,
+    @Body() dto: UpdateProgressDto,
+  ) {
+    return this.progress.updateHeartbeat(req.principal.id, lessonId, dto);
+  }
+
+  @Post(['lessons/:lessonId/progress/complete', 'lessons/:lessonId/complete'])
+  @UseGuards(LessonAccessGuard)
   @Header('Cache-Control', 'no-store')
   complete(
     @Req() req: AuthRequest,
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('lessonId', new ParseUUIDPipe({ version: '4' })) lessonId: string,
     @Body() dto: CompleteLessonDto,
   ) {
-    return this.progress.complete(req.principal.id, id, dto);
+    return this.progress.completeLesson(req.principal.id, lessonId, dto);
   }
 
   @Patch('lessons/:id/video-progress')
