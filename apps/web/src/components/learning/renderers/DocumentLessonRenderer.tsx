@@ -11,10 +11,11 @@ import type { LessonRendererProps } from "./types";
 export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
   lesson,
   userAccess,
+  onComplete,
 }: LessonRendererProps) {
   const allowDownload = Boolean(
     userAccess.canDownload &&
-      (lesson.allowDownload ?? lesson.metadata?.allowDownload),
+    (lesson.allowDownload ?? lesson.metadata?.allowDownload),
   );
   useEffect(() => {
     if (allowDownload) return;
@@ -37,7 +38,8 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
         cache: "no-store",
         signal,
       });
-      if (!response.ok) throw new Error(`Document request failed: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`Document request failed: ${response.status}`);
       return response.blob();
     },
     enabled: userAccess.canView,
@@ -59,18 +61,26 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
   if (!userAccess.canView)
     return <p role="alert">You do not have access to this document.</p>;
   if (document.error)
-    return <MediaErrorFallback kind="document" onRetry={() => void document.refetch()} />;
+    return (
+      <MediaErrorFallback
+        kind="document"
+        onRetry={() => void document.refetch()}
+      />
+    );
   return (
     <section data-testid="document-lesson-renderer" className="space-y-4">
       <header className="flex items-center justify-between gap-4">
         <div>
           <h3 className="font-semibold">{fileName}</h3>
-          <p className="text-xs text-muted">{lesson.fileType ?? lesson.metadata?.fileType ?? "DOCUMENT"}</p>
+          <p className="text-xs text-muted">
+            {lesson.fileType ?? lesson.metadata?.fileType ?? "DOCUMENT"}
+          </p>
         </div>
         {allowDownload ? (
           <a
             href={downloadUrl}
             className="inline-flex items-center gap-2 rounded-md border border-border-strong px-3 py-2 text-sm font-semibold"
+            onClick={() => onComplete?.({ downloaded: true })}
           >
             <Download aria-hidden size={17} />
             Tải tài liệu về máy
@@ -79,7 +89,9 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
       </header>
       <div
         className="relative min-h-[70vh] overflow-hidden rounded-lg border border-border bg-surface"
-        onContextMenu={allowDownload ? undefined : (event) => event.preventDefault()}
+        onContextMenu={
+          allowDownload ? undefined : (event) => event.preventDefault()
+        }
       >
         <iframe
           src={objectUrl ?? undefined}
@@ -88,11 +100,22 @@ export const DocumentLessonRenderer = memo(function DocumentLessonRenderer({
           sandbox="allow-same-origin"
         />
         {document.isPending || !objectUrl ? (
-          <div role="status" aria-label="Đang tải tài liệu" className="absolute inset-0 grid place-items-center bg-surface/90">
+          <div
+            role="status"
+            aria-label="Đang tải tài liệu"
+            className="absolute inset-0 grid place-items-center bg-surface/90"
+          >
             <Spinner decorative />
           </div>
         ) : null}
       </div>
+      <button
+        type="button"
+        onClick={() => onComplete?.({ reachedLastPage: true })}
+        className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white"
+      >
+        Mark as Completed
+      </button>
     </section>
   );
 });

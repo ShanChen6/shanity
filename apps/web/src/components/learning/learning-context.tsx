@@ -21,10 +21,20 @@ type LearningContextValue = {
 
 const Context = createContext<LearningContextValue | null>(null);
 
-export const syllabusKey = (courseSlug: string) => ["learn", "syllabus", courseSlug];
+export const syllabusKey = (courseSlug: string) => [
+  "learn",
+  "syllabus",
+  courseSlug,
+];
 export const enrollmentKey = (courseId: string, userId?: string) => [
   "learn",
   "enrollment",
+  courseId,
+  userId,
+];
+export const progressKey = (courseId: string, userId?: string) => [
+  "learn",
+  "progress",
   courseId,
   userId,
 ];
@@ -58,7 +68,7 @@ export function LearningProvider({
   const isStudent = Boolean(user?.roles.includes("student"));
   const hasBypass = Boolean(
     user &&
-      (user.roles.includes("admin") || user.id === syllabus.instructor?.id),
+    (user.roles.includes("admin") || user.id === syllabus.instructor?.id),
   );
 
   const enrollment = useQuery({
@@ -72,6 +82,16 @@ export function LearningProvider({
     retry: false,
   });
   const enrolled = enrollment.data?.isEnrolled === true;
+  const progress = useQuery({
+    queryKey: progressKey(syllabus.course.id, user?.id),
+    queryFn: ({ signal }) =>
+      api<{ lessons: Array<{ lessonId: string; status: string }> }>(
+        `/courses/${syllabus.course.id}/progress`,
+        { signal },
+      ),
+    enabled: isStudent && enrolled,
+    retry: false,
+  });
 
   const curriculum = syllabus.curriculum;
 
@@ -80,14 +100,28 @@ export function LearningProvider({
       courseSlug,
       syllabus,
       curriculum,
-      // Completion tracking arrives with the progress engine.
-      completed: NO_PROGRESS,
+      completed: progress.data
+        ? new Set(
+            progress.data.lessons
+              .filter((item) => item.status === "COMPLETED")
+              .map((item) => item.lessonId),
+          )
+        : NO_PROGRESS,
       // Advisory only: the API re-checks access on every lesson request.
       isLocked: (lesson) => !(lesson.isPreview || enrolled || hasBypass),
       isStudent,
       isAuthenticated: session.isAuthenticated,
     }),
-    [courseSlug, syllabus, curriculum, enrolled, hasBypass, isStudent, session.isAuthenticated],
+    [
+      courseSlug,
+      syllabus,
+      curriculum,
+      enrolled,
+      hasBypass,
+      isStudent,
+      session.isAuthenticated,
+      progress.data,
+    ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

@@ -13,7 +13,8 @@ export type LessonData = {
   title: string;
   type: LessonType;
   content?: string | EditorContent | null;
-  videoProvider?: "LOCAL" | "S3" | "EXTERNAL_EMBED" | "YOUTUBE" | "VIMEO" | null;
+  videoProvider?:
+    "LOCAL" | "S3" | "EXTERNAL_EMBED" | "YOUTUBE" | "VIMEO" | null;
   videoExternalUrl?: string | null;
   durationSeconds?: number | null;
   posterUrl?: string | null;
@@ -39,5 +40,14 @@ export type AccessRights = {
 export type LessonRendererProps = {
   lesson: LessonData;
   userAccess: AccessRights;
-  onComplete?: () => void;
+  onComplete?: (evidence?: {
+    scrollPercentage?: number;
+    reachedLastPage?: boolean;
+    downloaded?: boolean;
+  }) => void;
+  onVideoProgress?: (progress: {
+    seconds: number;
+    percentage: number;
+    ended?: boolean;
+  }) => void;
 };
