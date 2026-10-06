@@ -4,6 +4,7 @@ import type { DataSourceOptions } from 'typeorm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createAppDataSource } from '../../../src/database/typeorm.js';
 import { migrateDatabase } from '../../../src/database/migrate.js';
+import { revertThrough } from '../../support/migrations.js';
 import {
   QuizEntity,
   QuizScope,
@@ -102,15 +103,7 @@ describe('Q2 quiz core migration', () => {
       ),
     ).toBe(true);
 
-    // Later quiz migrations sit on top of Q2; undo down to and including it.
-    const q2Applied = async () =>
-      (
-        await db.query(
-          `SELECT 1 FROM "${schema}".typeorm_migrations WHERE name = $1`,
-          ['QuizCoreSchema1791417600001'],
-        )
-      ).length > 0;
-    while (await q2Applied()) await migrateDatabase(db, { revert: true });
+    await revertThrough(db, schema, 'QuizCoreSchema1791417600001');
     expect(
       // Schema-qualified: search_path also reaches a migrated public schema.
       (

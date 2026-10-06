@@ -5,6 +5,7 @@ import type { DataSourceOptions } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createAppDataSource } from '../../../src/database/typeorm.js';
 import { migrateDatabase } from '../../../src/database/migrate.js';
+import { revertThrough } from '../../support/migrations.js';
 import { QuizOptionEntity } from '../../../src/modules/quiz/entities/quiz-option.entity.js';
 import { QuizQuestionEntity } from '../../../src/modules/quiz/entities/quiz-question.entity.js';
 import { User } from '../../../src/users/user.entity.js';
@@ -160,7 +161,7 @@ describe('Q4 quiz question schema', () => {
     );
     expect(labels).toEqual(['SINGLE_CHOICE', 'MULTIPLE_CHOICE']);
 
-    await migrateDatabase(db, { revert: true });
+    await revertThrough(db, schema, 'QuizQuestionsOptions1791417600003');
     for (const name of ['quiz_questions', 'quiz_options'])
       expect(
         (

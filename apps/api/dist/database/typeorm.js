@@ -10,6 +10,8 @@ import { LessonProgress } from '../modules/progress/entities/lesson-progress.ent
 import { QuizEntity } from '../modules/quiz/entities/quiz.entity.js';
 import { QuizQuestionEntity } from '../modules/quiz/entities/quiz-question.entity.js';
 import { QuizOptionEntity } from '../modules/quiz/entities/quiz-option.entity.js';
+import { QuizAttemptEntity } from '../modules/quiz/entities/quiz-attempt.entity.js';
+import { AttemptAnswerEntity } from '../modules/quiz/entities/attempt-answer.entity.js';
 import { migrations } from './migrations/index.js';
 import { Role, UserRole, AuthSession, AuthIdentity, OAuthRequest, AuthRateLimit, } from '../auth/auth.entities.js';
 export function createAppDataSource() {
@@ -31,6 +33,8 @@ export function createAppDataSource() {
             QuizEntity,
             QuizQuestionEntity,
             QuizOptionEntity,
+            QuizAttemptEntity,
+            AttemptAnswerEntity,
         ],
         migrations,
         migrationsTableName: 'typeorm_migrations',
