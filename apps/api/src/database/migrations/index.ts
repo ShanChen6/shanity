@@ -19,6 +19,7 @@ import { AddIsRequiredToLessons1791244800002 } from './202610060002_lesson_requi
 import { ResumeLearning1791244800003 } from './202610060003_resume_learning.js';
 import { SequentialCourses1791331200001 } from './202610070001_sequential_courses.js';
 import { EnrollmentsCourseActiveIndex1791331200002 } from './202610070002_enrollments_course_active_idx.js';
+import { QuizCoreSchema1791417600001 } from './202610080001_quiz_core_schema.js';
 
 export const migrationHistory = [
   {
@@ -146,6 +147,12 @@ export const migrationHistory = [
     name: 'EnrollmentsCourseActiveIndex1791331200002',
     timestamp: 1791331200002,
     migration: EnrollmentsCourseActiveIndex1791331200002,
+  },
+  {
+    legacy: null,
+    name: 'QuizCoreSchema1791417600001',
+    timestamp: 1791417600001,
+    migration: QuizCoreSchema1791417600001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);
