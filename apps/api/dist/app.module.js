@@ -16,6 +16,7 @@ import { ProgressModule } from './modules/progress/progress.module.js';
 import { InstructorModule } from './modules/instructor/instructor.module.js';
 import { CurriculumEventsModule } from './modules/curriculum/curriculum-events.module.js';
 import { QuizModule } from './modules/quiz/quiz.module.js';
+import { ContentImportModule } from './modules/import/import.module.js';
 let AppModule = class AppModule {
 };
 AppModule = __decorate([
@@ -30,6 +31,7 @@ AppModule = __decorate([
             ProgressModule,
             InstructorModule,
             QuizModule,
+            ContentImportModule,
         ],
         controllers: [AppController],
         providers: [AppService],

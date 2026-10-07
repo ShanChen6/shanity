@@ -14,7 +14,9 @@ export declare class LessonsService {
     constructor(dataSource: DataSource, mediaStorage: MediaStorageDriver);
     private lockChapter;
     private assertPositionFree;
-    create(chapterId: string, dto: CreateLessonDto): Promise<Lesson>;
+    create(chapterId: string, dto: CreateLessonDto, { draft }?: {
+        draft?: boolean | undefined;
+    }): Promise<Lesson>;
     list(chapterId: string): Promise<Lesson[]>;
     createUploadedVideo(chapterId: string, dto: VideoUploadDto, file?: Express.Multer.File): Promise<Lesson>;
     replaceUploadedVideo(id: string, dto: VideoUploadDto, file?: Express.Multer.File): Promise<Lesson>;

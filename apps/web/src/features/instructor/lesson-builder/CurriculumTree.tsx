@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   KeyboardSensor,
@@ -14,14 +15,21 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { FileUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { message } from "../data";
+import { ImportLessonDialog } from "@/features/content-import/ImportLessonDialog";
+import { lessonsKey, message } from "../data";
 import { Confirm, Failure } from "../shared";
 import { CreateLessonModal } from "./CreateLessonModal";
 import { EditLessonDrawer } from "./EditLessonDrawer";
 import { LessonItem } from "./LessonItem";
-import { useChapterLessons, useLessonMutations } from "./lesson-api";
+import {
+  chapterLessonsKey,
+  useChapterLessons,
+  useLessonMutations,
+} from "./lesson-api";
 import { reorderAfterDrag } from "./reorder";
 import {
   LESSON_TYPES,
@@ -46,6 +54,8 @@ export function CurriculumTree({
     chapterId,
   );
   const [creating, setCreating] = useState<LessonType | null>(null);
+  const [importing, setImporting] = useState(false);
+  const client = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ApiLesson | null>(null);
   const lessons = query.data;
@@ -90,6 +100,21 @@ export function CurriculumTree({
   );
   const edit = useCallback((lesson: ApiLesson) => setEditingId(lesson.id), []);
   const askDelete = useCallback((lesson: ApiLesson) => setDeleting(lesson), []);
+
+  const imported = useCallback(
+    (lesson: ApiLesson) => {
+      client.setQueryData<ApiLesson[]>(
+        chapterLessonsKey(chapterId),
+        (current = []) => [...current, lesson],
+      );
+      void client.invalidateQueries({ queryKey: chapterLessonsKey(chapterId) });
+      void client.invalidateQueries({ queryKey: lessonsKey(courseId) });
+      onNotice?.(
+        `Đã import “${lesson.title}”. Bài học đang ẩn, hãy xem lại rồi bật xuất bản.`,
+      );
+    },
+    [client, chapterId, courseId, onNotice],
+  );
 
   const saveAndNotify = useCallback(
     async (input: Parameters<typeof save.mutateAsync>[0]) => {
@@ -141,15 +166,33 @@ export function CurriculumTree({
         <p className="text-sm text-muted">Chương này chưa có bài học.</p>
       )}
 
-      <DropdownMenu
-        label="+ Add Lesson"
-        disabled={busy}
-        items={LESSON_TYPES.map((type) => ({
-          key: type,
-          label: TYPE_LABEL[type],
-          onSelect: () => setCreating(type),
-        }))}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <DropdownMenu
+          label="+ Add Lesson"
+          disabled={busy}
+          items={LESSON_TYPES.map((type) => ({
+            key: type,
+            label: TYPE_LABEL[type],
+            onSelect: () => setCreating(type),
+          }))}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={() => setImporting(true)}
+        >
+          <FileUp aria-hidden size={14} className="mr-1" /> Import từ file
+        </Button>
+      </div>
+
+      {importing && (
+        <ImportLessonDialog
+          chapterId={chapterId}
+          onImported={imported}
+          onClose={() => setImporting(false)}
+        />
+      )}
 
       {creating && (
         <CreateLessonModal

@@ -103,7 +103,7 @@ function assertRequiredFitsScope(scope: QuizScope, isRequired: boolean) {
     });
 }
 
-function rethrowWriteError(reason: unknown): never {
+export function rethrowWriteError(reason: unknown): never {
   const { code, constraint } = (reason ?? {}) as {
     code?: string;
     constraint?: string;
@@ -132,50 +132,61 @@ export class QuizAuthoringService {
 
   async create(principal: Principal, dto: CreateQuizDto) {
     const created = await this.dataSource
-      .transaction(async (manager) => {
-        const target = await this.validation.validate(
-          dto.scope,
-          dto.targetId,
-          manager,
-        );
-        if (
-          target.scope !== QuizScope.STANDALONE &&
-          !(await this.ownership.canManageCourse(principal, target.courseId))
-        )
-          throw new ForbiddenException(TARGET_COURSE_FORBIDDEN);
-        const isRequired = dto.isRequired ?? false;
-        assertRequiredFitsScope(target.scope, isRequired);
-
-        const quizzes = manager.getRepository(QuizEntity);
-        const quiz = quizzes.create({
-          // Server-owned: never taken from the request.
-          status: QuizStatus.DRAFT,
-          version: 1,
-          createdBy: principal.id,
-          // Validated binding.
-          scope: target.scope,
-          targetId: target.targetId,
-          // Client settings, field by field.
-          title: dto.title,
-          slug: dto.slug ?? null,
-          description: dto.description ?? null,
-          passingScore: dto.passingScore ?? 80,
-          maxAttempts: dto.maxAttempts ?? null,
-          durationMinutes: dto.durationMinutes ?? null,
-          isRequired,
-          reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.AFTER_SUBMIT,
-          gradingPolicy: dto.gradingPolicy ?? GradingPolicy.HIGHEST,
-          shuffleQuestions: dto.shuffleQuestions ?? true,
-          shuffleOptions: dto.shuffleOptions ?? true,
-          difficulty: dto.difficulty ?? null,
-          tags: dto.tags ?? [],
-        });
-        const { identifiers } = await quizzes.insert(quiz);
-        return { id: identifiers[0]!.id as string, courseId: target.courseId };
-      })
+      .transaction((manager) => this.insertDraft(manager, principal, dto))
       // The deferred target trigger reports at commit, so map errors here.
       .catch(rethrowWriteError);
     return this.detail(created.id, created.courseId);
+  }
+
+  /**
+   * Validates the binding and the principal's authority over it, then inserts
+   * a new DRAFT inside the caller's transaction (so an import can add its
+   * questions atomically). Callers map commit errors with rethrowWriteError.
+   */
+  async insertDraft(
+    manager: EntityManager,
+    principal: Principal,
+    dto: CreateQuizDto,
+  ) {
+    const target = await this.validation.validate(
+      dto.scope,
+      dto.targetId,
+      manager,
+    );
+    if (
+      target.scope !== QuizScope.STANDALONE &&
+      !(await this.ownership.canManageCourse(principal, target.courseId))
+    )
+      throw new ForbiddenException(TARGET_COURSE_FORBIDDEN);
+    const isRequired = dto.isRequired ?? false;
+    assertRequiredFitsScope(target.scope, isRequired);
+
+    const quizzes = manager.getRepository(QuizEntity);
+    const quiz = quizzes.create({
+      // Server-owned: never taken from the request.
+      status: QuizStatus.DRAFT,
+      version: 1,
+      createdBy: principal.id,
+      // Validated binding.
+      scope: target.scope,
+      targetId: target.targetId,
+      // Client settings, field by field.
+      title: dto.title,
+      slug: dto.slug ?? null,
+      description: dto.description ?? null,
+      passingScore: dto.passingScore ?? 80,
+      maxAttempts: dto.maxAttempts ?? null,
+      durationMinutes: dto.durationMinutes ?? null,
+      isRequired,
+      reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.AFTER_SUBMIT,
+      gradingPolicy: dto.gradingPolicy ?? GradingPolicy.HIGHEST,
+      shuffleQuestions: dto.shuffleQuestions ?? true,
+      shuffleOptions: dto.shuffleOptions ?? true,
+      difficulty: dto.difficulty ?? null,
+      tags: dto.tags ?? [],
+    });
+    const { identifiers } = await quizzes.insert(quiz);
+    return { id: identifiers[0]!.id as string, courseId: target.courseId };
   }
 
   /** Quizzes the principal may manage, newest first; archived only on request. */

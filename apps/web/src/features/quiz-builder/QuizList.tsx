@@ -1,13 +1,16 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { FileUp, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ImportQuizDialog } from "@/features/content-import/ImportQuizDialog";
 import { Failure } from "@/features/instructor/shared";
-import { useQuizList } from "./api";
+import { quizKey, quizzesKey, useQuizList } from "./api";
 import { SCOPES } from "./model";
 
 const STATUS = {
@@ -23,7 +26,10 @@ export function QuizList() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [importing, setImporting] = useState(false);
   const list = useQuizList({ page, search, status });
+  const router = useRouter();
+  const client = useQueryClient();
   const pagination = list.data?.pagination;
 
   return (
@@ -34,13 +40,29 @@ export function QuizList() {
           <h1>Quizzes</h1>
           <p>Tạo bài kiểm tra cho bài học, chương, khóa học hoặc độc lập.</p>
         </div>
-        <Link
-          href="/instructor/quizzes/create"
-          className="instructor-primary-link"
-        >
-          <Plus aria-hidden size={16} className="mr-1" /> Tạo quiz
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)}>
+            <FileUp aria-hidden size={16} className="mr-1" /> Import từ file
+          </Button>
+          <Link
+            href="/instructor/quizzes/create"
+            className="instructor-primary-link"
+          >
+            <Plus aria-hidden size={16} className="mr-1" /> Tạo quiz
+          </Link>
+        </div>
       </div>
+
+      {importing ? (
+        <ImportQuizDialog
+          onClose={() => setImporting(false)}
+          onImported={(quiz) => {
+            client.setQueryData(quizKey(quiz.id), quiz);
+            void client.invalidateQueries({ queryKey: quizzesKey });
+            router.push(`/instructor/quizzes/${quiz.id}/edit`);
+          }}
+        />
+      ) : null}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="block flex-1 text-sm font-medium">

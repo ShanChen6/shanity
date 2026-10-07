@@ -57,7 +57,7 @@ function assertRequiredFitsScope(scope, isRequired) {
             ...error('STANDALONE_QUIZ_CANNOT_BE_REQUIRED'),
         });
 }
-function rethrowWriteError(reason) {
+export function rethrowWriteError(reason) {
     const { code, constraint } = (reason ?? {});
     if (code === '23505' && constraint === 'UQ_quizzes_slug')
         throw new ConflictException({
@@ -81,39 +81,40 @@ let QuizAuthoringService = class QuizAuthoringService {
     }
     async create(principal, dto) {
         const created = await this.dataSource
-            .transaction(async (manager) => {
-            const target = await this.validation.validate(dto.scope, dto.targetId, manager);
-            if (target.scope !== QuizScope.STANDALONE &&
-                !(await this.ownership.canManageCourse(principal, target.courseId)))
-                throw new ForbiddenException(TARGET_COURSE_FORBIDDEN);
-            const isRequired = dto.isRequired ?? false;
-            assertRequiredFitsScope(target.scope, isRequired);
-            const quizzes = manager.getRepository(QuizEntity);
-            const quiz = quizzes.create({
-                status: QuizStatus.DRAFT,
-                version: 1,
-                createdBy: principal.id,
-                scope: target.scope,
-                targetId: target.targetId,
-                title: dto.title,
-                slug: dto.slug ?? null,
-                description: dto.description ?? null,
-                passingScore: dto.passingScore ?? 80,
-                maxAttempts: dto.maxAttempts ?? null,
-                durationMinutes: dto.durationMinutes ?? null,
-                isRequired,
-                reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.AFTER_SUBMIT,
-                gradingPolicy: dto.gradingPolicy ?? GradingPolicy.HIGHEST,
-                shuffleQuestions: dto.shuffleQuestions ?? true,
-                shuffleOptions: dto.shuffleOptions ?? true,
-                difficulty: dto.difficulty ?? null,
-                tags: dto.tags ?? [],
-            });
-            const { identifiers } = await quizzes.insert(quiz);
-            return { id: identifiers[0].id, courseId: target.courseId };
-        })
+            .transaction((manager) => this.insertDraft(manager, principal, dto))
             .catch(rethrowWriteError);
         return this.detail(created.id, created.courseId);
+    }
+    async insertDraft(manager, principal, dto) {
+        const target = await this.validation.validate(dto.scope, dto.targetId, manager);
+        if (target.scope !== QuizScope.STANDALONE &&
+            !(await this.ownership.canManageCourse(principal, target.courseId)))
+            throw new ForbiddenException(TARGET_COURSE_FORBIDDEN);
+        const isRequired = dto.isRequired ?? false;
+        assertRequiredFitsScope(target.scope, isRequired);
+        const quizzes = manager.getRepository(QuizEntity);
+        const quiz = quizzes.create({
+            status: QuizStatus.DRAFT,
+            version: 1,
+            createdBy: principal.id,
+            scope: target.scope,
+            targetId: target.targetId,
+            title: dto.title,
+            slug: dto.slug ?? null,
+            description: dto.description ?? null,
+            passingScore: dto.passingScore ?? 80,
+            maxAttempts: dto.maxAttempts ?? null,
+            durationMinutes: dto.durationMinutes ?? null,
+            isRequired,
+            reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.AFTER_SUBMIT,
+            gradingPolicy: dto.gradingPolicy ?? GradingPolicy.HIGHEST,
+            shuffleQuestions: dto.shuffleQuestions ?? true,
+            shuffleOptions: dto.shuffleOptions ?? true,
+            difficulty: dto.difficulty ?? null,
+            tags: dto.tags ?? [],
+        });
+        const { identifiers } = await quizzes.insert(quiz);
+        return { id: identifiers[0].id, courseId: target.courseId };
     }
     async list(principal, query) {
         const { page, limit } = query;

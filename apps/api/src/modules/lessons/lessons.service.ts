@@ -213,7 +213,8 @@ export class LessonsService {
       throw new ConflictException('Lesson position is already in use');
   }
 
-  create(chapterId: string, dto: CreateLessonDto) {
+  /** `draft` keeps the lesson unpublished (e.g. file imports to review). */
+  create(chapterId: string, dto: CreateLessonDto, { draft = false } = {}) {
     return this.dataSource.transaction(async (manager) => {
       const chapter = await this.lockChapter(manager, chapterId);
       const repository = manager.getRepository(Lesson);
@@ -252,7 +253,7 @@ export class LessonsService {
           position,
           isPreview: dto.isPreview ?? false,
           isRequired: dto.isRequired ?? true,
-          isPublished: publishable,
+          isPublished: publishable && !draft,
           ...columns,
         }),
       );

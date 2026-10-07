@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import type { EntityManager } from 'typeorm';
 import type { Principal } from '../../../auth/auth.service.js';
 import { CurriculumEvents } from '../../curriculum/curriculum-events.js';
 import type { CreateQuizDto, ListQuizzesQueryDto, UpdateQuizDto } from '../dto/quiz-authoring.dto.js';
@@ -8,6 +9,7 @@ import { CourseOwnershipService } from '../../../courses/course-ownership.servic
 import { QuizQuestionsService } from './quiz-questions.service.js';
 import { QuizTargetValidationService } from './quiz-target-validation.service.js';
 export declare const quizNotEditable: () => ConflictException;
+export declare function rethrowWriteError(reason: unknown): never;
 export declare class QuizAuthoringService {
     private readonly dataSource;
     private readonly validation;
@@ -45,6 +47,10 @@ export declare class QuizAuthoringService {
         publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
+    }>;
+    insertDraft(manager: EntityManager, principal: Principal, dto: CreateQuizDto): Promise<{
+        id: string;
+        courseId: string | null;
     }>;
     list(principal: Principal, query: ListQuizzesQueryDto): Promise<{
         quizzes: {

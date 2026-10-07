@@ -1,0 +1,31 @@
+{
+  "title": "JavaScript cơ bản",
+  "scope": "STANDALONE",
+  "slug": "javascript-co-ban",
+  "description": "Kiểm tra nhanh kiến thức JavaScript.",
+  "passingScore": 70,
+  "tags": ["javascript"],
+  "questions": [
+    {
+      "content": "typeof null trả về gì?",
+      "type": "SINGLE_CHOICE",
+      "points": 10,
+      "explanation": "Một đặc điểm lịch sử của JavaScript.",
+      "options": [
+        { "content": "\"object\"", "isCorrect": true },
+        { "content": "\"null\"" },
+        { "content": "\"undefined\"" }
+      ]
+    },
+    {
+      "content": "Giá trị nào là falsy?",
+      "type": "MULTIPLE_CHOICE",
+      "points": 20,
+      "options": [
+        { "content": "0", "isCorrect": true },
+        { "content": "\"\"", "isCorrect": true },
+        { "content": "[]" }
+      ]
+    }
+  ]
+}
