@@ -14,16 +14,18 @@ export function ProtectedSession({
   requiredRole,
 }: {
   children: ReactNode;
-  requiredRole?: Role;
+  requiredRole?: Role | readonly Role[];
 }) {
   const session = useSession();
   const router = useRouter(),
     pathname = usePathname(),
     search = useSearchParams();
+  const allowed =
+    typeof requiredRole === "string" ? [requiredRole] : requiredRole;
   const denied =
     session.status === "authenticated" &&
-    !!requiredRole &&
-    !session.user?.roles.includes(requiredRole);
+    !!allowed &&
+    !allowed.some((role) => session.user?.roles.includes(role));
   useEffect(() => {
     if (denied) router.replace("/forbidden");
     else if (session.status === "anonymous") {

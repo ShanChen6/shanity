@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/features/auth/session-provider";
 import { validateCredentials, type Fields } from "@/features/auth/validation";
 import { errorMessage } from "@/lib/api";
+import {
+  adminDestination,
+  hasAnyRole,
+  ORDER_CONSOLE_ROLES,
+} from "@/lib/admin-access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -28,7 +33,9 @@ export function AdminLoginForm({ destination }: { destination: string }) {
   const pending = useRef(false);
   const errorContainer = useRef<HTMLDivElement>(null);
   const isAdmin =
-    session.status === "authenticated" && session.user?.roles.includes("admin");
+    session.status === "authenticated" &&
+    !!session.user &&
+    hasAnyRole(session.user.roles, ORDER_CONSOLE_ROLES);
   const denied = session.status === "authenticated" && !isAdmin;
   const notice =
     error ||
@@ -43,8 +50,9 @@ export function AdminLoginForm({ destination }: { destination: string }) {
     };
   }, [load]);
   useEffect(() => {
-    if (checked && isAdmin) router.replace(destination);
-  }, [checked, isAdmin, destination, router]);
+    if (checked && isAdmin && session.user)
+      router.replace(adminDestination(session.user.roles, destination));
+  }, [checked, isAdmin, destination, router, session.user]);
   useEffect(() => {
     if (checked && notice) errorContainer.current?.focus();
   }, [checked, notice]);
@@ -66,11 +74,11 @@ export function AdminLoginForm({ destination }: { destination: string }) {
         email: email.trim().toLowerCase(),
         password,
       });
-      if (!profile.roles.includes("admin")) {
+      if (!hasAnyRole(profile.roles, ORDER_CONSOLE_ROLES)) {
         setError(deniedMessage);
         return;
       }
-      router.replace(destination);
+      router.replace(adminDestination(profile.roles, destination));
     } catch (reason: unknown) {
       setError(errorMessage(reason));
     } finally {

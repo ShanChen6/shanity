@@ -63,8 +63,13 @@ export const SAMPLE_CHAPTERS = [
 
 export const SAMPLE_LESSONS: readonly SeedLesson[] = [
   {
-    id: IDS.lessons[0], chapterIndex: 0, position: 1, type: 'TEXT',
-    title: 'JavaScript là gì?', slug: 'javascript-la-gi', isPreview: true,
+    id: IDS.lessons[0],
+    chapterIndex: 0,
+    position: 1,
+    type: 'TEXT',
+    title: 'JavaScript là gì?',
+    slug: 'javascript-la-gi',
+    isPreview: true,
     textBody: `<h1>JavaScript là gì?</h1>
 <p><strong>JavaScript</strong> là ngôn ngữ lập trình giúp trang web phản hồi hành động của người dùng. JavaScript chạy trên trình duyệt và cũng có thể chạy phía máy chủ với Node.js.</p>
 <h2>Bạn sẽ dùng JavaScript để làm gì?</h2>
@@ -76,26 +81,54 @@ console.log(&#39;Xin chào, &#39; + learner + &#39;!&#39;);</code></pre>
 <p>JavaScript phân biệt chữ hoa và chữ thường: <code>studentName</code> và <code>studentname</code> là hai định danh khác nhau.</p>`,
   },
   {
-    id: IDS.lessons[1], chapterIndex: 0, position: 2, type: 'VIDEO',
-    title: 'Thiết lập môi trường học tập', slug: 'setup-moi-truong',
-    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg', durationSeconds: 210,
+    id: IDS.lessons[1],
+    chapterIndex: 0,
+    position: 2,
+    type: 'VIDEO',
+    title: 'Thiết lập môi trường học tập',
+    slug: 'setup-moi-truong',
+    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg',
+    durationSeconds: 210,
   },
   {
-    id: IDS.lessons[2], chapterIndex: 0, position: 3, type: 'DOCUMENT',
-    title: 'Tài liệu cài đặt công cụ', slug: 'tai-lieu-cai-dat',
+    id: IDS.lessons[2],
+    chapterIndex: 0,
+    position: 3,
+    type: 'DOCUMENT',
+    title: 'Tài liệu cài đặt công cụ',
+    slug: 'tai-lieu-cai-dat',
     document: {
       fileName: 'huong-dan-cai-dat-cong-cu-javascript.pdf',
-      lines: ['HUONG DAN CAI DAT CONG CU JAVASCRIPT', '', '1. Cai Node.js ban LTS tu nodejs.org.', '2. Cai Visual Studio Code tu code.visualstudio.com.', '3. Mo terminal va chay: node --version', '4. Tao file hello.js voi console.log("Xin chao JavaScript");', '5. Chay chuong trinh: node hello.js', '', 'Meo: dung DevTools Console de thu nhanh cac bieu thuc JavaScript.'],
+      lines: [
+        'HUONG DAN CAI DAT CONG CU JAVASCRIPT',
+        '',
+        '1. Cai Node.js ban LTS tu nodejs.org.',
+        '2. Cai Visual Studio Code tu code.visualstudio.com.',
+        '3. Mo terminal va chay: node --version',
+        '4. Tao file hello.js voi console.log("Xin chao JavaScript");',
+        '5. Chay chuong trinh: node hello.js',
+        '',
+        'Meo: dung DevTools Console de thu nhanh cac bieu thuc JavaScript.',
+      ],
     },
   },
   {
-    id: IDS.lessons[3], chapterIndex: 1, position: 1, type: 'VIDEO',
-    title: 'let, const và var', slug: 'let-const-va-var',
-    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg&t=1524s', durationSeconds: 515,
+    id: IDS.lessons[3],
+    chapterIndex: 1,
+    position: 1,
+    type: 'VIDEO',
+    title: 'let, const và var',
+    slug: 'let-const-va-var',
+    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg&t=1524s',
+    durationSeconds: 515,
   },
   {
-    id: IDS.lessons[4], chapterIndex: 1, position: 2, type: 'TEXT',
-    title: 'Kiểu dữ liệu trong JavaScript', slug: 'kieu-du-lieu',
+    id: IDS.lessons[4],
+    chapterIndex: 1,
+    position: 2,
+    type: 'TEXT',
+    title: 'Kiểu dữ liệu trong JavaScript',
+    slug: 'kieu-du-lieu',
     textBody: `<h1>Kiểu dữ liệu trong JavaScript</h1>
 <p>Mỗi giá trị có một kiểu. Các kiểu nguyên thủy thường gặp là <strong>string</strong>, <strong>number</strong>, <strong>boolean</strong>, <strong>undefined</strong>, <strong>null</strong>, <strong>bigint</strong> và <strong>symbol</strong>.</p>
 <pre><code>const course = 'JavaScript cơ bản';
@@ -110,21 +143,47 @@ typeof published;   // 'boolean'</code></pre>
 <p><code>null</code> biểu diễn chủ ý “chưa có giá trị”, còn <code>undefined</code> thường cho biết giá trị chưa được gán. Với object và array, hãy nhớ biến giữ một tham chiếu tới dữ liệu.</p>`,
   },
   {
-    id: IDS.lessons[5], chapterIndex: 1, position: 3, type: 'DOCUMENT',
-    title: 'Cheat Sheet: Biến và kiểu dữ liệu', slug: 'cheat-sheet-variables',
+    id: IDS.lessons[5],
+    chapterIndex: 1,
+    position: 3,
+    type: 'DOCUMENT',
+    title: 'Cheat Sheet: Biến và kiểu dữ liệu',
+    slug: 'cheat-sheet-variables',
     document: {
       fileName: 'cheat-sheet-bien-va-kieu-du-lieu.pdf',
-      lines: ['JAVASCRIPT CHEAT SHEET - BIEN VA KIEU DU LIEU', '', 'const: khong gan lai bien; uu tien su dung mac dinh.', 'let: cho phep gan lai; co block scope.', 'var: function scope; tranh dung trong code moi.', '', 'Primitive: string, number, boolean, undefined, null, bigint, symbol.', 'Reference: object, array, function.', '', 'Kiem tra: typeof value', 'So sanh nghiem ngat: value === expected', 'Chuyen so an toan: Number(value), Number.isNaN(value)'],
+      lines: [
+        'JAVASCRIPT CHEAT SHEET - BIEN VA KIEU DU LIEU',
+        '',
+        'const: khong gan lai bien; uu tien su dung mac dinh.',
+        'let: cho phep gan lai; co block scope.',
+        'var: function scope; tranh dung trong code moi.',
+        '',
+        'Primitive: string, number, boolean, undefined, null, bigint, symbol.',
+        'Reference: object, array, function.',
+        '',
+        'Kiem tra: typeof value',
+        'So sanh nghiem ngat: value === expected',
+        'Chuyen so an toan: Number(value), Number.isNaN(value)',
+      ],
     },
   },
   {
-    id: IDS.lessons[6], chapterIndex: 2, position: 1, type: 'VIDEO',
-    title: 'Function cơ bản', slug: 'function-co-ban',
-    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg&t=5220s', durationSeconds: 720,
+    id: IDS.lessons[6],
+    chapterIndex: 2,
+    position: 1,
+    type: 'VIDEO',
+    title: 'Function cơ bản',
+    slug: 'function-co-ban',
+    externalUrl: 'https://www.youtube.com/watch?v=PkZNo7MFNFg&t=5220s',
+    durationSeconds: 720,
   },
   {
-    id: IDS.lessons[7], chapterIndex: 2, position: 2, type: 'TEXT',
-    title: 'Arrow Function', slug: 'arrow-function',
+    id: IDS.lessons[7],
+    chapterIndex: 2,
+    position: 2,
+    type: 'TEXT',
+    title: 'Arrow Function',
+    slug: 'arrow-function',
     textBody: `<h1>Arrow Function</h1>
 <p>Arrow function là cú pháp gọn để tạo hàm. Với một biểu thức duy nhất, giá trị được trả về ngầm định.</p>
 <pre><code>const double = number =&gt; number * 2;
@@ -143,17 +202,38 @@ const total = (price, quantity) =&gt; {
 <blockquote>Chọn cú pháp giúp ý định của hàm rõ ràng, thay vì luôn chọn phiên bản ngắn nhất.</blockquote>`,
   },
   {
-    id: IDS.lessons[8], chapterIndex: 2, position: 3, type: 'DOCUMENT',
-    title: 'Bài tập thực hành: Hàm', slug: 'practice-guide',
+    id: IDS.lessons[8],
+    chapterIndex: 2,
+    position: 3,
+    type: 'DOCUMENT',
+    title: 'Bài tập thực hành: Hàm',
+    slug: 'practice-guide',
     document: {
       fileName: 'bai-tap-thuc-hanh-ham-javascript.pdf',
-      lines: ['BAI TAP THUC HANH - HAM JAVASCRIPT', '', '1. Viet ham sum(a, b) tra ve tong hai so.', '2. Viet arrow function isEven(n) kiem tra so chan.', '3. Viet ham calculateTotal(items) tinh tong gia tri gio hang.', '4. Viet ham greet(name = "ban") co tham so mac dinh.', '5. Refactor mot doan code lap lai thanh ham tai su dung.', '', 'Tu kiem tra:', '- Ham co ten va trach nhiem ro rang?', '- Dau vao co duoc kiem tra?', '- Moi nhanh logic co gia tri tra ve hop ly?', '- Da thu voi du lieu bien va truong hop rong?'],
+      lines: [
+        'BAI TAP THUC HANH - HAM JAVASCRIPT',
+        '',
+        '1. Viet ham sum(a, b) tra ve tong hai so.',
+        '2. Viet arrow function isEven(n) kiem tra so chan.',
+        '3. Viet ham calculateTotal(items) tinh tong gia tri gio hang.',
+        '4. Viet ham greet(name = "ban") co tham so mac dinh.',
+        '5. Refactor mot doan code lap lai thanh ham tai su dung.',
+        '',
+        'Tu kiem tra:',
+        '- Ham co ten va trach nhiem ro rang?',
+        '- Dau vao co duoc kiem tra?',
+        '- Moi nhanh logic co gia tri tra ve hop ly?',
+        '- Da thu voi du lieu bien va truong hop rong?',
+      ],
     },
   },
 ];
 
 function escapePdfText(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+  return value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('(', '\\(')
+    .replaceAll(')', '\\)');
 }
 
 /** Builds a small, standards-compliant PDF without adding a runtime PDF dependency. */
@@ -180,14 +260,18 @@ export function buildSeedPdf(lines: readonly string[]): Buffer {
   }
   const xrefOffset = Buffer.byteLength(output);
   output += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  output += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  output += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+    .join('');
   output += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(output, 'ascii');
 }
 
 async function ensureInstructor(manager: EntityManager): Promise<string> {
   const existing = (await manager.query(
-    'SELECT id FROM users WHERE email = $1 LIMIT 1', [SAMPLE_INSTRUCTOR_EMAIL],
+    'SELECT id FROM users WHERE email = $1 LIMIT 1',
+    [SAMPLE_INSTRUCTOR_EMAIL],
   )) as Array<{ id: string }>;
   const instructorId = existing[0]?.id ?? IDS.instructor;
   if (existing.length === 0) {
@@ -199,14 +283,19 @@ async function ensureInstructor(manager: EntityManager): Promise<string> {
   }
   await manager.query(
     `INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'instructor')
-     ON CONFLICT (user_id, role_code) DO NOTHING`, [instructorId],
+     ON CONFLICT (user_id, role_code) DO NOTHING`,
+    [instructorId],
   );
   return instructorId;
 }
 
-async function ensureCourse(manager: EntityManager, instructorId: string): Promise<string> {
+async function ensureCourse(
+  manager: EntityManager,
+  instructorId: string,
+): Promise<string> {
   const existing = (await manager.query(
-    'SELECT id FROM courses WHERE slug = $1 LIMIT 1', [SAMPLE_COURSE_SLUG],
+    'SELECT id FROM courses WHERE slug = $1 LIMIT 1',
+    [SAMPLE_COURSE_SLUG],
   )) as Array<{ id: string }>;
   const courseId = existing[0]?.id ?? IDS.course;
   if (existing.length === 0) {
@@ -221,11 +310,17 @@ async function ensureCourse(manager: EntityManager, instructorId: string): Promi
        status = 'published', instructor_id = $5, owner_id = $5,
        published_at = COALESCE(published_at, now()), updated_at = now()
      WHERE id = $1`,
-    [courseId, 'JavaScript Cơ bản cho người mới',
+    [
+      courseId,
+      'JavaScript Cơ bản cho người mới',
       'Khóa học nhập môn JavaScript bằng tiếng Việt: từ môi trường học tập, biến và kiểu dữ liệu đến cách xây dựng hàm rõ ràng, dễ tái sử dụng.',
-      'Nắm vững nền tảng JavaScript qua 9 bài học thực tế bằng tiếng Việt.', instructorId],
+      'Nắm vững nền tảng JavaScript qua 9 bài học thực tế bằng tiếng Việt.',
+      instructorId,
+    ],
   );
-  await manager.query('DELETE FROM course_instructors WHERE course_id = $1', [courseId]);
+  await manager.query('DELETE FROM course_instructors WHERE course_id = $1', [
+    courseId,
+  ]);
   await manager.query(
     'INSERT INTO course_instructors(course_id, user_id) VALUES ($1, $2)',
     [courseId, instructorId],
@@ -233,8 +328,12 @@ async function ensureCourse(manager: EntityManager, instructorId: string): Promi
   return courseId;
 }
 
-async function writeDocuments(courseId: string): Promise<Map<string, { key: string; size: number }>> {
-  const root = resolve(process.env.LESSON_MEDIA_STORAGE_DIR ?? 'uploads/lessons');
+async function writeDocuments(
+  courseId: string,
+): Promise<Map<string, { key: string; size: number }>> {
+  const root = resolve(
+    process.env.LESSON_MEDIA_STORAGE_DIR ?? 'uploads/lessons',
+  );
   const files = new Map<string, { key: string; size: number }>();
   for (const lesson of SAMPLE_LESSONS) {
     if (!lesson.document) continue;
@@ -263,15 +362,25 @@ export async function seedSampleCourse(db: DataSource): Promise<void> {
     const documents = await writeDocuments(courseId);
 
     // The seed owns this curriculum. Reset only its progress/content so reruns are exact.
-    await manager.query('DELETE FROM lesson_progress WHERE course_id = $1', [courseId]);
+    await manager.query('DELETE FROM lesson_progress WHERE course_id = $1', [
+      courseId,
+    ]);
     await manager.query('DELETE FROM lessons WHERE course_id = $1', [courseId]);
-    await manager.query('DELETE FROM chapters WHERE course_id = $1', [courseId]);
+    await manager.query('DELETE FROM chapters WHERE course_id = $1', [
+      courseId,
+    ]);
 
     for (const chapter of SAMPLE_CHAPTERS) {
       await manager.query(
         `INSERT INTO chapters(id, course_id, title, description, position)
          VALUES ($1, $2, $3, $4, $5)`,
-        [chapter.id, courseId, chapter.title, chapter.description, chapter.position],
+        [
+          chapter.id,
+          courseId,
+          chapter.title,
+          chapter.description,
+          chapter.position,
+        ],
       );
     }
 
@@ -287,26 +396,51 @@ export async function seedSampleCourse(db: DataSource): Promise<void> {
            $1, $2, $3, $4, $5, $6, $7, $8, true,
            $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
          )`,
-        [lesson.id, courseId, SAMPLE_CHAPTERS[lesson.chapterIndex].id, lesson.title,
-          lesson.slug, lesson.type, lesson.position, lesson.isPreview ?? false,
-          lesson.textBody ?? null, lesson.externalUrl ?? null,
+        [
+          lesson.id,
+          courseId,
+          SAMPLE_CHAPTERS[lesson.chapterIndex].id,
+          lesson.title,
+          lesson.slug,
+          lesson.type,
+          lesson.position,
+          lesson.isPreview ?? false,
+          lesson.textBody ?? null,
+          lesson.externalUrl ?? null,
           lesson.type === 'VIDEO' ? 'YOUTUBE' : null,
-          lesson.durationSeconds ?? null, lesson.type === 'VIDEO' ? 'READY' : null,
-          document?.key ?? null, lesson.document?.fileName ?? null, document?.size ?? null,
+          lesson.durationSeconds ?? null,
+          lesson.type === 'VIDEO' ? 'READY' : null,
+          document?.key ?? null,
+          lesson.document?.fileName ?? null,
+          document?.size ?? null,
           lesson.type === 'DOCUMENT' ? true : null,
           lesson.type === 'DOCUMENT' ? 'application/pdf' : null,
-          lesson.type === 'DOCUMENT' ? 'PDF' : null],
+          lesson.type === 'DOCUMENT' ? 'PDF' : null,
+        ],
       );
     }
 
     const rows = (await manager.query(
       `SELECT c.position AS chapter_position, l.position AS lesson_position, l.slug
        FROM chapters c JOIN lessons l ON l.chapter_id = c.id
-       WHERE c.course_id = $1 ORDER BY c.position ASC, l.position ASC`, [courseId],
-    )) as Array<{ chapter_position: number; lesson_position: number; slug: string }>;
-    if (rows.length !== 9 || rows.some((row, index) =>
-      row.chapter_position !== Math.floor(index / 3) + 1 || row.lesson_position !== (index % 3) + 1)) {
-      throw new Error('Sample course verification failed: expected exactly 3 ordered chapters x 3 lessons');
+       WHERE c.course_id = $1 ORDER BY c.position ASC, l.position ASC`,
+      [courseId],
+    )) as Array<{
+      chapter_position: number;
+      lesson_position: number;
+      slug: string;
+    }>;
+    if (
+      rows.length !== 9 ||
+      rows.some(
+        (row, index) =>
+          row.chapter_position !== Math.floor(index / 3) + 1 ||
+          row.lesson_position !== (index % 3) + 1,
+      )
+    ) {
+      throw new Error(
+        'Sample course verification failed: expected exactly 3 ordered chapters x 3 lessons',
+      );
     }
   });
 }

@@ -2,8 +2,8 @@
 export const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 ).replace(/\/$/, "");
-// Mirrors role_code values seeded in apps/api/database/migrations/202609270003_access_foundation.mjs.
-export type Role = "student" | "instructor" | "admin";
+// Mirrors the role_code values seeded by the API migrations (access foundation, order audit trail).
+export type Role = "student" | "instructor" | "admin" | "finance_officer";
 export type User = {
   id: string;
   email: string;

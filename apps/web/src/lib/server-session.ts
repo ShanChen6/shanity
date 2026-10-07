@@ -53,6 +53,13 @@ export const requireRole = cache(async (role: Role): Promise<User> => {
   return user;
 });
 
+// Any one of `roles` suffices (e.g. the order console admits finance officers).
+export async function requireAnyRole(roles: readonly Role[]): Promise<User> {
+  const user = await requireUser();
+  if (!roles.some((role) => user.roles.includes(role))) redirect("/forbidden");
+  return user;
+}
+
 // Asks the API (the authority) whether the signed-in user may read a protected
 // resource, so a page can refuse to render before any client code runs.
 // Returns the HTTP status; 401 is left to the browser's refresh flow.

@@ -3,6 +3,7 @@ export const roleLabels: Record<string, string> = {
   student: "Học sinh",
   instructor: "Giảng viên",
   admin: "Quản trị viên",
+  finance_officer: "Nhân viên tài chính",
 };
 export function RoleBadges({ roles }: { roles: string[] }) {
   if (!roles.length) return <span className="text-muted">Chưa có vai trò</span>;

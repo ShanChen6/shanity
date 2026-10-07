@@ -78,6 +78,7 @@ export function loginUrl(destination: string) {
 // Landing page when login has no explicit return URL. Staff keep their portals.
 export function homeForRoles(roles: readonly Role[]): string {
   if (roles.includes("admin")) return "/admin";
+  if (roles.includes("finance_officer")) return "/admin/orders";
   if (roles.includes("instructor")) return "/instructor/courses";
   return "/my-learning";
 }

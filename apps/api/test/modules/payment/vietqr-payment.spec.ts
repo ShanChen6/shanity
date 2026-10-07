@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { learningApp, type Account } from '../../support/learning-fixture.js';
 
-describe('PAY1 VietQR payment engine', () => {
+describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
   let t: Awaited<ReturnType<typeof learningApp>>;
   let student: Account;
   let courseId: string;
@@ -18,9 +18,10 @@ describe('PAY1 VietQR payment engine', () => {
     student = await t.account();
     const course = await t.course(owner, 1);
     courseId = course.id;
-    await t.db.query('UPDATE courses SET price = 250000 WHERE id = $1', [
-      courseId,
-    ]);
+    await t.db.query(
+      `UPDATE courses SET access_type = 'PAID', price = 250000 WHERE id = $1`,
+      [courseId],
+    );
   });
 
   afterAll(async () => {
@@ -29,25 +30,60 @@ describe('PAY1 VietQR payment engine', () => {
   });
 
   const createOrder = () =>
-    t.http().post('/orders').set('Cookie', student.session).send({ courseId });
+    t
+      .http()
+      .post('/orders')
+      .set('Origin', process.env.WEB_ORIGIN!)
+      .set('Cookie', student.session)
+      .send({ courseIds: [courseId] });
   const webhook = (body: object, key = apiKey) =>
     t.http().post('/payments/webhook/vietqr').set('x-api-key', key).send(body);
 
   it('creates a dynamic QR, completes only from a valid webhook, and enrolls', async () => {
     const created = await createOrder().expect(201);
     expect(created.body).toMatchObject({
-      amount: 250000,
-      code: expect.stringMatching(/^SHAN[A-Z0-9]{6}$/),
+      subtotal: 250000,
+      discountTotal: 0,
+      finalTotal: 250000,
+      currency: 'VND',
+      status: 'PENDING',
+      code: expect.stringMatching(/^SHAN-\d{8}-[A-Z0-9]{4}$/),
+      items: [
+        {
+          courseId,
+          courseTitleSnapshot: 'Edge cases',
+          unitPriceSnapshot: 250000,
+          discountSnapshot: 0,
+          finalPriceSnapshot: 250000,
+        },
+      ],
     });
-    const qr = new URL(created.body.qrCodeUrl);
+    // The order itself is gateway-neutral; the QR comes from checkout.
+    expect(created.body.qrCodeUrl).toBeUndefined();
+    const checkout = await t
+      .http()
+      .post(`/orders/${created.body.orderId}/checkout`)
+      .set('Origin', process.env.WEB_ORIGIN!)
+      .set('Cookie', student.session)
+      .send({ provider: 'VIETQR' })
+      .expect(201);
+    expect(checkout.body).toMatchObject({
+      provider: 'VIETQR',
+      amount: 250000,
+      currency: 'VND',
+    });
+    const qr = new URL(checkout.body.qrCodeUrl);
     expect(qr.hostname).toBe('img.vietqr.io');
     expect(qr.searchParams.get('amount')).toBe('250000');
-    expect(qr.searchParams.get('addInfo')).toBe(created.body.code);
+    // Banks strip punctuation, so the memo is the code without dashes.
+    expect(qr.searchParams.get('addInfo')).toBe(
+      created.body.code.replaceAll('-', ''),
+    );
 
     await webhook({
       transactionId: `FT-${randomUUID()}`,
       amount: 250000,
-      transferContent: `PAY ${created.body.code}`,
+      transferContent: `PAY ${created.body.code.replaceAll('-', '')}`,
     })
       .expect(200)
       .expect({ status: 'COMPLETED' });
@@ -95,7 +131,7 @@ describe('PAY1 VietQR payment engine', () => {
     expect({ enrollments, payments }).toEqual({ enrollments: 1, payments: 1 });
   });
 
-  it('keeps a partial payment out of COMPLETED and grants no access', async () => {
+  it('keeps a partial payment out of COMPLETED, grants no access and leaves the order payable', async () => {
     await t.db.query(
       'DELETE FROM enrollments WHERE user_id=$1 AND course_id=$2',
       [student.id, courseId],
@@ -113,7 +149,8 @@ describe('PAY1 VietQR payment engine', () => {
       .get(`/orders/${order.orderId}/status`)
       .set('Cookie', student.session)
       .expect(200);
-    expect(status.body.status).toBe('PROCESSING');
+    // A short payment is booked as evidence but must not freeze the order.
+    expect(status.body.status).toBe('PENDING');
     const [{ count }] = await t.db.query(
       'SELECT count(*)::int AS count FROM enrollments WHERE user_id=$1 AND course_id=$2',
       [student.id, courseId],
