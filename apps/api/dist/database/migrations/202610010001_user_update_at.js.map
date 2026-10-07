@@ -1,1 +1,0 @@
-{"version":3,"file":"202610010001_user_update_at.js","sourceRoot":"","sources":["../../../src/database/migrations/202610010001_user_update_at.ts"],"names":[],"mappings":"AAEA,MAAM,OAAO,yBAAyB;IACpC,KAAK,CAAC,EAAE,CAAC,WAAwB;QAC/B,MAAM,WAAW,CAAC,KAAK,CAAC;;;;;;;;;;GAUzB,CAAC,CAAC;IACH,CAAC;IACD,KAAK,CAAC,IAAI,CAAC,YAAyB;QAClC,MAAM,IAAI,KAAK,CACb,kEAAkE,CACnE,CAAC;IACJ,CAAC;CACF"}
