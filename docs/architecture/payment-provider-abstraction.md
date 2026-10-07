@@ -142,7 +142,7 @@ class PaymentProviderFactory {
    PAYMENT_CURRENCY_NOT_SUPPORTED`).
 3. `returnUrl/cancelUrl` phải **cùng origin** với `WEB_ORIGIN` (chống open
    redirect, `400 INVALID_REDIRECT_URL`); mặc định
-   `<origin>/orders/<id>?checkout=success|cancelled`.
+   `<origin>/checkout/<mã đơn>?checkout=success|cancelled`.
 4. Gọi `provider.createPayment(...)` **ngoài** transaction DB: cổng chậm không
    giữ khóa Order và không chặn webhook của chính đơn đó. Mô tả sản phẩm lấy
    từ tên khóa học **đã chụp** trong `order_items`.
@@ -374,8 +374,9 @@ stateDiagram-v2
 
 | Endpoint | Ghi chú |
 | --- | --- |
-| `POST /orders` `{ courseIds }` | Tạo đơn trung lập với cổng; không còn trả QR |
-| `POST /orders/:id/checkout` | `201 { provider, providerTransactionId, paymentUrl?, qrCodeUrl?, amount, currency, expiresAt }` |
+| `POST /orders` `{ courseIds }` | Tạo đơn trung lập với cổng (idempotent theo người mua + tập khóa học khi còn đơn chưa thanh toán); không trả QR |
+| `POST /orders/:ref/checkout` | `201 { provider, providerTransactionId, paymentUrl?, qrCodeUrl?, transfer?, amount, currency, expiresAt }` (`transfer` = số tài khoản/tên/số tiền/nội dung cho nút Sao chép) |
+| `GET /payments/methods?currency=` | Cổng nào `registered`, `available` (đã cấu hình) và hỗ trợ tiền tệ |
 | `POST /payments/webhook/:provider` | `vietqr`, `stripe`, … ; `200 { status }` |
 
 | Mã | Khi nào |

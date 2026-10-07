@@ -158,6 +158,8 @@ export class CheckoutService {
         : null;
       return {
         provider: name,
+        // Has an adapter at all (false = not built yet, e.g. MoMo).
+        registered: provider !== null,
         available: Boolean(provider && (provider.isAvailable?.() ?? true)),
         supportsCurrency:
           !provider ||

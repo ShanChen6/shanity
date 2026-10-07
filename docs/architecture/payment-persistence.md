@@ -141,8 +141,8 @@ enrollment (quyết định chính sách truy cập, cần chốt riêng).
 | Endpoint | Mô tả |
 | --- | --- |
 | `POST /orders` `{ courseIds }` | Tạo đơn (1–20 khóa, không trùng; tối đa 10 đơn PENDING chưa hết hạn/người; cần `Origin`) |
-| `GET /orders`, `GET /orders/:id` | Lịch sử/chi tiết từ snapshot (chủ đơn; admin xem mọi đơn) |
-| `GET /orders/:id/status` | Trạng thái |
+| `GET /orders`, `GET /orders/:ref` | Lịch sử/chi tiết từ snapshot (`ref` = mã đơn hoặc UUID; chủ đơn; admin xem mọi đơn). Danh sách phân trang cho UI: `GET /student/orders` — xem [payment-student-ux.md](payment-student-ux.md) |
+| `GET /orders/:ref/status` | Trạng thái nhẹ `{ status, isPaid, expiresAt, serverTime }` |
 
 ## 8. Kiểm thử
 

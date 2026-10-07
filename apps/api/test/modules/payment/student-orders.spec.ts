@@ -185,7 +185,9 @@ describe('PAY14-16 student payment API', { timeout: 60_000 }, () => {
         available: true,
         supportsCurrency: false,
       });
-      expect(by.MOMO).toMatchObject({ available: false });
+      expect(by.MOMO).toMatchObject({ registered: false, available: false });
+      // registered but not configured in this environment
+      expect(by.STRIPE).toMatchObject({ registered: true, available: false });
       expect(by.STRIPE.supportsCurrency).toBe(true);
       await t.http().get('/payments/methods').expect(401);
     });
