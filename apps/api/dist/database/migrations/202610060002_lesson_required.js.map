@@ -1,1 +1,0 @@
-{"version":3,"file":"202610060002_lesson_required.js","sourceRoot":"","sources":["../../../src/database/migrations/202610060002_lesson_required.ts"],"names":[],"mappings":"AAEA,MAAM,OAAO,mCAAmC;IAC9C,KAAK,CAAC,EAAE,CAAC,WAAwB;QAC/B,MAAM,WAAW,CAAC,KAAK,CAAC;;;KAGvB,CAAC,CAAC;IACL,CAAC;IAED,KAAK,CAAC,IAAI,CAAC,WAAwB;QACjC,MAAM,WAAW,CAAC,KAAK,CAAC,6CAA6C,CAAC,CAAC;IACzE,CAAC;CACF"}

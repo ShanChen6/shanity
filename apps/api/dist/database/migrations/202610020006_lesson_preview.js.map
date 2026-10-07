@@ -1,1 +1,0 @@
-{"version":3,"file":"202610020006_lesson_preview.js","sourceRoot":"","sources":["../../../src/database/migrations/202610020006_lesson_preview.ts"],"names":[],"mappings":"AAEA,MAAM,OAAO,0BAA0B;IACrC,KAAK,CAAC,EAAE,CAAC,WAAwB;QAC/B,MAAM,WAAW,CAAC,KAAK,CAAC;;;KAGvB,CAAC,CAAC;IACL,CAAC;IAED,KAAK,CAAC,IAAI,CAAC,WAAwB;QACjC,MAAM,WAAW,CAAC,KAAK,CAAC,4CAA4C,CAAC,CAAC;IACxE,CAAC;CACF"}
