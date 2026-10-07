@@ -11,6 +11,7 @@ import { InstructorModule } from './modules/instructor/instructor.module.js';
 import { CurriculumEventsModule } from './modules/curriculum/curriculum-events.module.js';
 import { QuizModule } from './modules/quiz/quiz.module.js';
 import { ContentImportModule } from './modules/import/import.module.js';
+import { PaymentModule } from './modules/payment/payment.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ContentImportModule } from './modules/import/import.module.js';
     InstructorModule,
     QuizModule,
     ContentImportModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
