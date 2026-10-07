@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database.module.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Order } from './entities/order.entity.js';
 import { PaymentTransaction } from './entities/payment-transaction.entity.js';
+import { orderLookup } from './order-ref.js';
 import { toOrderView, type OrderView } from './order-view.js';
 
 /** Who is asking. There is deliberately no default: callers must say. */
@@ -22,26 +23,29 @@ const MAX_OFFSET = 1_000_000;
 export class OrderQueryService {
   constructor(private readonly database: DatabaseService) {}
 
+  /** `orderRef` is the order UUID or its buyer-facing code. */
   async getOrderDetails(
-    orderId: string,
+    orderRef: string,
     access: OrderAccess,
   ): Promise<OrderView> {
+    const lookup = orderLookup(orderRef);
+    if (!lookup) throw new NotFoundException('ORDER_NOT_FOUND');
     // REPEATABLE READ gives header, items and payments one consistent view.
     return this.database.dataSource.transaction(
       'REPEATABLE READ',
       async (manager) => {
         const order = await manager.getRepository(Order).findOneBy({
-          id: orderId,
+          ...lookup,
           ...('userId' in access && { userId: access.userId }),
         });
         if (!order) throw new NotFoundException('ORDER_NOT_FOUND');
         const [items, payments] = await Promise.all([
           manager.getRepository(OrderItem).find({
-            where: { orderId },
+            where: { orderId: order.id },
             order: { position: 'ASC', id: 'ASC' },
           }),
           manager.getRepository(PaymentTransaction).find({
-            where: { orderId },
+            where: { orderId: order.id },
             order: { receivedAt: 'ASC', createdAt: 'ASC', id: 'ASC' },
           }),
         ]);

@@ -76,9 +76,15 @@ export class OrderFactoryService {
   ): Promise<OrderView> {
     // UUIDs compare case-insensitively in PostgreSQL but not in a JS Map.
     const courseIds = requestedIds.map((id) => id.toLowerCase());
-    await this.assertPendingQuota(manager, userId);
     const courses = await this.lockPurchasableCourses(manager, courseIds);
     await this.assertNotEnrolled(manager, userId, courseIds);
+
+    // Idempotent create: the same buyer asking again for exactly these courses
+    // while an unpaid, unexpired order for them exists gets that order back
+    // (double click, back button, second tab) instead of another one.
+    const existing = await this.findReusableOrder(manager, userId, courseIds);
+    if (existing) return existing;
+    await this.assertPendingQuota(manager, userId);
 
     // `courseIds` order defines the item order the buyer sees.
     const byId = new Map(courses.map((course) => [course.id, course]));
@@ -115,6 +121,30 @@ export class OrderFactoryService {
     if (courses.some((course) => course.accessType !== CourseAccessType.PAID))
       throw new BadRequestException('COURSE_IS_FREE');
     return courses;
+  }
+
+  private async findReusableOrder(
+    manager: EntityManager,
+    userId: string,
+    courseIds: readonly string[],
+  ): Promise<OrderView | null> {
+    const [match] = await manager.query<Array<{ id: string }>>(
+      `SELECT o.id FROM orders o
+        WHERE o.user_id = $1 AND o.status = 'PENDING' AND o.expires_at > now()
+          AND (SELECT array_agg(i.course_id ORDER BY i.course_id)
+                 FROM order_items i WHERE i.order_id = o.id) = $2::uuid[]
+        ORDER BY o.created_at DESC LIMIT 1`,
+      [userId, [...courseIds].sort()],
+    );
+    if (!match) return null;
+    const order = await manager
+      .getRepository(Order)
+      .findOneByOrFail({ id: match.id });
+    const items = await manager.getRepository(OrderItem).find({
+      where: { orderId: order.id },
+      order: { position: 'ASC', id: 'ASC' },
+    });
+    return toOrderView(order, items);
   }
 
   private async assertPendingQuota(manager: EntityManager, userId: string) {

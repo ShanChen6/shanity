@@ -392,7 +392,7 @@ describe(
           'line_items[0][price_data][unit_amount]': '499000',
           'line_items[0][price_data][currency]': 'vnd',
           'metadata[order_id]': created.orderId,
-          success_url: `http://localhost:3000/orders/${created.orderId}?checkout=success`,
+          success_url: `http://localhost:3000/checkout/${created.code}?checkout=success`,
         });
         expect(
           call!.form!.get('line_items[0][price_data][product_data][name]'),

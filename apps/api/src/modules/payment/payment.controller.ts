@@ -5,7 +5,6 @@ import {
   Header,
   Param,
   ParseIntPipe,
-  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -19,19 +18,27 @@ import {
 import { CheckoutService } from './checkout.service.js';
 import { OrderFactoryService } from './order-factory.service.js';
 import { OrderQueryService } from './order-query.service.js';
-import { CreateOrderDto, InitiateCheckoutDto } from './payment.dto.js';
+import {
+  CreateOrderDto,
+  InitiateCheckoutDto,
+  StudentOrdersQueryDto,
+} from './payment.dto.js';
 import { PaymentService } from './payment.service.js';
+import { StudentOrdersService } from './student-orders.service.js';
 
-@Controller('orders')
+// Every route is served at both `/x` and `/api/v1/x`.
+@Controller(['orders', 'api/v1/orders'])
 @UseGuards(OriginGuard, SessionGuard)
 export class OrdersController {
   constructor(
     private readonly payments: PaymentService,
     private readonly factory: OrderFactoryService,
     private readonly queries: OrderQueryService,
+    private readonly students: StudentOrdersService,
     private readonly checkout: CheckoutService,
   ) {}
 
+  /** Create (or reuse the identical unpaid) order from a course page. */
   @Post()
   @Header('Cache-Control', 'no-store')
   create(@Req() req: AuthRequest, @Body() dto: CreateOrderDto) {
@@ -48,38 +55,57 @@ export class OrdersController {
     return this.queries.listUserOrders(req.principal.id, { limit, offset });
   }
 
-  @Get(':id')
+  /** `ref` is the order code (SHAN-YYYYMMDD-XXXX) or its UUID. */
+  @Get(':ref')
   @Header('Cache-Control', 'no-store')
-  detail(
-    @Req() req: AuthRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    const admin = req.principal.roles.includes('admin');
-    return this.queries.getOrderDetails(
-      id,
-      admin ? { staff: true } : { userId: req.principal.id },
-    );
+  detail(@Req() req: AuthRequest, @Param('ref') ref: string) {
+    return req.principal.roles.includes('admin')
+      ? this.queries.getOrderDetails(ref, { staff: true })
+      : this.students.get(req.principal.id, ref);
   }
 
-  @Post(':id/checkout')
+  @Post(':ref/checkout')
   @Header('Cache-Control', 'no-store')
   startCheckout(
     @Req() req: AuthRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('ref') ref: string,
     @Body() dto: InitiateCheckoutDto,
   ) {
-    return this.checkout.initiateCheckout(req.principal.id, id, dto.provider, {
+    return this.checkout.initiateCheckout(req.principal.id, ref, dto.provider, {
       returnUrl: dto.returnUrl,
       cancelUrl: dto.cancelUrl,
     });
   }
 
-  @Get(':id/status')
+  /** Lightweight poll target: `{ status, isPaid, expiresAt, serverTime }`. */
+  @Get(':ref/status')
   @Header('Cache-Control', 'no-store')
-  getStatus(
-    @Req() req: AuthRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    return this.payments.status(req.principal.id, id);
+  getStatus(@Req() req: AuthRequest, @Param('ref') ref: string) {
+    return this.payments.status(req.principal.id, ref);
+  }
+}
+
+@Controller(['student/orders', 'api/v1/student/orders'])
+@UseGuards(SessionGuard)
+export class StudentOrdersController {
+  constructor(private readonly students: StudentOrdersService) {}
+
+  @Get()
+  @Header('Cache-Control', 'no-store')
+  list(@Req() req: AuthRequest, @Query() query: StudentOrdersQueryDto) {
+    return this.students.list(req.principal.id, query);
+  }
+}
+
+@Controller(['payments/methods', 'api/v1/payments/methods'])
+@UseGuards(SessionGuard)
+export class PaymentMethodsController {
+  constructor(private readonly checkout: CheckoutService) {}
+
+  /** Which gateways exist, are configured, and can charge `?currency=`. */
+  @Get()
+  @Header('Cache-Control', 'no-store')
+  list(@Query('currency') currency?: string) {
+    return this.checkout.listMethods(currency?.toUpperCase());
   }
 }

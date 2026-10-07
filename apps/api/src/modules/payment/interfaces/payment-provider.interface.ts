@@ -33,7 +33,20 @@ export interface CreatePaymentResult {
    * own window is never rejected as "expired".
    */
   expiresAt?: Date;
+  /** Manual bank-transfer instructions to show next to the QR (copy buttons). */
+  transfer?: BankTransferInstructions;
   rawPayload: Record<string, any>;
+}
+
+export interface BankTransferInstructions {
+  bankId: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+  /** Minor units. */
+  amount: number;
+  /** The memo the payer must type; carries the order code. */
+  content: string;
 }
 
 export interface VerifyNotificationInput {
@@ -75,6 +88,8 @@ export interface PaymentProvider {
   readonly providerName: PaymentProviderEnum;
   /** ISO 4217 codes this gateway can charge. Checked before createPayment. */
   readonly supportedCurrencies: readonly string[];
+  /** Whether the gateway is configured and usable right now (default: yes). */
+  isAvailable?(): boolean;
 
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
 

@@ -1,21 +1,41 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.module.js';
-import { Order } from './entities/order.entity.js';
+import { OrderStatus } from './entities/order.entity.js';
+import { orderLookup } from './order-ref.js';
+
+export interface OrderStatusView {
+  status: OrderStatus;
+  /** Money received and the order fulfilled. */
+  isPaid: boolean;
+  expiresAt: Date;
+  serverTime: Date;
+}
 
 /** Order status polling and the expiry sweep. Settlement lives elsewhere. */
 @Injectable()
 export class PaymentService {
   constructor(private readonly database: DatabaseService) {}
 
-  async status(userId: string, id: string) {
-    const order = await this.database.dataSource.manager
-      .getRepository(Order)
-      .findOneBy({ id, userId });
-    if (!order) throw new NotFoundException('ORDER_NOT_FOUND');
+  /**
+   * Polling endpoint: a single indexed lookup, no entity hydration, no joins.
+   * `serverTime` lets the client keep its countdown honest despite clock skew.
+   */
+  async status(userId: string, orderRef: string): Promise<OrderStatusView> {
+    const lookup = orderLookup(orderRef);
+    if (!lookup) throw new NotFoundException('ORDER_NOT_FOUND');
+    const [row] = await this.database.dataSource.query<
+      Array<{ status: OrderStatus; expires_at: Date; now: Date }>
+    >(
+      `SELECT status, expires_at, now() AS now FROM orders
+        WHERE user_id = $1 AND ${'id' in lookup ? 'id' : 'code'} = $2`,
+      [userId, 'id' in lookup ? lookup.id : lookup.code],
+    );
+    if (!row) throw new NotFoundException('ORDER_NOT_FOUND');
     return {
-      orderId: order.id,
-      status: order.status,
-      expiresAt: order.expiresAt,
+      status: row.status,
+      isPaid: row.status === OrderStatus.COMPLETED,
+      expiresAt: row.expires_at,
+      serverTime: row.now,
     };
   }
 

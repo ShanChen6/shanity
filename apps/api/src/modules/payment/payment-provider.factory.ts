@@ -36,6 +36,13 @@ export class PaymentProviderFactory {
     return this.registry.has(name);
   }
 
+  /** Registered gateways that are configured and usable right now. */
+  listAvailable(): PaymentProvider[] {
+    return [...this.registry.values()].filter(
+      (provider) => provider.isAvailable?.() ?? true,
+    );
+  }
+
   list(): PaymentProviderEnum[] {
     return [...this.registry.keys()];
   }

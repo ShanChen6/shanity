@@ -1,9 +1,14 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsEnum,
+  IsIn,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -35,4 +40,24 @@ export class InitiateCheckoutDto {
   @IsString()
   @MaxLength(2048)
   cancelUrl?: string;
+}
+
+export class StudentOrdersQueryDto {
+  @IsOptional()
+  @IsIn(['all', 'pending', 'completed', 'cancelled'])
+  status?: 'all' | 'pending' | 'completed' | 'cancelled';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }

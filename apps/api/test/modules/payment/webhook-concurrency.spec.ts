@@ -263,9 +263,10 @@ describe(
           'SELECT status FROM payment_transactions WHERE order_id=$1',
           [order.orderId],
         );
-        expect(
-          ledger.map((r: { status: string }) => r.status).sort(),
-        ).toEqual(['FAILED', 'SUCCESS']);
+        expect(ledger.map((r: { status: string }) => r.status).sort()).toEqual([
+          'FAILED',
+          'SUCCESS',
+        ]);
       });
 
       it('the same Stripe event delivered 10x at once settles once; duplicate events are logged by event id', async () => {

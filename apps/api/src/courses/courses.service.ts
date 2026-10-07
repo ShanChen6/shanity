@@ -16,6 +16,7 @@ import { Chapter } from './chapter.entity.js';
 import { Enrollment } from './enrollment.entity.js';
 import { EnrollmentService } from './enrollment.service.js';
 import { CourseAccessType } from './course-access-type.js';
+import type { CourseCurrency } from './course-currency.js';
 import { CoursePricingService } from './pricing/course-pricing.service.js';
 import {
   assertCourseTransition,
@@ -48,6 +49,10 @@ interface PublicCourseDetailRow {
   thumbnail: string | null;
   publishedAt: Date | null;
   isSequential: boolean;
+  accessType: CourseAccessType;
+  // bigint arrives as a string from the raw query.
+  price: string;
+  currency: CourseCurrency;
   instructorId: string | null;
   instructorDisplayName: string | null;
   instructorAvatarKey: string | null;
@@ -312,6 +317,9 @@ export class CoursesService {
       .addSelect('course.thumbnail', 'thumbnail')
       .addSelect('course.publishedAt', 'publishedAt')
       .addSelect('course.isSequential', 'isSequential')
+      .addSelect('course.accessType', 'accessType')
+      .addSelect('course.price', 'price')
+      .addSelect('course.currency', 'currency')
       .addSelect('instructor.id', 'instructorId')
       .addSelect('instructor.displayName', 'instructorDisplayName')
       .addSelect('instructor.avatarKey', 'instructorAvatarKey')
@@ -339,6 +347,9 @@ export class CoursesService {
         thumbnail: course.thumbnail,
         publishedAt: course.publishedAt,
         isSequential: course.isSequential === true,
+        accessType: course.accessType,
+        price: Number(course.price),
+        currency: course.currency,
       },
       instructor: course.instructorId
         ? {

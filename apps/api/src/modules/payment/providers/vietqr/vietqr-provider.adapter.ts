@@ -46,6 +46,14 @@ export class VietQRProviderAdapter implements PaymentProvider {
     private readonly ledger: PaymentLedgerReader,
   ) {}
 
+  isAvailable() {
+    return Boolean(
+      process.env.VIETQR_ACCOUNT_NO &&
+      process.env.VIETQR_BANK_ID &&
+      process.env.BANK_WEBHOOK_API_KEY,
+    );
+  }
+
   // async: validation failures must surface as rejections, never sync throws.
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     if (input.currency !== 'VND')
@@ -73,6 +81,14 @@ export class VietQRProviderAdapter implements PaymentProvider {
       // A QR is deterministic per order, so re-initiating returns the same id.
       providerTransactionId: `VIETQR-${input.orderCode}`,
       qrCodeUrl,
+      transfer: {
+        bankId,
+        bankName: process.env.VIETQR_BANK_NAME ?? bankId,
+        accountNo,
+        accountName: process.env.VIETQR_ACCOUNT_NAME ?? '',
+        amount,
+        content: memo,
+      },
       rawPayload: { format, bankId, accountNo, amount, transferContent: memo },
     };
   }

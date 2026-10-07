@@ -14,6 +14,7 @@ import { CoursePublishabilityValidator } from './course-publishability.validator
 import { CourseAccessService } from './course-access.service.js';
 import { CoursePricingController } from './pricing/course-pricing.controller.js';
 import { CoursePricingService } from './pricing/course-pricing.service.js';
+import { EnrollmentsController } from './enrollments.controller.js';
 import { EnrollmentFulfillmentListener } from './enrollment-fulfillment.listener.js';
 import { EnrollmentService } from './enrollment.service.js';
 import { LessonsModule } from '../modules/lessons/lessons.module.js';
@@ -35,6 +36,7 @@ import { LessonAccessService } from '../modules/lessons/lesson-access.service.js
     CoursesController,
     PublicCoursesController,
     CoursePricingController,
+    EnrollmentsController,
     InstructorContentController,
     CourseMediaController,
     VideoPlaybackController,

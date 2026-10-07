@@ -349,7 +349,13 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
         let index = 0;
         return () => codes[Math.min(index++, codes.length - 1)]!;
       };
-      const user = await t.account();
+      // A repeated identical request by one buyer would reuse their order, so
+      // each colliding order belongs to a different buyer.
+      const [user, user2, user3] = await Promise.all([
+        t.account(),
+        t.account(),
+        t.account(),
+      ]);
       const taken = uniqueCode();
       const fresh = `SHAN-20260102-${uid().slice(0, 4)}`;
       const first = await new OrderFactoryService(
@@ -361,13 +367,13 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       const second = await new OrderFactoryService(
         database,
         sequence([taken, fresh]),
-      ).createOrder(user.id, { courseIds: [courseId] });
+      ).createOrder(user2.id, { courseIds: [courseId] });
       expect(second.code).toBe(fresh);
 
       const itemsBefore = await count('order_items');
       await expect(
         new OrderFactoryService(database, sequence([taken])).createOrder(
-          user.id,
+          user3.id,
           { courseIds: [courseId] },
         ),
       ).rejects.toMatchObject({ status: 409 });
@@ -640,11 +646,11 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
 
     it('is idempotent per provider event and rejects id reuse across orders', async () => {
       const courseId = await paidCourse(100000);
-      const user = await t.account();
+      const [user, user2] = await Promise.all([t.account(), t.account()]);
       const first = await factory.createOrder(user.id, {
         courseIds: [courseId],
       });
-      const second = await factory.createOrder(user.id, {
+      const second = await factory.createOrder(user2.id, {
         courseIds: [courseId],
       });
       const database = t.app.get(DatabaseService);
@@ -755,20 +761,39 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
     });
 
     it('caps unpaid orders per buyer and frees the quota when they expire', async () => {
-      const courseId = await paidCourse(100000);
+      const courses = [];
+      for (let i = 0; i < 11; i++) courses.push(await paidCourse(100000));
       const user = await t.account();
-      for (let i = 0; i < 10; i++)
+      for (const courseId of courses.slice(0, 10))
         await placeOrder(user, [courseId]).expect(201);
-      await placeOrder(user, [courseId])
+      await placeOrder(user, [courses[10]!])
         .expect(429)
         .expect(({ body }) =>
           expect(body.message).toBe('TOO_MANY_PENDING_ORDERS'),
         );
+      // asking again for an order that already exists is not a new order
+      await placeOrder(user, [courses[0]!]).expect(201);
       await t.db.query(
         `UPDATE orders SET expires_at = now() - interval '1 minute' WHERE user_id=$1`,
         [user.id],
       );
-      await placeOrder(user, [courseId]).expect(201);
+      await placeOrder(user, [courses[10]!]).expect(201);
+    });
+
+    it('returns the same unpaid order for a repeated identical request', async () => {
+      const a = await paidCourse(100000);
+      const b = await paidCourse(200000);
+      const user = await t.account();
+      const first = (await placeOrder(user, [a, b]).expect(201)).body;
+      const again = (await placeOrder(user, [b, a]).expect(201)).body;
+      expect(again.orderId).toBe(first.orderId);
+      expect(again.code).toBe(first.code);
+      // a different set, or a finished order, is a new order
+      expect((await placeOrder(user, [a]).expect(201)).body.orderId).not.toBe(
+        first.orderId,
+      );
+      await pay(first.code, 300000).expect(200);
+      expect(await count('orders WHERE user_id=$1', [user.id])).toBe(2);
     });
 
     it('requires a same-origin request for order mutations', async () => {

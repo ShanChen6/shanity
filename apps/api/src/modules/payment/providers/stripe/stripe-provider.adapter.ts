@@ -46,6 +46,12 @@ export class StripeProviderAdapter implements PaymentProvider {
 
   constructor(@Inject(PAYMENT_HTTP_FETCH) private readonly http: FetchLike) {}
 
+  isAvailable() {
+    return Boolean(
+      process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  }
+
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     const currency = input.currency.toUpperCase();
     if (!(this.supportedCurrencies as readonly string[]).includes(currency))

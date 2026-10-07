@@ -50,12 +50,10 @@ export class CourseOwnershipGuard implements CanActivate {
 
     let courseId = resourceId;
     if (options.resource === 'chapter') {
-      const chapter = await this.dataSource
-        .getRepository(Chapter)
-        .findOne({
-          where: { id: resourceId },
-          select: { id: true, courseId: true },
-        });
+      const chapter = await this.dataSource.getRepository(Chapter).findOne({
+        where: { id: resourceId },
+        select: { id: true, courseId: true },
+      });
       if (!chapter) throw new NotFoundException('Chapter not found');
       courseId = chapter.courseId;
     }

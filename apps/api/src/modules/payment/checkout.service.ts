@@ -9,7 +9,11 @@ import { DatabaseService } from '../../database/database.module.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Order, OrderStatus } from './entities/order.entity.js';
 import { PaymentTransactionStatus } from './entities/payment-transaction.entity.js';
-import type { PaymentProviderEnum } from './interfaces/index.js';
+import {
+  PaymentProviderEnum,
+  type BankTransferInstructions,
+} from './interfaces/index.js';
+import { orderLookup } from './order-ref.js';
 import { toMinorUnits } from './money.js';
 import { PaymentProviderFactory } from './payment-provider.factory.js';
 import { PaymentTransactionService } from './payment-transaction.service.js';
@@ -30,6 +34,8 @@ export interface CheckoutResult {
   qrCodeUrl?: string;
   amount: number;
   currency: string;
+  /** Bank-transfer details for the copy buttons (bank-transfer gateways only). */
+  transfer?: BankTransferInstructions;
   /** The order stays payable until at least this moment. */
   expiresAt: Date;
 }
@@ -52,17 +58,19 @@ export class CheckoutService {
 
   async initiateCheckout(
     userId: string,
-    orderId: string,
+    orderRef: string,
     providerName: PaymentProviderEnum,
     options: CheckoutOptions = {},
   ): Promise<CheckoutResult> {
     const provider = this.factory.getProvider(providerName);
     const manager = this.database.dataSource.manager;
 
-    const order = await manager
-      .getRepository(Order)
-      .findOneBy({ id: orderId, userId });
+    const lookup = orderLookup(orderRef);
+    const order = lookup
+      ? await manager.getRepository(Order).findOneBy({ ...lookup, userId })
+      : null;
     if (!order) throw new NotFoundException('ORDER_NOT_FOUND');
+    const orderId = order.id;
     this.assertPayable(order);
     if (!provider.supportedCurrencies.includes(order.currency))
       throw new BadRequestException('PAYMENT_CURRENCY_NOT_SUPPORTED');
@@ -130,9 +138,31 @@ export class CheckoutService {
         providerTransactionId: payment.providerTransactionId,
         paymentUrl: payment.paymentUrl,
         qrCodeUrl: payment.qrCodeUrl,
+        transfer: payment.transfer,
         amount: locked.finalTotal,
         currency: locked.currency,
         expiresAt,
+      };
+    });
+  }
+
+  /**
+   * Gateways the buyer can pick for an order in `currency`. Unconfigured
+   * gateways are reported as unavailable (the UI greys them out) rather than
+   * hidden, so a half-configured environment is visible.
+   */
+  listMethods(currency?: string) {
+    return Object.values(PaymentProviderEnum).map((name) => {
+      const provider = this.factory.has(name)
+        ? this.factory.getProvider(name)
+        : null;
+      return {
+        provider: name,
+        available: Boolean(provider && (provider.isAvailable?.() ?? true)),
+        supportsCurrency:
+          !provider ||
+          currency === undefined ||
+          provider.supportedCurrencies.includes(currency),
       };
     });
   }
@@ -162,11 +192,11 @@ export class CheckoutService {
     return {
       returnUrl: allowed(
         options.returnUrl,
-        `${origin}/orders/${order.id}?checkout=success`,
+        `${origin}/checkout/${order.code}?checkout=success`,
       ),
       cancelUrl: allowed(
         options.cancelUrl,
-        `${origin}/orders/${order.id}?checkout=cancelled`,
+        `${origin}/checkout/${order.code}?checkout=cancelled`,
       ),
     };
   }

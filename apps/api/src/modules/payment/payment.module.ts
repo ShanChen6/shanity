@@ -10,7 +10,12 @@ import {
 } from './interfaces/index.js';
 import { OrderFactoryService } from './order-factory.service.js';
 import { OrderQueryService } from './order-query.service.js';
-import { OrdersController } from './payment.controller.js';
+import {
+  OrdersController,
+  PaymentMethodsController,
+  StudentOrdersController,
+} from './payment.controller.js';
+import { StudentOrdersService } from './student-orders.service.js';
 import { PaymentExpirationWorker } from './payment-expiration.worker.js';
 import { PaymentProviderFactory } from './payment-provider.factory.js';
 import { PaymentReconciliationService } from './payment-reconciliation.service.js';
@@ -31,12 +36,18 @@ import { WebhookProcessorService } from './webhook-processor.service.js';
  */
 @Module({
   imports: [DatabaseModule, AuthModule, PaymentEventsModule],
-  controllers: [OrdersController, WebhookController],
+  controllers: [
+    OrdersController,
+    StudentOrdersController,
+    PaymentMethodsController,
+    WebhookController,
+  ],
   providers: [
     PaymentService,
     PaymentTransactionService,
     OrderFactoryService,
     OrderQueryService,
+    StudentOrdersService,
     CheckoutService,
     PaymentSettlementService,
     WebhookProcessorService,
