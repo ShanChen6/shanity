@@ -80,4 +80,36 @@ export class QuizPublishingService {
     const { id, title, version, status, publishedAt } = result.published;
     return { id, title, version, status, publishedAt };
   }
+
+  /**
+   * PUBLISHED -> DRAFT as version N+1, so the live authoring rows can be
+   * edited and published again. Attempts already started keep grading and
+   * displaying from their own snapshot; new starts wait for the republish.
+   */
+  async openNewVersion(quizId: string, courseId: string | null) {
+    const opened = await this.dataSource.transaction(async (manager) => {
+      const quizzes = manager.getRepository(QuizEntity);
+      const quiz = await quizzes.findOne({
+        where: { id: quizId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!quiz) throw new NotFoundException(QUIZ_NOT_FOUND);
+      if (quiz.status !== QuizStatus.PUBLISHED)
+        throw conflict('QUIZ_NOT_PUBLISHED');
+      await quizzes.update(quizId, {
+        status: QuizStatus.DRAFT,
+        version: () => 'version + 1',
+        updatedAt: () => 'now()',
+      });
+      return quizzes.findOneByOrFail({ id: quizId });
+    });
+    // The quiz stops counting towards progress until it is republished.
+    if (courseId)
+      this.curriculum.emitChanged({
+        courseId,
+        source: 'POST /admin/quizzes/:id/versions',
+      });
+    const { id, title, version, status, publishedAt } = opened;
+    return { id, title, version, status, publishedAt };
+  }
 }

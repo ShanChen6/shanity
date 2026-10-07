@@ -8,11 +8,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, } from 'class-validator';
-import { GradingPolicy, QuizScope, QuizStatus, ReviewPolicy, } from '../entities/quiz.entity.js';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, } from 'class-validator';
+import { GradingPolicy, QuizDifficulty, QuizScope, QuizStatus, ReviewPolicy, } from '../entities/quiz.entity.js';
 const trimString = ({ value }) => typeof value === 'string' ? value.trim() : value;
 const present = (_object, value) => value !== undefined;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const normalizeTags = ({ value }) => Array.isArray(value)
+    ? [
+        ...new Set(value.map((tag) => typeof tag === 'string' ? tag.trim().toLowerCase() : tag)),
+    ]
+    : value;
+const TAG = /^[\p{L}\p{N}][\p{L}\p{N} +#.-]*$/u;
 class QuizSettingsDto {
     slug;
     description;
@@ -24,6 +30,8 @@ class QuizSettingsDto {
     gradingPolicy;
     shuffleQuestions;
     shuffleOptions;
+    difficulty;
+    tags;
 }
 __decorate([
     IsOptional(),
@@ -84,6 +92,24 @@ __decorate([
     IsBoolean(),
     __metadata("design:type", Boolean)
 ], QuizSettingsDto.prototype, "shuffleOptions", void 0);
+__decorate([
+    IsOptional(),
+    IsEnum(QuizDifficulty),
+    __metadata("design:type", Object)
+], QuizSettingsDto.prototype, "difficulty", void 0);
+__decorate([
+    ValidateIf(present),
+    Transform(normalizeTags),
+    IsArray(),
+    ArrayMaxSize(10),
+    IsString({ each: true }),
+    Length(1, 32, { each: true }),
+    Matches(TAG, {
+        each: true,
+        message: 'tags are letters, digits, spaces and + # . -',
+    }),
+    __metadata("design:type", Array)
+], QuizSettingsDto.prototype, "tags", void 0);
 export class UpdateQuizDto extends QuizSettingsDto {
     title;
 }

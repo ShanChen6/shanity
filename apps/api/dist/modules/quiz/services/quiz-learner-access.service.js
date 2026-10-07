@@ -7,7 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { ForbiddenException, Injectable, NotFoundException, } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CourseAccessService } from '../../../courses/course-access.service.js';
 import { rejectLessonAccess } from '../../lessons/guards/lesson-access.guard.js';
@@ -19,7 +19,9 @@ export const QUIZ_NOT_FOUND = {
     message: 'QUIZ_NOT_FOUND',
     code: 'QUIZ_NOT_FOUND',
 };
-export const quizForbidden = (code) => new ForbiddenException({ statusCode: 403, message: code, code });
+export const quizForbidden = (code, extra = {}) => new ForbiddenException({ statusCode: 403, message: code, code, ...extra });
+export const QUIZ_FORBIDDEN = 'QUIZ_FORBIDDEN';
+export const TARGET_COURSE_FORBIDDEN = 'TARGET_COURSE_FORBIDDEN';
 let QuizLearnerAccessService = class QuizLearnerAccessService {
     dataSource;
     resolver;
@@ -36,25 +38,36 @@ let QuizLearnerAccessService = class QuizLearnerAccessService {
             .getRepository(QuizEntity)
             .findOneBy({ id: quizId });
         if (!quiz)
-            throw new NotFoundException(QUIZ_NOT_FOUND);
+            throw quizForbidden(QUIZ_FORBIDDEN);
         return quiz;
     }
-    async loadPublishedQuiz(quizId, manager) {
-        const quiz = await this.loadQuiz(quizId, manager);
-        if (quiz.status !== QuizStatus.PUBLISHED)
-            throw new NotFoundException(QUIZ_NOT_FOUND);
+    async loadPublishedQuiz(quizId, manager, lock = false) {
+        const quiz = await (manager ?? this.dataSource.manager)
+            .getRepository(QuizEntity)
+            .findOne({
+            where: { id: quizId },
+            ...(lock && { lock: { mode: 'pessimistic_read' } }),
+        });
+        if (!quiz || quiz.status !== QuizStatus.PUBLISHED)
+            throw quizForbidden(QUIZ_FORBIDDEN);
         return quiz;
     }
     async assertCanTake(principal, quiz) {
         if (await this.authorization.authorize(principal, quiz))
             return;
         if (quiz.scope === QuizScope.STANDALONE)
-            throw quizForbidden('QUIZ_NOT_AVAILABLE');
+            return;
         if (quiz.scope === QuizScope.LESSON) {
             const access = await this.courseAccess.canAccessLesson(principal.id, quiz.targetId, { allowPreview: false });
-            if (!access.granted)
+            if (access.granted)
+                return;
+            if (access.reason === 'PREREQUISITE_LESSON_NOT_COMPLETED')
                 rejectLessonAccess(access);
-            return;
+            throw targetForbidden(access.reason === 'ENROLLMENT_SUSPENDED'
+                ? 'ENROLLMENT_SUSPENDED'
+                : access.reason === 'ENROLLMENT_REQUIRED'
+                    ? 'ENROLLMENT_REQUIRED'
+                    : 'TARGET_UNAVAILABLE');
         }
         let courseId;
         try {
@@ -62,7 +75,7 @@ let QuizLearnerAccessService = class QuizLearnerAccessService {
         }
         catch (error) {
             if (error instanceof QuizTargetNotFoundError)
-                throw quizForbidden('QUIZ_NOT_AVAILABLE');
+                throw targetForbidden('TARGET_UNAVAILABLE');
             throw error;
         }
         const [course] = await this.dataSource.query(`SELECT course.status,
@@ -73,11 +86,11 @@ let QuizLearnerAccessService = class QuizLearnerAccessService {
          ON enrollment.course_id = course.id AND enrollment.user_id = $2
        WHERE course.id = $1`, [courseId, principal.id]);
         if (!course || course.status !== 'published')
-            throw quizForbidden('COURSE_UNAVAILABLE');
+            throw targetForbidden('TARGET_UNAVAILABLE');
         if (!course.enrolled)
-            throw quizForbidden('ENROLLMENT_REQUIRED');
+            throw targetForbidden('ENROLLMENT_REQUIRED');
         if (course.revoked)
-            throw quizForbidden('ENROLLMENT_SUSPENDED');
+            throw targetForbidden('ENROLLMENT_SUSPENDED');
     }
 };
 QuizLearnerAccessService = __decorate([
@@ -88,4 +101,5 @@ QuizLearnerAccessService = __decorate([
         CourseAccessService])
 ], QuizLearnerAccessService);
 export { QuizLearnerAccessService };
+const targetForbidden = (reason) => quizForbidden(TARGET_COURSE_FORBIDDEN, { reason });
 //# sourceMappingURL=quiz-learner-access.service.js.map

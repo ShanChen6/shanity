@@ -21,7 +21,11 @@ const QUIZ_STATS_JOIN = `
       count(*) FILTER (WHERE result.passed)::int AS passed,
       count(*) FILTER (
         WHERE course_quiz.is_required AND result.passed
-      )::int AS passed_required
+      )::int AS passed_required,
+      count(*) FILTER (
+        WHERE CASE WHEN course_quiz.is_required THEN result.passed
+          ELSE result.submitted END
+      )::int AS completed
     FROM (${courseQuizzesSql('course.id')}) course_quiz
     CROSS JOIN LATERAL (
       SELECT EXISTS (
@@ -30,7 +34,13 @@ const QUIZ_STATS_JOIN = `
           AND attempt.quiz_id = course_quiz.id
           AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
           AND attempt.is_passed
-      ) AS passed
+      ) AS passed,
+      EXISTS (
+        SELECT 1 FROM quiz_attempts attempt
+        WHERE attempt.user_id = enrollment.user_id
+          AND attempt.quiz_id = course_quiz.id
+          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+      ) AS submitted
     ) result
   ) quiz_stats ON true`;
 let CourseProgressCalculatorService = class CourseProgressCalculatorService {
@@ -153,6 +163,7 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
       MAX(quiz_stats.required) AS "totalRequiredQuizzes",
       MAX(quiz_stats.passed) AS "passedQuizzes",
       MAX(quiz_stats.passed_required) AS "passedRequiredQuizzes",
+      MAX(quiz_stats.completed) AS "completedQuizzes",
       enrollment.last_accessed_lesson_id AS "lastAccessedLessonId",
       COALESCE(
         enrollment.last_accessed_at,
@@ -169,7 +180,8 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
         const totalRequiredQuizzes = Number(row.totalRequiredQuizzes ?? 0);
         const passedQuizzes = Number(row.passedQuizzes ?? 0);
         const passedRequiredQuizzes = Number(row.passedRequiredQuizzes ?? 0);
-        const percentage = progressPercentage(completedRequiredLessons + passedQuizzes, totalRequiredLessons + totalQuizzes);
+        const completedQuizzes = Number(row.completedQuizzes ?? 0);
+        const percentage = progressPercentage(completedRequiredLessons + completedQuizzes, totalRequiredLessons + totalQuizzes);
         return {
             courseId: row.courseId,
             userId: row.userId,
@@ -181,6 +193,7 @@ let CourseProgressCalculatorService = class CourseProgressCalculatorService {
             totalRequiredQuizzes,
             passedQuizzes,
             passedRequiredQuizzes,
+            completedQuizzes,
             percentage,
             isCompleted: completedRequiredLessons >= totalRequiredLessons &&
                 passedRequiredQuizzes >= totalRequiredQuizzes,

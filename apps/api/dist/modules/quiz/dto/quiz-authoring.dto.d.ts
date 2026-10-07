@@ -1,4 +1,4 @@
-import { GradingPolicy, QuizScope, QuizStatus, ReviewPolicy } from '../entities/quiz.entity.js';
+import { GradingPolicy, QuizDifficulty, QuizScope, QuizStatus, ReviewPolicy } from '../entities/quiz.entity.js';
 declare abstract class QuizSettingsDto {
     slug?: string | null;
     description?: string | null;
@@ -10,6 +10,8 @@ declare abstract class QuizSettingsDto {
     gradingPolicy?: GradingPolicy;
     shuffleQuestions?: boolean;
     shuffleOptions?: boolean;
+    difficulty?: QuizDifficulty | null;
+    tags?: string[];
 }
 export declare class UpdateQuizDto extends QuizSettingsDto {
     title?: string;

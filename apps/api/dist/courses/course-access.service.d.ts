@@ -3,6 +3,7 @@ export type PrerequisiteLesson = {
     id: string;
     title: string;
     slug: string;
+    quizId?: string | null;
 };
 export type LessonAccessResult = {
     granted: boolean;

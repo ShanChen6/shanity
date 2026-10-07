@@ -38,6 +38,9 @@ let QuizAuthoringController = class QuizAuthoringController {
     publish(req) {
         return this.publishing.publish(req.quiz.id, req.quiz.courseId);
     }
+    openNewVersion(req) {
+        return this.publishing.openNewVersion(req.quiz.id, req.quiz.courseId);
+    }
     remove(req) {
         return this.authoring.remove(req.quiz.id, req.quiz.courseId);
     }
@@ -89,6 +92,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], QuizAuthoringController.prototype, "publish", null);
+__decorate([
+    Post(':id/versions'),
+    UseGuards(QuizAuthorizationGuard),
+    Header('Cache-Control', 'private, no-store'),
+    __param(0, Req()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], QuizAuthoringController.prototype, "openNewVersion", null);
 __decorate([
     Delete(':id'),
     UseGuards(QuizAuthorizationGuard),

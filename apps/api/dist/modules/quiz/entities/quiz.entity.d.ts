@@ -12,10 +12,15 @@ export declare enum QuizStatus {
     ARCHIVED = "ARCHIVED"
 }
 export declare enum ReviewPolicy {
-    ALWAYS = "ALWAYS",
+    AFTER_SUBMIT = "AFTER_SUBMIT",
     AFTER_PASS = "AFTER_PASS",
     AFTER_EXHAUSTED = "AFTER_EXHAUSTED",
     NEVER = "NEVER"
+}
+export declare enum QuizDifficulty {
+    BEGINNER = "BEGINNER",
+    INTERMEDIATE = "INTERMEDIATE",
+    ADVANCED = "ADVANCED"
 }
 export declare enum GradingPolicy {
     HIGHEST = "HIGHEST",
@@ -35,6 +40,8 @@ export declare class QuizEntity {
     isRequired: boolean;
     reviewPolicy: ReviewPolicy;
     gradingPolicy: GradingPolicy;
+    difficulty: QuizDifficulty | null;
+    tags: string[];
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
     version: number;

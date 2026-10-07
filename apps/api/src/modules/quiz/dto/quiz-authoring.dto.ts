@@ -1,5 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -15,6 +17,7 @@ import {
 } from 'class-validator';
 import {
   GradingPolicy,
+  QuizDifficulty,
   QuizScope,
   QuizStatus,
   ReviewPolicy,
@@ -25,6 +28,18 @@ const trimString = ({ value }: { value: unknown }) =>
 // Required-if-present: rejects null for NOT NULL columns, unlike @IsOptional.
 const present = (_object: object, value: unknown) => value !== undefined;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Trimmed, lowercased and de-duplicated before validation.
+const normalizeTags = ({ value }: { value: unknown }) =>
+  Array.isArray(value)
+    ? [
+        ...new Set(
+          value.map((tag) =>
+            typeof tag === 'string' ? tag.trim().toLowerCase() : tag,
+          ),
+        ),
+      ]
+    : value;
+const TAG = /^[\p{L}\p{N}][\p{L}\p{N} +#.-]*$/u;
 
 /**
  * Editable quiz settings. Only declared properties pass the global whitelist
@@ -82,6 +97,23 @@ abstract class QuizSettingsDto {
   @ValidateIf(present)
   @IsBoolean()
   shuffleOptions?: boolean;
+
+  // Discovery metadata; null clears the difficulty.
+  @IsOptional()
+  @IsEnum(QuizDifficulty)
+  difficulty?: QuizDifficulty | null;
+
+  @ValidateIf(present)
+  @Transform(normalizeTags)
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @Length(1, 32, { each: true })
+  @Matches(TAG, {
+    each: true,
+    message: 'tags are letters, digits, spaces and + # . -',
+  })
+  tags?: string[];
 }
 
 // Partial update: omitted properties keep their value. No scope/targetId.

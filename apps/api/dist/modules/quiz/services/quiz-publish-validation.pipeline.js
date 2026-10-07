@@ -8,7 +8,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ReviewPolicy } from '../entities/quiz.entity.js';
+import { QuizScope, ReviewPolicy, } from '../entities/quiz.entity.js';
 import { QuizQuestionEntity } from '../entities/quiz-question.entity.js';
 import { validateQuizStructure } from './quiz-structure.js';
 import { QuizTargetValidationService } from './quiz-target-validation.service.js';
@@ -28,6 +28,8 @@ let QuizPublishValidationPipeline = class QuizPublishValidationPipeline {
             const { code } = error.getResponse();
             issues.push({ code });
         }
+        if (quiz.scope === QuizScope.STANDALONE && !quiz.slug)
+            issues.push({ code: 'STANDALONE_QUIZ_REQUIRES_SLUG' });
         const questions = await manager.getRepository(QuizQuestionEntity).find({
             where: { quizId: quiz.id },
             relations: { options: true },

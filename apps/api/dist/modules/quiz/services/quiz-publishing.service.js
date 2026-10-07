@@ -64,6 +64,32 @@ let QuizPublishingService = class QuizPublishingService {
         const { id, title, version, status, publishedAt } = result.published;
         return { id, title, version, status, publishedAt };
     }
+    async openNewVersion(quizId, courseId) {
+        const opened = await this.dataSource.transaction(async (manager) => {
+            const quizzes = manager.getRepository(QuizEntity);
+            const quiz = await quizzes.findOne({
+                where: { id: quizId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!quiz)
+                throw new NotFoundException(QUIZ_NOT_FOUND);
+            if (quiz.status !== QuizStatus.PUBLISHED)
+                throw conflict('QUIZ_NOT_PUBLISHED');
+            await quizzes.update(quizId, {
+                status: QuizStatus.DRAFT,
+                version: () => 'version + 1',
+                updatedAt: () => 'now()',
+            });
+            return quizzes.findOneByOrFail({ id: quizId });
+        });
+        if (courseId)
+            this.curriculum.emitChanged({
+                courseId,
+                source: 'POST /admin/quizzes/:id/versions',
+            });
+        const { id, title, version, status, publishedAt } = opened;
+        return { id, title, version, status, publishedAt };
+    }
 };
 QuizPublishingService = __decorate([
     Injectable(),

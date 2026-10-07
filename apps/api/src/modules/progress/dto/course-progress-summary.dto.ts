@@ -10,7 +10,9 @@ export class CourseProgressSummaryDto {
   totalRequiredQuizzes!: number;
   passedQuizzes!: number;
   passedRequiredQuizzes!: number;
-  // Learning progress for the UI bar: lessons and quizzes done / total.
+  // Quiz steps done: required ones passed, optional ones submitted.
+  completedQuizzes!: number;
+  // Learning progress for the UI bar: lessons and quiz steps done / total.
   percentage!: number;
   // Course completion gate: required lessons + required quizzes passed.
   // Independent of percentage; optional quizzes never block it.

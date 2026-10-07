@@ -108,7 +108,10 @@ describe('CourseAccessService', () => {
         reason: 'PREREQUISITE_LESSON_NOT_COMPLETED',
         requiredLesson,
       });
-      expect(query.mock.calls[0][0]).toContain('earlier.is_required = true');
+      // Only required lessons gate by completion; any lesson gates by its
+      // required quiz.
+      expect(query.mock.calls[0][0]).toContain('NOT earlier.is_required OR');
+      expect(query.mock.calls[0][0]).toContain('quiz.is_required');
     });
 
     it('keeps preview lessons open and never locks the owner', async () => {

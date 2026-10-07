@@ -25,6 +25,8 @@ import { QuizQuestionsOptions1791417600003 } from './202610080003_quiz_questions
 import { QuizAttempts1791417600004 } from './202610080004_quiz_attempts.js';
 import { QuizStandaloneNotRequired1791417600005 } from './202610080005_quiz_standalone_not_required.js';
 import { QuizPublishedAt1791417600006 } from './202610080006_quiz_published_at.js';
+import { QuizSubmissionGrading1791417600007 } from './202610080007_quiz_submission_grading.js';
+import { QuizDiscoveryMetadata1791417600008 } from './202610080008_quiz_discovery_metadata.js';
 
 export const migrationHistory = [
   {
@@ -188,6 +190,18 @@ export const migrationHistory = [
     name: 'QuizPublishedAt1791417600006',
     timestamp: 1791417600006,
     migration: QuizPublishedAt1791417600006,
+  },
+  {
+    legacy: null,
+    name: 'QuizSubmissionGrading1791417600007',
+    timestamp: 1791417600007,
+    migration: QuizSubmissionGrading1791417600007,
+  },
+  {
+    legacy: null,
+    name: 'QuizDiscoveryMetadata1791417600008',
+    timestamp: 1791417600008,
+    migration: QuizDiscoveryMetadata1791417600008,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

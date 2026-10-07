@@ -10,14 +10,22 @@ export type AttemptGrade = {
   answers: GradedAnswer[];
   earnedPoints: number;
   totalPoints: number;
+  // earnedPoints * 100 / totalPoints rounded half up to 2 decimals; exactly
+  // representable as numeric(5,2).
+  percentage: number;
+  // Whole percentage, floor(percentage): with an integer passingScore,
+  // score >= passingScore exactly when isPassed.
   score: number;
   isPassed: boolean;
 };
 
 /**
- * Exact, all-or-nothing grading from the frozen snapshot only: a question
- * scores when the selected set equals the correct set; unanswered earns zero.
- * `score` is the whole-number percentage, rounded half up.
+ * The auto-grading engine. Reads only the frozen snapshot and the saved
+ * answers, never authoring rows or anything the client sent about scores.
+ * Exact, all-or-nothing per question: it scores when the selected set equals
+ * the correct set (one option for SINGLE_CHOICE); unanswered earns zero.
+ * Rounding is done in integer hundredths, so no float error can move a
+ * result across the pass mark.
  */
 export function gradeAttempt(
   snapshot: QuizAttemptSnapshot,
@@ -50,13 +58,21 @@ export function gradeAttempt(
     (sum, answer) => sum + answer.pointsEarned,
     0,
   );
-  const score =
-    totalPoints > 0 ? Math.floor((earnedPoints * 100) / totalPoints + 0.5) : 0;
+  const hundredths = percentHundredths(earnedPoints, totalPoints);
+  const percentage = hundredths / 100;
   return {
     answers,
     earnedPoints,
     totalPoints,
-    score,
-    isPassed: score >= snapshot.quiz.passingScore,
+    percentage,
+    score: Math.floor(hundredths / 100),
+    isPassed: hundredths >= snapshot.quiz.passingScore * 100,
   };
+}
+
+/** round(earned * 100 / total, 2) * 100, half up, in exact integers. */
+function percentHundredths(earned: number, total: number) {
+  if (total <= 0) return 0;
+  // floor(earned * 10000 / total + 1/2) = floor((2 * earned * 10000 + total) / (2 * total))
+  return Math.floor((2 * earned * 10_000 + total) / (2 * total));
 }

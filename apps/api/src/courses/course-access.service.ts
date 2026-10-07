@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.module.js';
 
-export type PrerequisiteLesson = { id: string; title: string; slug: string };
+export type PrerequisiteLesson = {
+  id: string;
+  title: string;
+  slug: string;
+  // Set when the lesson's own required quiz is what remains to be passed.
+  quizId?: string | null;
+};
 
 export type LessonAccessResult = {
   granted: boolean;
@@ -61,28 +67,47 @@ export class CourseAccessService {
           SELECT 1 FROM user_roles role
           WHERE role.user_id = $2 AND role.role_code = 'admin'
         ) AS "isAdmin",
-        -- Sequential courses: the first required published lesson before this
-        -- one (chapter order, then lesson order) the user has not completed.
-        -- Checking all earlier lessons, not only the previous one, keeps the
-        -- lock correct after reordering or enabling sequential mode later.
+        -- Sequential courses: the first published lesson before this one
+        -- (chapter order, then lesson order) that is not done: a required
+        -- lesson not completed, or any lesson whose required published quiz
+        -- the user has not passed (reported as quizId once the lesson itself
+        -- is done, so the learner is sent to the lesson first). Checking
+        -- all earlier lessons, not only the previous one, keeps the lock
+        -- correct after reordering or enabling sequential mode later.
         CASE WHEN course.is_sequential THEN (
           SELECT json_build_object(
-            'id', earlier.id, 'title', earlier.title, 'slug', earlier.slug)
+            'id', earlier.id, 'title', earlier.title, 'slug', earlier.slug,
+            'quizId', CASE WHEN lesson_done.done THEN pending_quiz.id END)
           FROM lessons earlier
           INNER JOIN chapters earlier_chapter
             ON earlier_chapter.id = earlier.chapter_id
-          WHERE earlier_chapter.course_id = course.id
-            AND earlier.is_published = true
-            AND earlier.is_required = true
-            AND (earlier_chapter.position, earlier_chapter.id,
-                 earlier.position, earlier.id)
-              < (chapter.position, chapter.id, lesson.position, lesson.id)
-            AND NOT EXISTS (
+          CROSS JOIN LATERAL (
+            SELECT NOT earlier.is_required OR EXISTS (
               SELECT 1 FROM lesson_progress progress
               WHERE progress.lesson_id = earlier.id
                 AND progress.user_id = $2
                 AND progress.status = 'COMPLETED'
-            )
+            ) AS done
+          ) lesson_done
+          LEFT JOIN LATERAL (
+            SELECT quiz.id FROM quizzes quiz
+            WHERE quiz.scope = 'LESSON' AND quiz.target_id = earlier.id
+              AND quiz.status = 'PUBLISHED' AND quiz.is_required
+              AND NOT EXISTS (
+                SELECT 1 FROM quiz_attempts attempt
+                WHERE attempt.quiz_id = quiz.id AND attempt.user_id = $2
+                  AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+                  AND attempt.is_passed
+              )
+            ORDER BY quiz.created_at, quiz.id
+            LIMIT 1
+          ) pending_quiz ON true
+          WHERE earlier_chapter.course_id = course.id
+            AND earlier.is_published = true
+            AND (earlier_chapter.position, earlier_chapter.id,
+                 earlier.position, earlier.id)
+              < (chapter.position, chapter.id, lesson.position, lesson.id)
+            AND (NOT lesson_done.done OR pending_quiz.id IS NOT NULL)
           ORDER BY earlier_chapter.position, earlier_chapter.id,
                    earlier.position, earlier.id
           LIMIT 1

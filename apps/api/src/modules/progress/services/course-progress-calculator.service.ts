@@ -23,14 +23,17 @@ type SummaryRow = {
   totalRequiredQuizzes?: number | string | null;
   passedQuizzes?: number | string | null;
   passedRequiredQuizzes?: number | string | null;
+  completedQuizzes?: number | string | null;
   lastAccessedLessonId: string | null;
   updatedAt: Date | string;
 };
 
-// Per enrollment row: the course's published course-bound quizzes and which
-// of them this learner has passed. A pass is any closed (SUBMITTED or
-// TIMED_OUT) attempt with is_passed, so achieved completion is monotonic: a
-// later failing attempt never takes it back. STANDALONE quizzes never count.
+// Per enrollment row: the course's published course-bound quizzes, which of
+// them this learner has passed, and which count as a completed step: a
+// required quiz once passed, an optional one once submitted at all, pass or
+// fail. A pass is any closed (SUBMITTED or TIMED_OUT) attempt with is_passed,
+// so achieved completion is monotonic: a later failing attempt never takes it
+// back. STANDALONE quizzes never count.
 const QUIZ_STATS_JOIN = `
   LEFT JOIN LATERAL (
     SELECT count(*)::int AS total,
@@ -38,7 +41,11 @@ const QUIZ_STATS_JOIN = `
       count(*) FILTER (WHERE result.passed)::int AS passed,
       count(*) FILTER (
         WHERE course_quiz.is_required AND result.passed
-      )::int AS passed_required
+      )::int AS passed_required,
+      count(*) FILTER (
+        WHERE CASE WHEN course_quiz.is_required THEN result.passed
+          ELSE result.submitted END
+      )::int AS completed
     FROM (${courseQuizzesSql('course.id')}) course_quiz
     CROSS JOIN LATERAL (
       SELECT EXISTS (
@@ -47,7 +54,13 @@ const QUIZ_STATS_JOIN = `
           AND attempt.quiz_id = course_quiz.id
           AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
           AND attempt.is_passed
-      ) AS passed
+      ) AS passed,
+      EXISTS (
+        SELECT 1 FROM quiz_attempts attempt
+        WHERE attempt.user_id = enrollment.user_id
+          AND attempt.quiz_id = course_quiz.id
+          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+      ) AS submitted
     ) result
   ) quiz_stats ON true`;
 
@@ -55,8 +68,11 @@ const QUIZ_STATS_JOIN = `
  * The single implementation of course progress. Two separate figures:
  *
  *   Learning progress (UI bar), over required lessons and course-bound quizzes:
- *     percentage = min(100, floor((completed required lessons + passed quizzes)
+ *     percentage = min(100, floor((completed required lessons
+ *                                  + completed quiz steps)
  *                               / (required lessons + quizzes) * 100))
+ *   where a required quiz step completes when passed and an optional one when
+ *   submitted, whatever its result.
  *
  *   Course completion (the gate):
  *     isCompleted = every published required lesson completed
@@ -232,6 +248,7 @@ export class CourseProgressCalculatorService implements OnModuleInit {
       MAX(quiz_stats.required) AS "totalRequiredQuizzes",
       MAX(quiz_stats.passed) AS "passedQuizzes",
       MAX(quiz_stats.passed_required) AS "passedRequiredQuizzes",
+      MAX(quiz_stats.completed) AS "completedQuizzes",
       enrollment.last_accessed_lesson_id AS "lastAccessedLessonId",
       COALESCE(
         enrollment.last_accessed_at,
@@ -249,8 +266,9 @@ export class CourseProgressCalculatorService implements OnModuleInit {
     const totalRequiredQuizzes = Number(row.totalRequiredQuizzes ?? 0);
     const passedQuizzes = Number(row.passedQuizzes ?? 0);
     const passedRequiredQuizzes = Number(row.passedRequiredQuizzes ?? 0);
+    const completedQuizzes = Number(row.completedQuizzes ?? 0);
     const percentage = progressPercentage(
-      completedRequiredLessons + passedQuizzes,
+      completedRequiredLessons + completedQuizzes,
       totalRequiredLessons + totalQuizzes,
     );
     return {
@@ -264,6 +282,7 @@ export class CourseProgressCalculatorService implements OnModuleInit {
       totalRequiredQuizzes,
       passedQuizzes,
       passedRequiredQuizzes,
+      completedQuizzes,
       percentage,
       isCompleted:
         completedRequiredLessons >= totalRequiredLessons &&

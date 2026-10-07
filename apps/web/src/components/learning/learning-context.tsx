@@ -8,6 +8,7 @@ import {
   useCourseProgress,
 } from "@/features/progress/use-course-progress";
 import { api } from "@/lib/api";
+import { useCourseQuizzes, type CourseQuiz } from "@/features/quiz-player/api";
 import {
   lessonProgressStatus,
   sequentialLocks,
@@ -31,6 +32,10 @@ type LearningContextValue = {
   isAuthenticated: boolean;
   // Enrolled student whose progress the server records.
   isTracking: boolean;
+  // Published course-bound quizzes with this learner's standing.
+  quizzes: CourseQuiz[];
+  quizzesOf: (scope: CourseQuiz["scope"], targetId: string) => CourseQuiz[];
+  isQuizLocked: (quiz: CourseQuiz) => boolean;
 };
 
 const Context = createContext<LearningContextValue | null>(null);
@@ -106,8 +111,25 @@ export function LearningProvider({
     isStudent && enrolled,
   );
 
+  const quizQuery = useCourseQuizzes(
+    syllabus.course.id,
+    user?.id,
+    (isStudent && enrolled) || hasBypass,
+  );
+  const quizzes = quizQuery.data;
+
   const curriculum = syllabus.curriculum;
   const value = useMemo<LearningContextValue>(() => {
+    const quizList = quizzes ?? [];
+    const quizzesOf = (scope: CourseQuiz["scope"], targetId: string) =>
+      quizList.filter(
+        (quiz) => quiz.scope === scope && quiz.targetId === targetId,
+      );
+    // A lesson's required quiz not yet passed holds back later lessons.
+    const pendingQuizOf = (lessonId: string) =>
+      quizzesOf("LESSON", lessonId).find(
+        (quiz) => quiz.isRequired && !quiz.isPassed,
+      )?.id ?? null;
     const statuses = progress.data
       ? new Map(
           progress.data.lessons.map((item) => [item.lessonId, item.status]),
@@ -120,10 +142,12 @@ export function LearningProvider({
       isStudent &&
       enrolled &&
       !hasBypass &&
-      progress.data
+      progress.data &&
+      (quizzes || quizQuery.isError)
         ? sequentialLocks(
             curriculum,
             (lessonId) => statuses.get(lessonId) === "COMPLETED",
+            pendingQuizOf,
           )
         : null;
     const prerequisiteOf = (lesson: SyllabusLesson) =>
@@ -144,8 +168,21 @@ export function LearningProvider({
       isStudent,
       isAuthenticated: session.isAuthenticated,
       isTracking: isStudent && enrolled,
+      quizzes: quizList,
+      quizzesOf,
+      // Advisory like isLocked: the API re-checks on start.
+      isQuizLocked: (quiz) => {
+        if (!(enrolled || hasBypass)) return true;
+        if (quiz.scope !== "LESSON") return false;
+        const lesson = curriculum
+          .flatMap((chapter) => chapter.lessons)
+          .find(({ id }) => id === quiz.targetId);
+        return lesson ? isLocked(lesson) : false;
+      },
     };
   }, [
+    quizzes,
+    quizQuery.isError,
     courseSlug,
     syllabus,
     curriculum,

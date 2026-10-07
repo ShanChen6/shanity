@@ -31,6 +31,8 @@ export declare class QuizAuthoringController {
         gradingPolicy: import("../entities/quiz.entity.js").GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;
@@ -83,6 +85,8 @@ export declare class QuizAuthoringController {
         gradingPolicy: import("../entities/quiz.entity.js").GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;
@@ -112,12 +116,21 @@ export declare class QuizAuthoringController {
         gradingPolicy: import("../entities/quiz.entity.js").GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     publish(req: QuizAuthorizationRequest): Promise<{
+        id: string;
+        title: string;
+        version: number;
+        status: import("../entities/quiz.entity.js").QuizStatus;
+        publishedAt: Date | null;
+    }>;
+    openNewVersion(req: QuizAuthorizationRequest): Promise<{
         id: string;
         title: string;
         version: number;

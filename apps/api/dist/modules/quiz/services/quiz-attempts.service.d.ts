@@ -9,6 +9,8 @@ type Started = {
     created: boolean;
     attempt: LearnerAttemptResponseDto;
 };
+export declare const GRACE_PERIOD_SECONDS = 5;
+export declare const SUBMISSION_LEASE_SECONDS = 30;
 export declare class QuizAttemptsService {
     private readonly dataSource;
     private readonly access;
@@ -22,11 +24,14 @@ export declare class QuizAttemptsService {
     activeAttempt(principal: Principal, quizId: string): Promise<LearnerAttemptResponseDto>;
     saveAnswer(principal: Principal, attemptId: string, answer: SaveAttemptAnswerDto): Promise<LearnerAttemptAnswerResponseDto>;
     submit(principal: Principal, attemptId: string): Promise<LearnerAttemptResponseDto>;
+    result(principal: Principal, attemptId: string): Promise<import("../dto/quiz-attempt-result.dto.js").AttemptResultDto>;
+    private claim;
+    private settleStaleSubmission;
+    private checkAndEnforceTimeout;
     private assertOwnAttempt;
-    private assertAnswerFitsSnapshot;
     private lockActive;
     private lockAttempt;
-    private close;
+    private gradeAndClose;
     private view;
     private courseIdOf;
 }
