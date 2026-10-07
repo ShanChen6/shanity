@@ -12,7 +12,7 @@ import {
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { PaymentProviderEnum } from './interfaces/index.js';
-import { PaymentWebhookService } from './payment-webhook.service.js';
+import { WebhookProcessorService } from './webhook-processor.service.js';
 
 /** `/payments/webhook/vietqr` -> VIETQR; anything unknown is a 404. */
 class ParseProviderPipe implements PipeTransform<string, PaymentProviderEnum> {
@@ -26,13 +26,13 @@ class ParseProviderPipe implements PipeTransform<string, PaymentProviderEnum> {
 }
 
 /**
- * Single, gateway-agnostic entry point for asynchronous notifications. No
- * session or API-key guard here: authenticity is each provider's
- * `verifyNotification`, which the service enforces before anything else.
+ * Step 1 of the pipeline: receive. One gateway-agnostic entry point, also
+ * served under `/api/v1` for gateways configured with a versioned URL. No
+ * session guard: authenticity is the provider's `verifyNotification`.
  */
-@Controller('payments/webhook')
+@Controller(['payments/webhook', 'api/v1/payments/webhook'])
 export class WebhookController {
-  constructor(private readonly webhooks: PaymentWebhookService) {}
+  constructor(private readonly processor: WebhookProcessorService) {}
 
   @Post(':provider')
   @HttpCode(200)
@@ -42,10 +42,11 @@ export class WebhookController {
     @Body() payload: Record<string, unknown>,
     @Req() req: RawBodyRequest<Request>,
   ) {
-    return this.webhooks.handleNotification(provider, {
+    return this.processor.handleWebhook(
+      provider,
+      payload ?? {},
       headers,
-      payload: payload ?? {},
-      rawBody: req.rawBody,
-    });
+      req.rawBody,
+    );
   }
 }

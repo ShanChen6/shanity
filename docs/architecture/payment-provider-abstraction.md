@@ -8,9 +8,9 @@ Strategy Pattern.
 
 | # | Bất biến | Cơ chế bảo đảm |
 | --- | --- | --- |
-| 1 | Core chỉ phụ thuộc interface `PaymentProvider`, không import SDK/logic của cổng | `CheckoutService`, `PaymentWebhookService`, `PaymentReconciliationService`, `EnrollmentService/Listener` chỉ nhận `PaymentProviderFactory`; test kiến trúc quét import và từ khóa `stripe/vietqr/momo/...` trong các file core |
+| 1 | Core chỉ phụ thuộc interface `PaymentProvider`, không import SDK/logic của cổng | `CheckoutService`, `PaymentSettlementService`, `PaymentReconciliationService`, `EnrollmentService/Listener` chỉ nhận `PaymentProviderFactory`; test kiến trúc quét import và từ khóa `stripe/vietqr/momo/...` trong các file core |
 | 2 | Plug & Play: thêm cổng chỉ cần thêm một Strategy | Thêm một class `implements PaymentProvider` và một dòng trong `PaymentModule`; test dựng cổng MoMo giả chạy trọn luồng checkout → webhook → enrollment mà không sửa dòng nào của core |
-| 3 | Mọi kết quả bất đồng bộ phải qua `verifyNotification` | `PaymentWebhookService.handleNotification` gọi `verifyNotification` trước mọi thao tác; `isValid: false` → `401` ngay, không ghi sổ cái, không đổi Order |
+| 3 | Mọi kết quả bất đồng bộ phải qua `verifyNotification` | `WebhookProcessorService.handleWebhook` gọi `verifyNotification` trước mọi thao tác; `isValid: false` → `401` ngay, không ghi sổ cái, không đổi Order |
 
 ## 2. Cấu trúc mã nguồn
 
@@ -24,12 +24,12 @@ Strategy Pattern.
 | `providers/vietqr/*` | `VietQRProviderAdapter` + URL QR + parser thông báo ngân hàng |
 | `providers/stripe/*` | `StripeProviderAdapter` + xác minh chữ ký + ánh xạ sự kiện |
 | `checkout.service.ts` | `CheckoutService.initiateCheckout` |
-| `payment-webhook.service.ts` | `PaymentWebhookService` (xác minh → khóa order → ghi sổ cái → hoàn tất → phát sự kiện) |
+| `webhook-processor.service.ts`, `payment-settlement.service.ts` | `WebhookProcessorService` (pipeline 6 bước) + `PaymentSettlementService` (khóa order → ghi sổ cái → hoàn tất → phát sự kiện); chi tiết ở [payment-webhook-engine.md](payment-webhook-engine.md) |
 | `webhook.controller.ts` | `POST /payments/webhook/:provider` |
 | `events/*` | `OrderCompletedEvent`, `PaymentEventBus`, `PaymentEventsModule` |
 | `payment-reconciliation.service.ts`, `.worker.ts` | Lưới an toàn: webhook thất lạc, listener thất bại |
 | `courses/enrollment.service.ts` | `EnrollmentService.grantEnrollment(userId, courseId)` |
-| `courses/enrollment.listener.ts` | `EnrollmentListener` — lắng nghe `OrderCompletedEvent` |
+| `courses/enrollment-fulfillment.listener.ts` | `EnrollmentFulfillmentListener` — lắng nghe `OrderCompletedEvent` |
 
 > `OrderService` trong mô tả yêu cầu tương ứng với nhóm `OrderFactoryService`
 > (tạo đơn, chụp giá), `OrderQueryService` (đọc đơn) và `CheckoutService`
@@ -170,9 +170,8 @@ handleNotification(provider, {headers, payload, rawBody})
     TRANSACTION
       SELECT order FOR UPDATE (pessimistic)
       fact != SUCCESS                       -> sổ cái FAILED, order giữ PENDING     -> PAYMENT_FAILED
-      order PENDING nhưng quá hạn           -> EXPIRED
       sai tiền tệ                           -> sổ cái FAILED                        -> CURRENCY_MISMATCH
-      order không còn PENDING               -> sổ cái FAILED (bằng chứng)           -> IGNORED
+      không còn fulfil được (hủy/đã trả/trả sau hạn) -> sổ cái FAILED (bằng chứng)   -> IGNORED
       amount < finalTotal                   -> sổ cái FAILED, order VẪN PENDING     -> PARTIAL_AMOUNT
       đủ tiền                               -> sổ cái SUCCESS, order COMPLETED      -> COMPLETED
     COMMIT
@@ -194,7 +193,7 @@ handleNotification(provider, {headers, payload, rawBody})
 ## 8. Sự kiện và cấp quyền học
 
 ```text
-PaymentWebhookService --publish--> PaymentEventBus --> EnrollmentListener
+PaymentSettlementService --publish--> PaymentEventBus --> EnrollmentFulfillmentListener
                                                           └─ EnrollmentService.grantEnrollment(userId, courseId) × N
 ```
 
@@ -202,7 +201,7 @@ PaymentWebhookService --publish--> PaymentEventBus --> EnrollmentListener
 - `PaymentEventBus` là bus in-process có kiểu; `publish` **chờ mọi handler**
   (nên khi webhook trả 200 thì quyền học đã được cấp) và **không ném lỗi** ra
   người phát (đơn đã commit); lỗi handler được ghi log và trả về.
-- `EnrollmentListener` nằm trong context `courses`, chỉ biết sự kiện; cấp quyền
+- `EnrollmentFulfillmentListener` nằm trong context `courses`, chỉ biết sự kiện; cấp quyền
   cho từng khóa, gom mọi lỗi (`AggregateError`).
 - `grantEnrollment` idempotent (`INSERT … ON CONFLICT DO NOTHING`), không kiểm
   tra thanh toán — chỉ gọi từ fulfilment hoặc công cụ admin.
@@ -233,7 +232,7 @@ classDiagram
     class CheckoutService {
         +initiateCheckout(userId, orderId, provider, options) CheckoutResult
     }
-    class PaymentWebhookService {
+    class PaymentSettlementService {
         +handleNotification(provider, input) WebhookOutcome
         +settle(provider, fact) WebhookOutcome
     }
@@ -251,7 +250,7 @@ classDiagram
         +enrollCourse(userId, courseId)
         +grantEnrollment(userId, courseId)
     }
-    class EnrollmentListener {
+    class EnrollmentFulfillmentListener {
         +handle(OrderCompletedEvent)
     }
     class PaymentEventBus {
@@ -285,7 +284,7 @@ classDiagram
     }
 
     CheckoutService --> PaymentProviderFactory
-    PaymentWebhookService --> PaymentProviderFactory
+    PaymentSettlementService --> PaymentProviderFactory
     PaymentReconciliationService --> PaymentProviderFactory
     PaymentProviderFactory o-- PaymentProvider : registry
     PaymentProvider <|.. VietQRProviderAdapter
@@ -293,13 +292,13 @@ classDiagram
     PaymentProvider <|.. MomoProviderAdapter
 
     CheckoutService --> PaymentTransactionService
-    PaymentWebhookService --> PaymentTransactionService
-    PaymentWebhookService --> PaymentEventBus : publish after commit
-    PaymentReconciliationService --> PaymentWebhookService : settle
+    PaymentSettlementService --> PaymentTransactionService
+    PaymentSettlementService --> PaymentEventBus : publish after commit
+    PaymentReconciliationService --> PaymentSettlementService : settle
     PaymentReconciliationService --> PaymentEventBus : re-publish
     PaymentEventBus ..> OrderCompletedEvent
-    EnrollmentListener --> PaymentEventBus : subscribe
-    EnrollmentListener --> EnrollmentService : grantEnrollment
+    EnrollmentFulfillmentListener --> PaymentEventBus : subscribe
+    EnrollmentFulfillmentListener --> EnrollmentService : grantEnrollment
     VietQRProviderAdapter ..> PaymentTransactionService : PaymentLedgerReader port
 ```
 
@@ -314,10 +313,10 @@ sequenceDiagram
     participant PF as PaymentProviderFactory
     participant P as PaymentProvider (Strategy)
     participant GW as Cổng thanh toán
-    participant WH as WebhookController / PaymentWebhookService
+    participant WH as WebhookController / PaymentSettlementService
     participant DB as PostgreSQL
     participant BUS as PaymentEventBus
-    participant EL as EnrollmentListener
+    participant EL as EnrollmentFulfillmentListener
     participant ES as EnrollmentService
 
     S->>API: POST /orders {courseIds}
@@ -422,7 +421,7 @@ Các biện pháp khác: `OrdersController` dùng `OriginGuard` (mutating route 
 (`429 TOO_MANY_PENDING_ORDERS`) để mã đơn 4 ký tự/ngày không bị vét cạn; UUID
 chữ hoa được chuẩn hóa; `offset` bị chặn; việc hủy/hết hạn đơn khóa các dòng
 theo thứ tự `id` để không deadlock.
-- `bank_webhook_logs` không còn được ghi: idempotency do sổ cái đảm nhiệm. Bảng
+- `bank_webhook_logs` không còn được ghi (thay bằng `webhook_logs`, PAY10–13). Bảng
   được giữ lại (không phá dữ liệu) và có thể xóa ở migration sau.
 
 ## 13. Giới hạn đã biết

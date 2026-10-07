@@ -792,7 +792,7 @@ describe(
     });
 
     // ------------------------------------------------------------- events
-    describe('OrderCompletedEvent and EnrollmentListener', () => {
+    describe('OrderCompletedEvent and EnrollmentFulfillmentListener', () => {
       const capture = (orderId: string) => {
         const seen: Array<{
           event: OrderCompletedEvent;
@@ -1017,7 +1017,8 @@ describe(
       it('keeps the core domain free of any concrete gateway', () => {
         const core = [
           'checkout.service.ts',
-          'payment-webhook.service.ts',
+          'payment-settlement.service.ts',
+          'webhook-processor.service.ts',
           'payment-reconciliation.service.ts',
           'payment-transaction.service.ts',
           'payment-provider.factory.ts',
@@ -1030,7 +1031,7 @@ describe(
           'events/order-completed.event.ts',
           'events/payment-event-bus.ts',
           '../../courses/enrollment.service.ts',
-          '../../courses/enrollment.listener.ts',
+          '../../courses/enrollment-fulfillment.listener.ts',
         ];
         for (const file of core) {
           const source = readFileSync(

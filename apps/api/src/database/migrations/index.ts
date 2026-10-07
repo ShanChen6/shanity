@@ -32,6 +32,7 @@ import { CoursePricing1791590400001 } from './202610100001_course_pricing.js';
 import { PaymentPersistence1791676800001 } from './202610110001_payment_persistence.js';
 import { CheckoutProviders1791763200001 } from './202610120001_checkout_providers.js';
 import { PaymentHardening1791849600001 } from './202610130001_payment_hardening.js';
+import { WebhookLogs1791936000001 } from './202610140001_webhook_logs.js';
 
 export const migrationHistory = [
   {
@@ -237,6 +238,12 @@ export const migrationHistory = [
     name: 'PaymentHardening1791849600001',
     timestamp: 1791849600001,
     migration: PaymentHardening1791849600001,
+  },
+  {
+    legacy: null,
+    name: 'WebhookLogs1791936000001',
+    timestamp: 1791936000001,
+    migration: WebhookLogs1791936000001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

@@ -4,12 +4,15 @@ import { PaymentEventBus } from '../modules/payment/events/payment-event-bus.js'
 import { EnrollmentService } from './enrollment.service.js';
 
 /**
+ * Step 6 consumer (off-page fulfilment). Runs server-side after the order is
+ * COMPLETED, whether or not the buyer's browser is still open.
+ *
  * Enrollment bounded context reacting to payment facts: once an order is
  * COMPLETED, every course on it is granted to the buyer. Knows nothing about
  * gateways. Safe to run more than once for the same order.
  */
 @Injectable()
-export class EnrollmentListener implements OnModuleInit {
+export class EnrollmentFulfillmentListener implements OnModuleInit {
   constructor(
     private readonly bus: PaymentEventBus,
     private readonly enrollments: EnrollmentService,

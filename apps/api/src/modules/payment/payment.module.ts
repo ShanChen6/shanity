@@ -16,12 +16,13 @@ import { PaymentProviderFactory } from './payment-provider.factory.js';
 import { PaymentReconciliationService } from './payment-reconciliation.service.js';
 import { PaymentReconciliationWorker } from './payment-reconciliation.worker.js';
 import { PaymentTransactionService } from './payment-transaction.service.js';
-import { PaymentWebhookService } from './payment-webhook.service.js';
+import { PaymentSettlementService } from './payment-settlement.service.js';
 import { PaymentService } from './payment.service.js';
 import { PAYMENT_HTTP_FETCH, type FetchLike } from './providers/http-fetch.js';
 import { StripeProviderAdapter } from './providers/stripe/stripe-provider.adapter.js';
 import { VietQRProviderAdapter } from './providers/vietqr/vietqr-provider.adapter.js';
 import { WebhookController } from './webhook.controller.js';
+import { WebhookProcessorService } from './webhook-processor.service.js';
 
 /**
  * Wiring. Adding a gateway = write an adapter implementing `PaymentProvider`,
@@ -37,7 +38,8 @@ import { WebhookController } from './webhook.controller.js';
     OrderFactoryService,
     OrderQueryService,
     CheckoutService,
-    PaymentWebhookService,
+    PaymentSettlementService,
+    WebhookProcessorService,
     PaymentReconciliationService,
     PaymentExpirationWorker,
     PaymentReconciliationWorker,
@@ -65,7 +67,8 @@ import { WebhookController } from './webhook.controller.js';
     OrderFactoryService,
     OrderQueryService,
     CheckoutService,
-    PaymentWebhookService,
+    PaymentSettlementService,
+    WebhookProcessorService,
     PaymentProviderFactory,
   ],
 })

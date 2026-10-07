@@ -8,7 +8,7 @@ import {
 } from './interfaces/index.js';
 import { toMinorUnits } from './money.js';
 import { PaymentProviderFactory } from './payment-provider.factory.js';
-import { PaymentWebhookService } from './payment-webhook.service.js';
+import { PaymentSettlementService } from './payment-settlement.service.js';
 
 const CHECKOUT_BATCH = 50;
 const FULFILMENT_BATCH = 100;
@@ -39,7 +39,7 @@ export class PaymentReconciliationService {
   constructor(
     private readonly database: DatabaseService,
     private readonly factory: PaymentProviderFactory,
-    private readonly webhooks: PaymentWebhookService,
+    private readonly settlement: PaymentSettlementService,
     private readonly events: PaymentEventBus,
   ) {}
 
@@ -64,7 +64,7 @@ export class PaymentReconciliationService {
           row.provider_transaction_id ?? undefined,
         );
         if (result.status === PaymentStatusEnum.PENDING) continue;
-        await this.webhooks.settle(provider.providerName, {
+        await this.settlement.settle(provider.providerName, {
           orderCode: row.code,
           providerTransactionId: result.providerTransactionId,
           amount:
@@ -73,6 +73,7 @@ export class PaymentReconciliationService {
               : toMinorUnits(1),
           currency: result.currency,
           status: result.status,
+          paidAt: result.paidAt,
           rawPayload: {
             source: 'reconciliation',
             result: serialisable(result),

@@ -4,6 +4,8 @@ export interface BankTransfer {
   transactionId: string;
   amount: number;
   transferContent: string;
+  /** When the bank booked the transfer, if the forwarder says so. */
+  paidAt?: Date;
   /** false for debits (money leaving the account), which never settle orders. */
   incoming: boolean;
 }
@@ -57,6 +59,16 @@ export function parseBankTransfer(payload: unknown): BankTransfer {
     transactionId,
     amount,
     transferContent,
+    paidAt: sepay ? parseVietnamTime(payload.transactionDate) : undefined,
     incoming: sepay ? payload.transferType === 'in' : true,
   };
+}
+
+/** SePay sends "YYYY-MM-DD HH:mm:ss" in Vietnam time (UTC+7). */
+function parseVietnamTime(value: unknown): Date | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/.exec(value);
+  if (!match) return undefined;
+  const parsed = new Date(`${match[1]}T${match[2]}+07:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }

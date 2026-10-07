@@ -155,6 +155,7 @@ describe('canTransitionOrder', () => {
       [OrderStatus.PROCESSING, OrderStatus.COMPLETED],
       [OrderStatus.PROCESSING, OrderStatus.EXPIRED],
       [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+      [OrderStatus.EXPIRED, OrderStatus.COMPLETED],
       [OrderStatus.COMPLETED, OrderStatus.REFUNDED],
     ];
     const all = Object.values(OrderStatus);

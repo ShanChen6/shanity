@@ -14,7 +14,9 @@ const TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
     OrderStatus.CANCELLED,
   ],
   [OrderStatus.COMPLETED]: [OrderStatus.REFUNDED],
-  [OrderStatus.EXPIRED]: [],
+  // Money paid inside the order's window still fulfils it when the webhook
+  // arrives late (see PaymentSettlementService).
+  [OrderStatus.EXPIRED]: [OrderStatus.COMPLETED],
   [OrderStatus.CANCELLED]: [],
   [OrderStatus.REFUNDED]: [],
 };

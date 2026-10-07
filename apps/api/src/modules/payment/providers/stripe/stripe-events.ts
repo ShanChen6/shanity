@@ -8,6 +8,8 @@ export interface StripeSettlementFact {
   amount: bigint;
   currency: string;
   status: PaymentStatusEnum;
+  eventId?: string;
+  paidAt?: Date;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -44,9 +46,17 @@ export function readCheckoutSession(session: unknown) {
  */
 export function mapStripeEvent(event: unknown): StripeSettlementFact {
   if (!isRecord(event) || typeof event.type !== 'string') throw invalid();
+  const eventId = typeof event.id === 'string' ? event.id : undefined;
+  // `created` is when Stripe generated the event: for a payment event that is
+  // when the money was captured, even if delivery is delayed or retried.
+  const paidAt =
+    typeof event.created === 'number' && Number.isFinite(event.created)
+      ? new Date(event.created * 1000)
+      : undefined;
   const ignored: StripeSettlementFact = {
     orderCode: '',
-    providerTransactionId: typeof event.id === 'string' ? event.id : '',
+    providerTransactionId: eventId ?? '',
+    eventId,
     amount: 0n,
     currency: '',
     status: PaymentStatusEnum.PENDING,
@@ -72,6 +82,8 @@ export function mapStripeEvent(event: unknown): StripeSettlementFact {
   return {
     orderCode: session.orderCode,
     providerTransactionId: session.id,
+    eventId,
+    paidAt,
     amount: toMinorUnits(session.amountTotal),
     currency: session.currency,
     // completed + unpaid is a delayed method (bank debit): wait for async_*.

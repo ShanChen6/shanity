@@ -95,6 +95,7 @@ export class VietQRProviderAdapter implements PaymentProvider {
         ? PaymentStatusEnum.SUCCESS
         : PaymentStatusEnum.PENDING,
       memo: transfer.transferContent,
+      paidAt: transfer.paidAt,
       rawPayload: input.payload,
     };
   }

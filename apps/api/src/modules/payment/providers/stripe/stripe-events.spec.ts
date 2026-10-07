@@ -26,6 +26,7 @@ describe('mapStripeEvent', () => {
     ).toEqual({
       orderCode: 'SHAN-20261007-X89K',
       providerTransactionId: 'cs_test_1',
+      eventId: 'evt_1',
       amount: 499000n,
       currency: 'VND',
       status: PaymentStatusEnum.SUCCESS,

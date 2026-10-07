@@ -617,18 +617,15 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       expect(status).toBe('CANCELLED');
     });
 
-    it('expires a late order on payment and records the attempt', async () => {
+    it('expires an order paid after its window and records the attempt', async () => {
       const courseId = await paidCourse(100000);
-      await t.send('patch', `/courses/${courseId}/pricing`, owner.session, {
-        accessType: 'PAID',
-        price: 100000,
-      });
       const user = await t.account();
       const order = (await placeOrder(user, [courseId]).expect(201)).body;
       await t.db.query(
-        `UPDATE orders SET expires_at = now() - interval '1 minute' WHERE id=$1`,
+        `UPDATE orders SET expires_at = now() - interval '3 days' WHERE id=$1`,
         [order.orderId],
       );
+      // no bank timestamp, and past the 24h reinstatement window
       await pay(order.code, 100000).expect(200).expect({ status: 'IGNORED' });
       const [{ status }] = await t.db.query(
         'SELECT status FROM orders WHERE id=$1',

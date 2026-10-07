@@ -98,7 +98,7 @@ kể cả khoản tiền thật đã về nhưng đơn không còn hoàn tất �
 | --- | --- |
 | `order_items` | `BEFORE UPDATE OR DELETE` → từ chối (`restrict_violation`, `23001`); `BEFORE INSERT` chỉ cho đơn đang `PENDING` |
 | `orders` | UPDATE không được đổi `code, user_id, currency, subtotal, discount_total, final_total, created_at`; DELETE bị từ chối |
-| Trạng thái đơn | Chỉ `PENDING→{PROCESSING,COMPLETED,EXPIRED,CANCELLED}`, `PROCESSING→{COMPLETED,EXPIRED,CANCELLED}`, `COMPLETED→REFUNDED`; trùng với `canTransitionOrder` |
+| Trạng thái đơn | Chỉ `PENDING→{PROCESSING,COMPLETED,EXPIRED,CANCELLED}`, `PROCESSING→{COMPLETED,EXPIRED,CANCELLED}`, `EXPIRED→COMPLETED` (thanh toán trong cửa sổ, webhook đến muộn), `COMPLETED→REFUNDED`; trùng với `canTransitionOrder` |
 | Tổng đơn | `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED` trên `orders` và `order_items`: lúc COMMIT đơn phải có ≥1 item, tổng `unit/discount/final` khớp header, cùng tiền tệ |
 | `payment_transactions` | Chỉ dòng `INITIATED` được cập nhật (một lần, sang trạng thái cuối); `order_id`, `provider`, `created_at` luôn bất biến; DELETE bị từ chối |
 

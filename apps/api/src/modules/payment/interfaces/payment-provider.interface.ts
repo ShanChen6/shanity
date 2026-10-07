@@ -53,6 +53,13 @@ export interface VerifyNotificationResult {
   status: PaymentStatusEnum;
   /** Free-text reference the payer supplied (bank memo), kept for audit. */
   memo?: string;
+  /** The provider's id for this delivery (e.g. Stripe `evt_…`), when it has one. */
+  eventId?: string;
+  /**
+   * When the payer actually paid, if the provider says so. Lets a webhook that
+   * is delivered late still fulfil an order that expired in the meantime.
+   */
+  paidAt?: Date;
   rawPayload: Record<string, any>;
 }
 
