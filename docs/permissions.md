@@ -15,7 +15,7 @@ Ma trận được chủ dự án xác nhận. Đây là hợp đồng cho các 
 
 ## Ánh xạ dữ liệu
 
-- `roles`: student, instructor, admin; migration tạo danh mục, không cấp quyền cho tài khoản nào.
+- `roles`: student, instructor, admin; migration tạo danh mục, không cấp quyền cho tài khoản nào. PAY17 thêm `finance_officer` (nhân viên tài chính): chỉ dùng được bảng điều khiển đơn hàng `/admin/orders` (xem, đối soát thủ công, hoàn tiền), không quản lý người dùng hay nội dung. Admin cũng dùng được bảng này. Mọi thao tác đều ghi vào `order_audit_logs` (xem `docs/architecture/payment-admin-reconciliation.md`).
 - `user_roles`: quan hệ nhiều–nhiều, không ép mỗi tài khoản chỉ có một vai trò. API đăng ký sau này cấp student ở server; client không được tự chọn instructor/admin.
 - `courses.owner_id`: một chủ sở hữu hiện tại. `NULL` giữ tương thích khóa cũ/demo chưa có người phụ trách; không cho giảng viên sửa khóa chưa có owner. Gán chủ sở hữu có kiểm soát trước khi đưa khóa này vào luồng quản lý của giảng viên.
 - `course_instructors`: giảng viên được phân công dạy, unique(course_id,user_id). Phân công dạy không tự cho phép sửa khóa/bài học. Owner và phân công là hai quan hệ riêng; đề xuất khi tạo khóa thì thêm owner vào danh sách dạy trong cùng transaction. Chi tiết đồng giảng dạy/chuyển chủ vẫn cần chốt.

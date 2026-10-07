@@ -17,6 +17,7 @@ import {
   LessonType,
 } from '../dist/modules/lessons/entities/lesson.entity.js';
 import { CoursesService } from '../dist/courses/courses.service.js';
+import { EnrollmentService } from '../dist/courses/enrollment.service.js';
 import { CourseAccessService } from '../dist/courses/course-access.service.js';
 import { User } from '../dist/users/user.entity.js';
 import { CourseStatus } from '../dist/courses/course-status.js';
@@ -25,7 +26,10 @@ import {
   LessonProgressStatus,
 } from '../dist/modules/progress/entities/lesson-progress.entity.js';
 import { ProgressService } from '../dist/modules/progress/progress.service.js';
-import { CourseProgressEngine } from '../dist/modules/progress/services/course-progress-engine.service.js';
+import { NoopProgressCache } from '../dist/modules/progress/cache/progress-cache.js';
+import { CurriculumEvents } from '../dist/modules/curriculum/curriculum-events.js';
+import { CourseProgressCalculatorService } from '../dist/modules/progress/services/course-progress-calculator.service.js';
+import { EnrollmentPolicy } from '../dist/modules/progress/services/enrollment-policy.js';
 import { ResumeLearningService } from '../dist/modules/progress/services/resume-learning.service.js';
 import { seed as seedDemo } from './seeds/001_demo.mjs';
 import { seed as seedAdmin } from './seeds/002_super_admin.mjs';
@@ -34,7 +38,10 @@ const options = createAppDataSource().options;
 if (!options.database.endsWith('_test'))
   throw new Error('Use an isolated PGDATABASE ending in _test');
 
-async function isolated(run) {
+// `upTo` limits the runner to the first N migrations, so a test about an old
+// migration still sees the schema of its era (later migrations, and the
+// destructive ones in particular, cannot be reverted around it).
+async function isolated(run, upTo) {
   const schema = `orm_${randomUUID().replaceAll('-', '')}`;
   const admin = await new DataSource(options).initialize();
   let db;
@@ -42,6 +49,7 @@ async function isolated(run) {
     await admin.query(`CREATE SCHEMA "${schema}"`);
     db = await new DataSource({
       ...options,
+      ...(upTo ? { migrations: migrations.slice(0, upTo) } : {}),
       schema,
       extra: {
         ...options.extra,
@@ -54,6 +62,27 @@ async function isolated(run) {
     await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await admin.destroy();
   }
+}
+/** Reverts newest-first until the migration whose name starts with `prefix` is undone. */
+async function revertThrough(db, prefix) {
+  const applied = async () =>
+    (
+      await db.query('SELECT 1 FROM typeorm_migrations WHERE name LIKE $1', [
+        `${prefix}%`,
+      ])
+    ).length > 0;
+  assert.ok(await applied(), `${prefix} must be applied`);
+  let reverted = 0;
+  while (await applied()) {
+    await migrateDatabase(db, { revert: true });
+    reverted++;
+  }
+  return reverted;
+}
+/** Finishes the migrations an era-limited `isolated(run, upTo)` database skipped. */
+async function upgradeToLatest(db) {
+  db.migrations = migrations.map((Migration) => new Migration());
+  await migrateDatabase(db);
 }
 const rejectsCode = (query, code, constraint) =>
   assert.rejects(
@@ -105,17 +134,23 @@ test('fresh database: all migrations, concurrent runner, repeat and safe baselin
       (await db.query('SELECT * FROM typeorm_migrations')).length,
       migrations.length,
     );
-    await migrateDatabase(db, { revert: true });
-    await migrateDatabase(db, { revert: true });
-    await assert.rejects(
-      () => migrateDatabase(db, { revert: true }),
-      /Destructive rollback disabled/,
-    );
+    // Revert newest-first until the first deliberately irreversible migration.
+    let reverted = 0;
+    for (;;) {
+      try {
+        await migrateDatabase(db, { revert: true });
+        reverted++;
+      } catch (error) {
+        assert.match(error.message, /Destructive rollback disabled/);
+        break;
+      }
+    }
+    assert.ok(reverted > 2);
     assert.equal(
       (await db.query('SELECT * FROM typeorm_migrations')).length,
-      migrations.length - 2,
+      migrations.length - reverted,
     );
-    assert.equal((await migrateDatabase(db)).length, 2);
+    assert.equal((await migrateDatabase(db)).length, reverted);
   }));
 
 test('L2 lesson schema enforces uniqueness, cascades chapters and rolls back cleanly', async () =>
@@ -165,7 +200,7 @@ test('L2 lesson schema enforces uniqueness, cascades chapters and rolls back cle
     await db.getRepository(Chapter).delete(chapter.id);
     assert.equal(await lessons.countBy({ chapterId: chapter.id }), 0);
 
-    await migrateDatabase(db, { revert: true });
+    await revertThrough(db, 'LessonDomain');
     assert.equal(
       (await db.query('SELECT to_regtype(\'"LessonType"\') AS name'))[0].name,
       null,
@@ -225,7 +260,12 @@ test('C15 free enrollment is race-safe and lesson access honors previews', async
       { granted: false, reason: 'ENROLLMENT_REQUIRED' },
     );
 
-    const enrollments = new CoursesService({ dataSource: db }, {});
+    const enrollments = new CoursesService(
+      { dataSource: db },
+      {},
+      new EnrollmentService({ dataSource: db }),
+      {},
+    );
     assert.deepEqual(await enrollments.enrollmentStatus(user.id, course.id), {
       isEnrolled: false,
     });
@@ -351,7 +391,7 @@ test('P2 lesson progress schema: indexes, unique relation, cascades and Down/Up'
     await lessons.delete(lesson.id);
     assert.equal(await progress.countBy({ id: second.id }), 0);
 
-    await migrateDatabase(db, { revert: true });
+    const revertedProgress = await revertThrough(db, 'LessonProgress');
     assert.equal(
       (
         await db.query('SELECT to_regtype(\'"LessonProgressStatus"\') AS name')
@@ -365,57 +405,112 @@ test('P2 lesson progress schema: indexes, unique relation, cascades and Down/Up'
     assert.ok(
       legacyColumns.some((column) => column.column_name === 'enrollment_id'),
     );
-    assert.equal((await migrateDatabase(db)).length, 1);
+    assert.equal((await migrateDatabase(db)).length, revertedProgress);
   }));
 
 test('P3 progress API service: concurrent idempotency, enrollment and aggregation', async () =>
   isolated(async (db) => {
     await migrateDatabase(db);
-    const user = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p3@example.invalid', displayName: 'P3 Student' }),
-    );
+    const user = await db
+      .getRepository(User)
+      .save(
+        db
+          .getRepository(User)
+          .create({ email: 'p3@example.invalid', displayName: 'P3 Student' }),
+      );
     const outsider = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p3-outsider@example.invalid', displayName: 'P3 Outsider' }),
+      db.getRepository(User).create({
+        email: 'p3-outsider@example.invalid',
+        displayName: 'P3 Outsider',
+      }),
     );
-    const course = await db.getRepository(Course).save(
-      db.getRepository(Course).create({ title: 'P3 Course', slug: 'p3-course' }),
-    );
-    const chapter = await db.getRepository(Chapter).save(
-      db.getRepository(Chapter).create({ courseId: course.id, title: 'P3 Chapter', position: 0 }),
-    );
+    const course = await db
+      .getRepository(Course)
+      .save(
+        db
+          .getRepository(Course)
+          .create({ title: 'P3 Course', slug: 'p3-course' }),
+      );
+    const chapter = await db
+      .getRepository(Chapter)
+      .save(
+        db
+          .getRepository(Chapter)
+          .create({ courseId: course.id, title: 'P3 Chapter', position: 0 }),
+      );
     const lessons = [];
     for (let position = 0; position < 6; position += 1) {
-      lessons.push(await db.getRepository(Lesson).save(
-        db.getRepository(Lesson).create({
-          courseId: course.id, chapterId: chapter.id, title: `Lesson ${position + 1}`,
-          slug: `lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
-        }),
-      ));
+      lessons.push(
+        await db.getRepository(Lesson).save(
+          db.getRepository(Lesson).create({
+            courseId: course.id,
+            chapterId: chapter.id,
+            title: `Lesson ${position + 1}`,
+            slug: `lesson-${position + 1}`,
+            type: LessonType.TEXT,
+            position,
+            textBody: 'Body',
+          }),
+        ),
+      );
     }
-    await db.getRepository(Enrollment).save(
-      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    await db
+      .getRepository(Enrollment)
+      .save(
+        db
+          .getRepository(Enrollment)
+          .create({ userId: user.id, courseId: course.id }),
+      );
+    const database = { dataSource: db };
+    const engine = new CourseProgressCalculatorService(
+      database,
+      new NoopProgressCache(),
+      new CurriculumEvents(),
     );
-    const engine = new CourseProgressEngine({ dataSource: db });
-    const service = new ProgressService({ dataSource: db }, engine);
+    const policy = new EnrollmentPolicy(database);
+    const service = new ProgressService(database, engine, policy);
     await assert.rejects(
       () => service.startLesson(outsider.id, lessons[0].id),
       (error) => error.getStatus() === 403,
     );
-    await Promise.all(Array.from({ length: 5 }, () =>
-      service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 }),
-    ));
-    assert.equal(await db.getRepository(LessonProgress).countBy({
-      userId: user.id, lessonId: lessons[0].id,
-    }), 1);
-    const firstCompletedAt = (await db.getRepository(LessonProgress).findOneByOrFail({
-      userId: user.id, lessonId: lessons[0].id,
-    })).completedAt.toISOString();
-    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
-    assert.equal((await db.getRepository(LessonProgress).findOneByOrFail({
-      userId: user.id, lessonId: lessons[0].id,
-    })).completedAt.toISOString(), firstCompletedAt);
-    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
-    const result = await service.completeLesson(user.id, lessons[2].id, { scrollPercentage: 80 });
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        service.completeLesson(user.id, lessons[0].id, {
+          scrollPercentage: 80,
+        }),
+      ),
+    );
+    assert.equal(
+      await db.getRepository(LessonProgress).countBy({
+        userId: user.id,
+        lessonId: lessons[0].id,
+      }),
+      1,
+    );
+    const firstCompletedAt = (
+      await db.getRepository(LessonProgress).findOneByOrFail({
+        userId: user.id,
+        lessonId: lessons[0].id,
+      })
+    ).completedAt.toISOString();
+    await service.completeLesson(user.id, lessons[0].id, {
+      scrollPercentage: 80,
+    });
+    assert.equal(
+      (
+        await db.getRepository(LessonProgress).findOneByOrFail({
+          userId: user.id,
+          lessonId: lessons[0].id,
+        })
+      ).completedAt.toISOString(),
+      firstCompletedAt,
+    );
+    await service.completeLesson(user.id, lessons[1].id, {
+      scrollPercentage: 80,
+    });
+    const result = await service.completeLesson(user.id, lessons[2].id, {
+      scrollPercentage: 80,
+    });
     assert.equal(result.courseProgress.courseId, course.id);
     assert.equal(result.courseProgress.completedRequiredLessons, 3);
     assert.equal(result.courseProgress.totalRequiredLessons, 6);
@@ -425,24 +520,44 @@ test('P3 progress API service: concurrent idempotency, enrollment and aggregatio
 test('P4 required lessons: defaults, optional exclusion and live toggle aggregation', async () =>
   isolated(async (db) => {
     await migrateDatabase(db);
-    const user = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p4@example.invalid', displayName: 'P4 Student' }),
-    );
-    const course = await db.getRepository(Course).save(
-      db.getRepository(Course).create({ title: 'P4 Course', slug: 'p4-course' }),
-    );
-    const chapter = await db.getRepository(Chapter).save(
-      db.getRepository(Chapter).create({ courseId: course.id, title: 'P4 Chapter', position: 0 }),
-    );
+    const user = await db
+      .getRepository(User)
+      .save(
+        db
+          .getRepository(User)
+          .create({ email: 'p4@example.invalid', displayName: 'P4 Student' }),
+      );
+    const course = await db
+      .getRepository(Course)
+      .save(
+        db
+          .getRepository(Course)
+          .create({ title: 'P4 Course', slug: 'p4-course' }),
+      );
+    const chapter = await db
+      .getRepository(Chapter)
+      .save(
+        db
+          .getRepository(Chapter)
+          .create({ courseId: course.id, title: 'P4 Chapter', position: 0 }),
+      );
     const definitions = [true, true, false, true];
     const lessons = [];
     for (const [position, isRequired] of definitions.entries()) {
-      lessons.push(await db.getRepository(Lesson).save(
-        db.getRepository(Lesson).create({
-          courseId: course.id, chapterId: chapter.id, title: `P4 Lesson ${position + 1}`,
-          slug: `p4-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body', isRequired,
-        }),
-      ));
+      lessons.push(
+        await db.getRepository(Lesson).save(
+          db.getRepository(Lesson).create({
+            courseId: course.id,
+            chapterId: chapter.id,
+            title: `P4 Lesson ${position + 1}`,
+            slug: `p4-lesson-${position + 1}`,
+            type: LessonType.TEXT,
+            position,
+            textBody: 'Body',
+            isRequired,
+          }),
+        ),
+      );
     }
     const [defaulted] = await db.query(
       `INSERT INTO lessons(course_id,chapter_id,title,slug,type,position,text_body)
@@ -450,14 +565,28 @@ test('P4 required lessons: defaults, optional exclusion and live toggle aggregat
       [course.id, chapter.id],
     );
     assert.equal(defaulted.is_required, true);
-    await db.getRepository(Lesson).delete({ chapterId: chapter.id, position: 4 });
-    await db.getRepository(Enrollment).save(
-      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    await db
+      .getRepository(Lesson)
+      .delete({ chapterId: chapter.id, position: 4 });
+    await db
+      .getRepository(Enrollment)
+      .save(
+        db
+          .getRepository(Enrollment)
+          .create({ userId: user.id, courseId: course.id }),
+      );
+    const database = { dataSource: db };
+    const engine = new CourseProgressCalculatorService(
+      database,
+      new NoopProgressCache(),
+      new CurriculumEvents(),
     );
-    const engine = new CourseProgressEngine({ dataSource: db });
-    const service = new ProgressService({ dataSource: db }, engine);
+    const policy = new EnrollmentPolicy(database);
+    const service = new ProgressService(database, engine, policy);
     const complete = (index) =>
-      service.completeLesson(user.id, lessons[index].id, { scrollPercentage: 80 });
+      service.completeLesson(user.id, lessons[index].id, {
+        scrollPercentage: 80,
+      });
     assert.equal((await complete(0)).courseProgress.percentage, 33);
     await db.getRepository(Lesson).update(lessons[3].id, { isRequired: false });
     const toggled = await service.calculateCourseProgress(user.id, course.id);
@@ -465,54 +594,98 @@ test('P4 required lessons: defaults, optional exclusion and live toggle aggregat
     assert.equal(toggled.totalRequiredLessons, 2);
     assert.equal(toggled.percentage, 50);
     await db.getRepository(Lesson).update(lessons[3].id, { isRequired: true });
-    assert.equal((await service.calculateCourseProgress(user.id, course.id)).percentage, 33);
+    assert.equal(
+      (await service.calculateCourseProgress(user.id, course.id)).percentage,
+      33,
+    );
     assert.equal((await complete(2)).courseProgress.percentage, 33);
-    assert.equal((await complete(1)).courseProgress.percentage, 67);
+    // Progress is floored (see CourseProgressCalculatorService), never rounded up.
+    assert.equal((await complete(1)).courseProgress.percentage, 66);
     assert.equal((await complete(3)).courseProgress.percentage, 100);
-    await migrateDatabase(db, { revert: true });
+    const revertedRequired = await revertThrough(db, 'AddIsRequiredToLessons');
     const removed = await db.query(
       "SELECT column_name FROM information_schema.columns WHERE table_name='lessons' AND column_name='is_required'",
     );
     assert.equal(removed.length, 0);
-    assert.equal((await migrateDatabase(db)).length, 1);
-    assert.ok((await db.query('SELECT is_required FROM lessons')).every((row) => row.is_required === true));
+    assert.equal((await migrateDatabase(db)).length, revertedRequired);
+    assert.ok(
+      (await db.query('SELECT is_required FROM lessons')).every(
+        (row) => row.is_required === true,
+      ),
+    );
   }));
 
 test('P5 progress SSOT: detail, enrolled list and completion share one summary', async () =>
   isolated(async (db) => {
     await migrateDatabase(db);
-    const user = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p5@example.invalid', displayName: 'P5 Student' }),
-    );
-    const course = await db.getRepository(Course).save(
-      db.getRepository(Course).create({ title: 'P5 Course', slug: 'p5-course' }),
-    );
-    const chapter = await db.getRepository(Chapter).save(
-      db.getRepository(Chapter).create({ courseId: course.id, title: 'P5 Chapter', position: 0 }),
-    );
+    const user = await db
+      .getRepository(User)
+      .save(
+        db
+          .getRepository(User)
+          .create({ email: 'p5@example.invalid', displayName: 'P5 Student' }),
+      );
+    const course = await db
+      .getRepository(Course)
+      .save(
+        db
+          .getRepository(Course)
+          .create({ title: 'P5 Course', slug: 'p5-course' }),
+      );
+    const chapter = await db
+      .getRepository(Chapter)
+      .save(
+        db
+          .getRepository(Chapter)
+          .create({ courseId: course.id, title: 'P5 Chapter', position: 0 }),
+      );
     const lessons = [];
-    for (const [position, isRequired] of [true, true, true, false, false].entries()) {
-      lessons.push(await db.getRepository(Lesson).save(
-        db.getRepository(Lesson).create({
-          courseId: course.id,
-          chapterId: chapter.id,
-          title: `P5 Lesson ${position + 1}`,
-          slug: `p5-lesson-${position + 1}`,
-          type: LessonType.TEXT,
-          position,
-          textBody: 'Body',
-          isRequired,
-        }),
-      ));
+    for (const [position, isRequired] of [
+      true,
+      true,
+      true,
+      false,
+      false,
+    ].entries()) {
+      lessons.push(
+        await db.getRepository(Lesson).save(
+          db.getRepository(Lesson).create({
+            courseId: course.id,
+            chapterId: chapter.id,
+            title: `P5 Lesson ${position + 1}`,
+            slug: `p5-lesson-${position + 1}`,
+            type: LessonType.TEXT,
+            position,
+            textBody: 'Body',
+            isRequired,
+          }),
+        ),
+      );
     }
-    await db.getRepository(Enrollment).save(
-      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
+    await db
+      .getRepository(Enrollment)
+      .save(
+        db
+          .getRepository(Enrollment)
+          .create({ userId: user.id, courseId: course.id }),
+      );
+    const database = { dataSource: db };
+    const engine = new CourseProgressCalculatorService(
+      database,
+      new NoopProgressCache(),
+      new CurriculumEvents(),
     );
-    const engine = new CourseProgressEngine({ dataSource: db });
-    const service = new ProgressService({ dataSource: db }, engine);
-    await service.completeLesson(user.id, lessons[0].id, { scrollPercentage: 80 });
-    await service.completeLesson(user.id, lessons[1].id, { scrollPercentage: 80 });
-    const completed = await service.completeLesson(user.id, lessons[3].id, { scrollPercentage: 80 });
+    const policy = new EnrollmentPolicy(database);
+    const service = new ProgressService(database, engine, policy);
+    await service.completeLesson(user.id, lessons[0].id, {
+      scrollPercentage: 80,
+    });
+    await service.completeLesson(user.id, lessons[1].id, {
+      scrollPercentage: 80,
+    });
+    const completed = await service.completeLesson(user.id, lessons[3].id, {
+      scrollPercentage: 80,
+    });
     await db.query(
       `UPDATE lesson_progress SET last_accessed_at = CURRENT_TIMESTAMP + INTERVAL '1 minute'
        WHERE user_id = $1 AND lesson_id = $2`,
@@ -521,54 +694,99 @@ test('P5 progress SSOT: detail, enrolled list and completion share one summary',
 
     const detail = await service.courseProgress(user.id, course.id);
     const [enrolled] = await engine.enrolledCourses(user.id);
-    for (const summary of [completed.courseProgress, detail, enrolled.progress]) {
-      assert.equal(summary.percentage, 67);
-      assert.equal(summary.completedLessons, 3);
+    // The enrolled list carries the compact My Learning summary only.
+    for (const summary of [
+      completed.courseProgress,
+      detail,
+      enrolled.progress,
+    ]) {
+      assert.equal(summary.percentage, 66);
       assert.equal(summary.completedRequiredLessons, 2);
       assert.equal(summary.totalRequiredLessons, 3);
+    }
+    for (const summary of [completed.courseProgress, detail]) {
+      assert.equal(summary.completedLessons, 3);
       assert.equal(summary.totalLessons, 5);
     }
     assert.equal(detail.lastAccessedLessonId, lessons[3].id);
-    assert.equal(enrolled.progress.lastAccessedLessonId, lessons[3].id);
-    assert.equal(enrolled.lastAccessedLessonSlug, lessons[3].slug);
+    assert.equal(completed.courseProgress.lastAccessedLessonId, lessons[3].id);
+    assert.equal(enrolled.progress.lastAccessedLessonSlug, lessons[3].slug);
   }));
 
 test('P6 resume learning: persists server state, seeks cross-device and falls back safely', async () =>
   isolated(async (db) => {
     await migrateDatabase(db);
-    const user = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p6@example.invalid', displayName: 'P6 Student' }),
-    );
-    const newcomer = await db.getRepository(User).save(
-      db.getRepository(User).create({ email: 'p6-new@example.invalid', displayName: 'P6 New' }),
-    );
-    const course = await db.getRepository(Course).save(
-      db.getRepository(Course).create({ title: 'P6 Course', slug: 'p6-course' }),
-    );
-    const chapter = await db.getRepository(Chapter).save(
-      db.getRepository(Chapter).create({ courseId: course.id, title: 'P6 Chapter', position: 0 }),
-    );
+    const user = await db
+      .getRepository(User)
+      .save(
+        db
+          .getRepository(User)
+          .create({ email: 'p6@example.invalid', displayName: 'P6 Student' }),
+      );
+    const newcomer = await db
+      .getRepository(User)
+      .save(
+        db
+          .getRepository(User)
+          .create({ email: 'p6-new@example.invalid', displayName: 'P6 New' }),
+      );
+    const course = await db
+      .getRepository(Course)
+      .save(
+        db
+          .getRepository(Course)
+          .create({ title: 'P6 Course', slug: 'p6-course' }),
+      );
+    const chapter = await db
+      .getRepository(Chapter)
+      .save(
+        db
+          .getRepository(Chapter)
+          .create({ courseId: course.id, title: 'P6 Chapter', position: 0 }),
+      );
     const lessons = [];
     for (let position = 0; position < 3; position += 1) {
-      lessons.push(await db.getRepository(Lesson).save(
-        db.getRepository(Lesson).create({
-          courseId: course.id, chapterId: chapter.id, title: `P6 Lesson ${position + 1}`,
-          slug: `p6-lesson-${position + 1}`, type: LessonType.TEXT, position, textBody: 'Body',
-        }),
-      ));
+      lessons.push(
+        await db.getRepository(Lesson).save(
+          db.getRepository(Lesson).create({
+            courseId: course.id,
+            chapterId: chapter.id,
+            title: `P6 Lesson ${position + 1}`,
+            slug: `p6-lesson-${position + 1}`,
+            type: LessonType.TEXT,
+            position,
+            textBody: 'Body',
+          }),
+        ),
+      );
     }
-    await db.getRepository(Enrollment).save([
-      db.getRepository(Enrollment).create({ userId: user.id, courseId: course.id }),
-      db.getRepository(Enrollment).create({ userId: newcomer.id, courseId: course.id }),
-    ]);
-    const engine = new CourseProgressEngine({ dataSource: db });
-    const progress = new ProgressService({ dataSource: db }, engine);
-    const resume = new ResumeLearningService({ dataSource: db }, engine);
+    await db
+      .getRepository(Enrollment)
+      .save([
+        db
+          .getRepository(Enrollment)
+          .create({ userId: user.id, courseId: course.id }),
+        db
+          .getRepository(Enrollment)
+          .create({ userId: newcomer.id, courseId: course.id }),
+      ]);
+    const database = { dataSource: db };
+    const engine = new CourseProgressCalculatorService(
+      database,
+      new NoopProgressCache(),
+      new CurriculumEvents(),
+    );
+    const policy = new EnrollmentPolicy(database);
+    const progress = new ProgressService(database, engine, policy);
+    const resume = new ResumeLearningService(database, engine, policy);
     await progress.startLesson(user.id, lessons[1].id);
-    await progress.updateHeartbeat(user.id, lessons[1].id, { lastPosition: 90 });
+    await progress.updateHeartbeat(user.id, lessons[1].id, {
+      lastPosition: 90,
+    });
 
     const persisted = await db.getRepository(Enrollment).findOneByOrFail({
-      userId: user.id, courseId: course.id,
+      userId: user.id,
+      courseId: course.id,
     });
     assert.equal(persisted.lastAccessedLessonId, lessons[1].id);
     assert.ok(persisted.lastAccessedAt instanceof Date);
@@ -586,8 +804,13 @@ test('P6 resume learning: persists server state, seeks cross-device and falls ba
       lastPosition: 0,
       hasStarted: false,
     });
-    await db.getRepository(Lesson).update(lessons[1].id, { isPublished: false });
-    assert.equal((await resume.course(user.id, course.id)).lessonSlug, lessons[0].slug);
+    await db
+      .getRepository(Lesson)
+      .update(lessons[1].id, { isPublished: false });
+    assert.equal(
+      (await resume.course(user.id, course.id)).lessonSlug,
+      lessons[0].slug,
+    );
 
     const indexes = await db.query(
       `SELECT indexname FROM pg_indexes
@@ -664,6 +887,30 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
       ],
     );
 
+    await migrateDatabase(db, { revert: true });
+    const revertedKeys = await db.query(
+      "SELECT conname,confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f' ORDER BY conname",
+    );
+    assert.deepEqual(
+      revertedKeys.map((key) => [key.conname, key.confdeltype]),
+      [
+        ['enrollments_course_id_fkey', 'r'],
+        ['enrollments_user_id_fkey', 'r'],
+      ],
+    );
+    assert.equal(
+      (await db.query("SELECT to_regclass('enrollments_user_idx') AS name"))[0]
+        .name,
+      null,
+    );
+    assert.equal((await migrateDatabase(db)).length, 1);
+    const reappliedKeys = await db.query(
+      "SELECT confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f'",
+    );
+    assert.ok(reappliedKeys.every((key) => key.confdeltype === 'c'));
+
+    // Entities map today's columns: run the rest on the latest schema.
+    await upgradeToLatest(db);
     const users = db.getRepository(User);
     const courses = db.getRepository(Course);
     const enrollments = db.getRepository(Enrollment);
@@ -700,29 +947,7 @@ test('C4 enrollment schema: preserves legacy rows, relations, constraints, casca
     );
     await users.delete(user.id);
     assert.equal(await enrollments.count(), 0);
-
-    await migrateDatabase(db, { revert: true });
-    const revertedKeys = await db.query(
-      "SELECT conname,confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f' ORDER BY conname",
-    );
-    assert.deepEqual(
-      revertedKeys.map((key) => [key.conname, key.confdeltype]),
-      [
-        ['enrollments_course_id_fkey', 'r'],
-        ['enrollments_user_id_fkey', 'r'],
-      ],
-    );
-    assert.equal(
-      (await db.query("SELECT to_regclass('enrollments_user_idx') AS name"))[0]
-        .name,
-      null,
-    );
-    assert.equal((await migrateDatabase(db)).length, 1);
-    const reappliedKeys = await db.query(
-      "SELECT confdeltype FROM pg_constraint WHERE conrelid='enrollments'::regclass AND contype='f'",
-    );
-    assert.ok(reappliedKeys.every((key) => key.confdeltype === 'c'));
-  }));
+  }, 9));
 
 test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', async () =>
   isolated(async (db, schema) => {
@@ -761,6 +986,15 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
     );
     assert.equal(foreignKey[0].confdeltype, 'c');
 
+    await migrateDatabase(db, { revert: true });
+    await migrateDatabase(db, { revert: true });
+    assert.equal(
+      (await db.query("SELECT to_regclass('chapters') AS name"))[0].name,
+      null,
+    );
+    assert.equal((await migrateDatabase(db)).length, 2);
+    // Entities map today's columns: run the rest on the latest schema.
+    await upgradeToLatest(db);
     const courses = db.getRepository(Course);
     const course = await courses.save(
       courses.create({ title: 'Chapter course', slug: 'chapter-course' }),
@@ -801,15 +1035,7 @@ test('C3 chapters schema: constraints, indexes, relation, cascade and Down/Up', 
     );
     await courses.delete(course.id);
     assert.equal(await chapters.count(), 0);
-
-    await migrateDatabase(db, { revert: true });
-    await migrateDatabase(db, { revert: true });
-    assert.equal(
-      (await db.query("SELECT to_regclass('chapters') AS name"))[0].name,
-      null,
-    );
-    assert.equal((await migrateDatabase(db)).length, 2);
-  }));
+  }, 9));
 
 test('legacy adoption: explicit, contiguous, unlocked history required; rejected adoption is atomic', async () =>
   isolated(async (db) => {
@@ -851,7 +1077,7 @@ test('legacy adoption: explicit, contiguous, unlocked history required; rejected
     );
     assert.equal((await migrateDatabase(db, { adoptLegacy: true })).length, 3);
     assert.deepEqual(await migrateDatabase(db), []);
-  }));
+  }, 9));
 
 test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async () =>
   isolated(async (db, schema) => {
@@ -935,36 +1161,34 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
       .getRepository(User)
       .findOneByOrFail({ id: user.id });
     assert.equal(instructor.passwordHash, undefined);
-    const courses = db.getRepository(Course);
-    const created = await courses.save(
-      courses.create({ title: 'New', slug: 'new', instructor }),
+    // Raw SQL: the entities map later columns this era's schema does not have.
+    const [created] = await db.query(
+      "INSERT INTO courses(title,slug,instructor_id) VALUES ('New','new',$1) RETURNING *",
+      [user.id],
     );
-    const loaded = await courses.findOneOrFail({
-      where: { id: created.id },
-      relations: { instructor: true },
-    });
-    assert.equal(loaded.instructor.id, user.id);
-    assert.equal(loaded.status, CourseStatus.DRAFT);
+    assert.equal(created.instructor_id, user.id);
+    assert.equal(created.status, CourseStatus.DRAFT);
     for (const key of [
       'description',
-      'shortDescription',
+      'short_description',
       'thumbnail',
-      'publishedAt',
+      'published_at',
     ])
-      assert.equal(loaded[key], null);
-    assert.ok(loaded.createdAt instanceof Date);
-    await courses.update(created.id, {
-      status: CourseStatus.PUBLISHED,
-      publishedAt: new Date(),
-      shortDescription: 'Short',
-      thumbnail: 'course.webp',
-    });
-    assert.ok(
-      (await courses.findOneByOrFail({ id: created.id })).updatedAt >
-        loaded.updatedAt,
+      assert.equal(created[key], null);
+    assert.ok(created.created_at instanceof Date);
+    await db.query(
+      "UPDATE courses SET status=$2, published_at=now(), short_description='Short', thumbnail='course.webp' WHERE id=$1 RETURNING id",
+      [created.id, CourseStatus.PUBLISHED],
+    );
+    assert.equal(
+      (
+        await db.query('SELECT status FROM courses WHERE id=$1', [created.id])
+      )[0].status,
+      CourseStatus.PUBLISHED,
     );
     await rejectsCode(
-      () => courses.insert({ title: 'Duplicate', slug: 'new' }),
+      () =>
+        db.query("INSERT INTO courses(title,slug) VALUES ('Duplicate','new')"),
       '23505',
     );
     await rejectsCode(
@@ -983,16 +1207,23 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
       '22P02',
     );
     await rejectsCode(
-      () => courses.update(created.id, { instructorId: randomUUID() }),
+      () =>
+        db.query('UPDATE courses SET instructor_id=$2 WHERE id=$1', [
+          created.id,
+          randomUUID(),
+        ]),
       '23503',
       'FK_courses_instructor',
     );
     const [only] = await db.query(
       "INSERT INTO users(email,display_name) VALUES ('only@example.invalid','Only instructor') RETURNING id",
     );
-    await courses.update(created.id, { instructorId: only.id });
+    await db.query('UPDATE courses SET instructor_id=$2 WHERE id=$1', [
+      created.id,
+      only.id,
+    ]);
     await rejectsCode(
-      () => db.getRepository(User).delete(only.id),
+      () => db.query('DELETE FROM users WHERE id=$1', [only.id]),
       '23503',
       'FK_courses_instructor',
     );
@@ -1025,7 +1256,7 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
       '23514',
     );
     assert.equal((await migrateDatabase(db)).length, 3);
-  }));
+  }, 9));
 
 test('already-applied C2 is adopted without replaying SQL', async () =>
   isolated(async (db) => {
@@ -1045,7 +1276,7 @@ test('already-applied C2 is adopted without replaying SQL', async () =>
     await migrateDatabase(db, { revert: true });
     await migrateDatabase(db, { revert: true });
     assert.equal((await migrateDatabase(db)).length, 2);
-  }));
+  }, 9));
 
 test('seeds are idempotent and do not reset an existing administrator password', async () =>
   isolated(async (db) => {

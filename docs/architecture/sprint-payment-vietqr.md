@@ -1,5 +1,14 @@
 # Sprint Payment: VietQR động và Bank Webhook
 
+> **Cập nhật:** tài liệu này mô tả nền tảng PAY1. Mô hình giá/đơn hàng đã được
+> thay thế bởi [course-pricing-model.md](course-pricing-model.md) (PAY2) và lớp
+> persistence PAY3–5; luồng checkout, webhook và cổng thanh toán nay do
+> [payment-provider-abstraction.md](payment-provider-abstraction.md) (PAY6–9)
+> mô tả. Các phần về `BankWebhookGuard`, `POST /payments/webhook/vietqr`,
+> `orders.amount/course_id` và `bank_webhook_logs` không còn phản ánh mã hiện
+> tại: xác thực webhook nằm trong `VietQRProviderAdapter`, idempotency nằm ở
+> sổ cái `payment_transactions`.
+
 ## 1. Mục tiêu
 
 Sprint Payment triển khai luồng thanh toán chuyển khoản VietQR cho khóa học có

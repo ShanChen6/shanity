@@ -1,23 +1,63 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsEnum,
+  IsIn,
   IsInt,
-  IsNotEmpty,
-  IsObject,
+  Max,
+  Min,
   IsOptional,
-  IsPositive,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { PaymentProviderEnum } from './interfaces/payment-provider.enum.js';
+import { MAX_ORDER_ITEMS } from './order-snapshot.js';
 
 export class CreateOrderDto {
-  @IsUUID() courseId: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_ORDER_ITEMS)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  courseIds: string[];
 }
 
-export class VietQrWebhookDto {
-  @IsString() @IsNotEmpty() @MaxLength(128) transactionId: string;
-  @IsInt() @IsPositive() amount: number;
-  @IsString() @IsNotEmpty() @MaxLength(500) transferContent: string;
-  // Some forwarders wrap the original bank notification. The complete HTTP
-  // body is persisted regardless; this field is intentionally unconstrained.
-  @IsOptional() @IsObject() rawPayload?: Record<string, unknown>;
+export class InitiateCheckoutDto {
+  @IsEnum(PaymentProviderEnum)
+  provider: PaymentProviderEnum;
+
+  // Must share the web app's origin; validated by CheckoutService.
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  returnUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  cancelUrl?: string;
+}
+
+export class StudentOrdersQueryDto {
+  @IsOptional()
+  @IsIn(['all', 'pending', 'completed', 'cancelled'])
+  status?: 'all' | 'pending' | 'completed' | 'cancelled';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }

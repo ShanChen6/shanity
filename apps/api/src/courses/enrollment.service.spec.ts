@@ -1,15 +1,17 @@
 import { ConflictException } from '@nestjs/common';
-import { CoursePublishabilityValidator } from './course-publishability.validator.js';
+import { CourseAccessType } from './course-access-type.js';
+import { PaymentRequiredException } from './payment-required.exception.js';
 import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
-import { CoursesService } from './courses.service.js';
+import { EnrollmentService } from './enrollment.service.js';
 import { DatabaseService } from '../database/database.module.js';
 
-describe('CoursesService enrollment', () => {
+describe('EnrollmentService.enrollCourse', () => {
   it('stores only one enrollment when requests race', async () => {
     const course = {
       id: 'course-id',
       status: CourseStatus.PUBLISHED,
+      accessType: CourseAccessType.FREE,
       price: 0,
     };
     const stored = new Map<string, { id: string; enrolledAt: Date }>();
@@ -39,20 +41,17 @@ describe('CoursesService enrollment', () => {
         ),
       },
     } as unknown as DatabaseService;
-    const service = new CoursesService(
-      database,
-      {} as CoursePublishabilityValidator,
-    );
+    const service = new EnrollmentService(database);
 
     const results = await Promise.allSettled([
-      service.enroll('user-id', 'course-id'),
-      service.enroll('user-id', 'course-id'),
+      service.enrollCourse('user-id', 'course-id'),
+      service.enrollCourse('user-id', 'course-id'),
     ]);
 
     expect(stored).toHaveLength(1);
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
-      1,
-    );
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
     const rejected = results.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -65,6 +64,7 @@ describe('CoursesService enrollment', () => {
       findOneBy: vi.fn().mockResolvedValue({
         id: 'course-id',
         status: CourseStatus.PUBLISHED,
+        accessType: CourseAccessType.FREE,
         price: 0,
       }),
     };
@@ -80,14 +80,41 @@ describe('CoursesService enrollment', () => {
         ),
       },
     } as unknown as DatabaseService;
-    const service = new CoursesService(
-      database,
-      {} as CoursePublishabilityValidator,
-    );
+    const service = new EnrollmentService(database);
 
-    await expect(service.enroll('user-id', 'course-id')).rejects.toMatchObject({
+    await expect(
+      service.enrollCourse('user-id', 'course-id'),
+    ).rejects.toMatchObject({
       status: 409,
     });
+    expect(enrollmentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects PAID courses with 402 and never touches enrollments', async () => {
+    const courseRepository = {
+      findOneBy: vi.fn().mockResolvedValue({
+        id: 'course-id',
+        status: CourseStatus.PUBLISHED,
+        accessType: CourseAccessType.PAID,
+        price: 500000,
+      }),
+    };
+    const enrollmentRepository = { findOneBy: vi.fn(), save: vi.fn() };
+    const database = {
+      dataSource: {
+        getRepository: vi.fn((entity: unknown) =>
+          entity === Course ? courseRepository : enrollmentRepository,
+        ),
+      },
+    } as unknown as DatabaseService;
+    const service = new EnrollmentService(database);
+
+    const error = await service
+      .enrollCourse('user-id', 'course-id')
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(PaymentRequiredException);
+    expect((error as PaymentRequiredException).getStatus()).toBe(402);
+    expect(enrollmentRepository.findOneBy).not.toHaveBeenCalled();
     expect(enrollmentRepository.save).not.toHaveBeenCalled();
   });
 });

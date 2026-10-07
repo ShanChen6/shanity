@@ -12,6 +12,8 @@ import {
   Max,
 } from 'class-validator';
 
+import { CourseCurrency, MAX_PRICE_MINOR_UNITS } from './course-currency.js';
+
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -35,7 +37,7 @@ export class CreateCourseDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(0)
-  @Max(2147483647)
+  @Max(MAX_PRICE_MINOR_UNITS[CourseCurrency.VND])
   price?: number;
 
   @Transform(trimString)
@@ -83,7 +85,7 @@ export class UpdateCourseDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(0)
-  @Max(2147483647)
+  @Max(MAX_PRICE_MINOR_UNITS[CourseCurrency.VND])
   price?: number;
 
   @Transform(trimString)

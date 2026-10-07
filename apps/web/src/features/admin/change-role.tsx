@@ -92,6 +92,9 @@ export function ChangeRole({
               Giảng viên
             </option>
             <option value="ADMIN">Quản trị viên</option>
+            <option value="FINANCE_OFFICER" disabled={isSelf}>
+              Nhân viên tài chính
+            </option>
           </Select>
         </label>
         <Button

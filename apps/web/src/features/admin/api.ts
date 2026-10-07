@@ -13,7 +13,11 @@ export function getUser(id: string) {
   return api<AdminUser>(`/users/${encodeURIComponent(id)}`);
 }
 
-export type UserRoleInput = "STUDENT" | "INSTRUCTOR" | "ADMIN";
+export type UserRoleInput =
+  | "STUDENT"
+  | "INSTRUCTOR"
+  | "ADMIN"
+  | "FINANCE_OFFICER";
 export function changeUserRole(id: string, role: UserRoleInput) {
   return api<AdminUser>(`/users/${encodeURIComponent(id)}/role`, {
     method: "PATCH",

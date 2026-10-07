@@ -17,6 +17,7 @@ const roles = {
   student: "Học sinh",
   instructor: "Giảng viên",
   admin: "Quản trị viên",
+  finance_officer: "Nhân viên tài chính",
 };
 
 export function Profile() {
