@@ -38,6 +38,7 @@ describe('buildOrderSnapshot', () => {
       finalTotal: 499000,
       items: [
         {
+          position: 0,
           courseId: 'course-a',
           courseTitleSnapshot: 'Khóa học A',
           unitPriceSnapshot: 499000,

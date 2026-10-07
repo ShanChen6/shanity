@@ -33,6 +33,7 @@ describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
     t
       .http()
       .post('/orders')
+      .set('Origin', process.env.WEB_ORIGIN!)
       .set('Cookie', student.session)
       .send({ courseIds: [courseId] });
   const webhook = (body: object, key = apiKey) =>
@@ -62,6 +63,7 @@ describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
     const checkout = await t
       .http()
       .post(`/orders/${created.body.orderId}/checkout`)
+      .set('Origin', process.env.WEB_ORIGIN!)
       .set('Cookie', student.session)
       .send({ provider: 'VIETQR' })
       .expect(201);
@@ -129,7 +131,7 @@ describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
     expect({ enrollments, payments }).toEqual({ enrollments: 1, payments: 1 });
   });
 
-  it('keeps a partial payment out of COMPLETED and grants no access', async () => {
+  it('keeps a partial payment out of COMPLETED, grants no access and leaves the order payable', async () => {
     await t.db.query(
       'DELETE FROM enrollments WHERE user_id=$1 AND course_id=$2',
       [student.id, courseId],
@@ -147,7 +149,8 @@ describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
       .get(`/orders/${order.orderId}/status`)
       .set('Cookie', student.session)
       .expect(200);
-    expect(status.body.status).toBe('PROCESSING');
+    // A short payment is booked as evidence but must not freeze the order.
+    expect(status.body.status).toBe('PENDING');
     const [{ count }] = await t.db.query(
       'SELECT count(*)::int AS count FROM enrollments WHERE user_id=$1 AND course_id=$2',
       [student.id, courseId],

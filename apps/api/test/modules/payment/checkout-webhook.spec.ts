@@ -125,6 +125,7 @@ describe(
         await t
           .http()
           .post('/orders')
+          .set('Origin', process.env.WEB_ORIGIN!)
           .set('Cookie', student.session)
           .send({ courseIds })
           .expect(201)
@@ -133,6 +134,7 @@ describe(
       t
         .http()
         .post(`/orders/${orderId}/checkout`)
+        .set('Origin', process.env.WEB_ORIGIN!)
         .set('Cookie', student.session)
         .send(body);
     const bank = (body: object, headers: Record<string, string> = {}) =>
@@ -669,7 +671,7 @@ describe(
         )
           .expect(200)
           .expect({ status: 'PARTIAL_AMOUNT' });
-        expect(await orderStatus(under.created.orderId)).toBe('PROCESSING');
+        expect(await orderStatus(under.created.orderId)).toBe('PENDING');
         expect(await enrolled(under.student, under.courseId)).toBe(false);
 
         const wrong = await pending();
@@ -828,13 +830,12 @@ describe(
           orderCode: created.code,
           userId: student.id,
         });
-        // order_items share one created_at, so only the set is guaranteed here
-        expect([...seen[0]!.event.courseIds].sort()).toEqual([a, b].sort());
+        expect(seen[0]!.event.courseIds).toEqual([b, a]); // as ordered by the buyer
         expect(await enrolled(student, a)).toBe(true);
         expect(await enrolled(student, b)).toBe(true);
       });
 
-      it('publishes nothing for payments that do not complete an order', async () => {
+      it('publishes nothing for payments that do not complete an order, then once for the full payment', async () => {
         const courseId = await paidCourse(100000);
         const student = await t.account();
         const created = await order(student, [courseId]);
@@ -843,14 +844,21 @@ describe(
           await bank(transfer(created.code, 5))
             .expect(200)
             .expect({ status: 'PARTIAL_AMOUNT' });
+          expect(seen).toEqual([]);
+          expect(await enrolled(student, courseId)).toBe(false);
+          // the short transfer did not freeze the order
+          await bank(transfer(created.code, 100000))
+            .expect(200)
+            .expect({ status: 'COMPLETED' });
+          // money for a finished order is evidence only
           await bank(transfer(created.code, 100000))
             .expect(200)
             .expect({ status: 'IGNORED' });
         } finally {
           off();
         }
-        expect(seen).toEqual([]);
-        expect(await enrolled(student, courseId)).toBe(false);
+        expect(seen).toHaveLength(1);
+        expect(await enrolled(student, courseId)).toBe(true);
       });
 
       it('survives a failing subscriber: payment is acknowledged and enrollment still happens', async () => {
@@ -1082,6 +1090,7 @@ describe(
         await t
           .http()
           .post('/orders')
+          .set('Origin', process.env.WEB_ORIGIN!)
           .set('Cookie', student.session)
           .send({ courseIds: [course.id] })
           .expect(201)
@@ -1091,6 +1100,7 @@ describe(
         await t
           .http()
           .post(`/orders/${created.orderId}/checkout`)
+          .set('Origin', process.env.WEB_ORIGIN!)
           .set('Cookie', student.session)
           .send({ provider: 'MOMO' })
           .expect(201)

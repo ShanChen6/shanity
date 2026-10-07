@@ -11,7 +11,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { SessionGuard, type AuthRequest } from '../../auth/auth.guards.js';
+import {
+  OriginGuard,
+  SessionGuard,
+  type AuthRequest,
+} from '../../auth/auth.guards.js';
 import { CheckoutService } from './checkout.service.js';
 import { OrderFactoryService } from './order-factory.service.js';
 import { OrderQueryService } from './order-query.service.js';
@@ -19,7 +23,7 @@ import { CreateOrderDto, InitiateCheckoutDto } from './payment.dto.js';
 import { PaymentService } from './payment.service.js';
 
 @Controller('orders')
-@UseGuards(SessionGuard)
+@UseGuards(OriginGuard, SessionGuard)
 export class OrdersController {
   constructor(
     private readonly payments: PaymentService,
@@ -53,7 +57,7 @@ export class OrdersController {
     const admin = req.principal.roles.includes('admin');
     return this.queries.getOrderDetails(
       id,
-      admin ? {} : { userId: req.principal.id },
+      admin ? { staff: true } : { userId: req.principal.id },
     );
   }
 

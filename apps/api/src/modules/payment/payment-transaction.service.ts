@@ -213,15 +213,6 @@ export class PaymentTransactionService implements PaymentLedgerReader {
       : null;
   }
 
-  listByOrder(orderId: string, manager?: EntityManager) {
-    return (manager ?? this.database.dataSource.manager)
-      .getRepository(PaymentTransaction)
-      .find({
-        where: { orderId },
-        order: { receivedAt: 'ASC', createdAt: 'ASC', id: 'ASC' },
-      });
-  }
-
   /**
    * Records a (partial) refund as a new ledger row. The order is locked so
    * concurrent refunds cannot exceed what was paid; a full refund moves a

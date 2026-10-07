@@ -70,7 +70,7 @@ export class CheckoutService {
     // Description comes from the frozen item titles, not the live courses.
     const items = await manager.getRepository(OrderItem).find({
       where: { orderId },
-      order: { createdAt: 'ASC', id: 'ASC' },
+      order: { position: 'ASC', id: 'ASC' },
     });
     const description = `Shanity ${order.code}: ${items
       .map((item) => item.courseTitleSnapshot)

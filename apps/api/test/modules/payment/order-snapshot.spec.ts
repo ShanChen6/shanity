@@ -70,7 +70,12 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
     t.send('patch', `/courses/${courseId}`, owner.session, { title });
 
   const placeOrder = (student: Account, courseIds: string[]) =>
-    t.http().post('/orders').set('Cookie', student.session).send({ courseIds });
+    t
+      .http()
+      .post('/orders')
+      .set('Origin', process.env.WEB_ORIGIN!)
+      .set('Cookie', student.session)
+      .send({ courseIds });
   const orderDetail = (student: Account, orderId: string) =>
     t.http().get(`/orders/${orderId}`).set('Cookie', student.session);
   const webhook = (body: object) =>
@@ -140,6 +145,7 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       const checkout = await t
         .http()
         .post(`/orders/${t1.orderId}/checkout`)
+        .set('Origin', process.env.WEB_ORIGIN!)
         .set('Cookie', userA.session)
         .send({ provider: 'VIETQR' })
         .expect(201);
@@ -180,7 +186,9 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
         `UPDATE courses SET price = 799000, title = 'Khóa học A (2026 Edition)' WHERE id = $1`,
         [courseId],
       );
-      let details = await queries.getOrderDetails(order.orderId);
+      let details = await queries.getOrderDetails(order.orderId, {
+        staff: true,
+      });
       expect(details.finalTotal).toBe(499000);
       expect(details.items[0]).toMatchObject({
         unitPriceSnapshot: 499000,
@@ -191,7 +199,7 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
         `UPDATE courses SET access_type = 'FREE', price = 0, title = 'Miễn phí' WHERE id = $1`,
         [courseId],
       );
-      details = await queries.getOrderDetails(order.orderId);
+      details = await queries.getOrderDetails(order.orderId, { staff: true });
       expect(details.finalTotal).toBe(499000);
       expect(details.items[0]).toMatchObject({
         unitPriceSnapshot: 499000,
@@ -323,6 +331,7 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       await t
         .http()
         .post('/orders')
+        .set('Origin', process.env.WEB_ORIGIN!)
         .set('Cookie', user.session)
         .send({ courseId: paid })
         .expect(400);
@@ -408,9 +417,10 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       await t.db.query(`UPDATE orders SET expires_at = now() WHERE id = $1`, [
         order.orderId,
       ]);
-      expect((await queries.getOrderDetails(order.orderId)).finalTotal).toBe(
-        499000,
-      );
+      expect(
+        (await queries.getOrderDetails(order.orderId, { staff: true }))
+          .finalTotal,
+      ).toBe(499000);
     });
 
     it('enforces the order status state machine', async () => {
@@ -456,8 +466,8 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
         unit: number,
       ) =>
         manager.query(
-          `INSERT INTO order_items(order_id,course_id,course_title_snapshot,unit_price_snapshot,discount_snapshot,final_price_snapshot,currency)
-           VALUES ($1,$2,'t',$3,0,$3,'VND')`,
+          `INSERT INTO order_items(order_id,course_id,position,course_title_snapshot,unit_price_snapshot,discount_snapshot,final_price_snapshot,currency)
+           VALUES ($1,$2,0,'t',$3,0,$3,'VND')`,
           [orderId, courseId, unit],
         );
 
@@ -695,9 +705,9 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
 
       const partial = await refund(rf[1]!, 100000);
       expect(partial.transaction.status).toBe('PARTIALLY_REFUNDED');
-      expect((await queries.getOrderDetails(order.orderId)).status).toBe(
-        'COMPLETED',
-      );
+      expect(
+        (await queries.getOrderDetails(order.orderId, { staff: true })).status,
+      ).toBe('COMPLETED');
       await expect(refund(rf[2]!, 399001)).rejects.toMatchObject({
         status: 400,
       });
@@ -705,7 +715,9 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
 
       const full = await refund(rf[3]!, 399000);
       expect(full.transaction.status).toBe('REFUNDED');
-      const details = await queries.getOrderDetails(order.orderId);
+      const details = await queries.getOrderDetails(order.orderId, {
+        staff: true,
+      });
       expect(details.status).toBe('REFUNDED');
       expect(details.payments!.map((p) => [p.status, p.amount])).toEqual([
         ['SUCCESS', 499000],
@@ -719,6 +731,146 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       );
       expect(original).toMatchObject({ status: 'SUCCESS', amount: '499000' });
       await expect(refund(rf[4]!, 1)).rejects.toMatchObject({ status: 409 });
+    });
+  });
+
+  describe('hardening', () => {
+    it('accepts upper-case UUIDs and preserves the buyer item order', async () => {
+      const a = await paidCourse(100000, 'A');
+      const b = await paidCourse(200000, 'B');
+      const c = await paidCourse(300000, 'C');
+      const user = await t.account();
+      const created = (
+        await placeOrder(
+          user,
+          [c, a, b].map((id) => id.toUpperCase()),
+        ).expect(201)
+      ).body;
+      expect(
+        created.items.map((i: { courseId: string }) => i.courseId),
+      ).toEqual([c, a, b]);
+      const again = (await orderDetail(user, created.orderId).expect(200)).body;
+      expect(
+        again.items.map(
+          (i: { courseTitleSnapshot: string }) => i.courseTitleSnapshot,
+        ),
+      ).toEqual(['C', 'A', 'B']);
+    });
+
+    it('caps unpaid orders per buyer and frees the quota when they expire', async () => {
+      const courseId = await paidCourse(100000);
+      const user = await t.account();
+      for (let i = 0; i < 10; i++)
+        await placeOrder(user, [courseId]).expect(201);
+      await placeOrder(user, [courseId])
+        .expect(429)
+        .expect(({ body }) =>
+          expect(body.message).toBe('TOO_MANY_PENDING_ORDERS'),
+        );
+      await t.db.query(
+        `UPDATE orders SET expires_at = now() - interval '1 minute' WHERE user_id=$1`,
+        [user.id],
+      );
+      await placeOrder(user, [courseId]).expect(201);
+    });
+
+    it('requires a same-origin request for order mutations', async () => {
+      const courseId = await paidCourse(100000);
+      const user = await t.account();
+      await t
+        .http()
+        .post('/orders')
+        .set('Cookie', user.session)
+        .send({ courseIds: [courseId] })
+        .expect(403);
+      await t
+        .http()
+        .post('/orders')
+        .set('Origin', 'https://evil.example')
+        .set('Cookie', user.session)
+        .send({ courseIds: [courseId] })
+        .expect(403);
+    });
+
+    it('survives absurd pagination and lets only staff read other buyers orders', async () => {
+      const user = await t.account();
+      await t
+        .http()
+        .get('/orders?offset=99999999999999999999')
+        .set('Cookie', user.session)
+        .expect(200)
+        .expect([]);
+      await t
+        .http()
+        .get('/orders?limit=abc')
+        .set('Cookie', user.session)
+        .expect(400);
+      const courseId = await paidCourse(100000);
+      const created = await factory.createOrder(user.id, {
+        courseIds: [courseId],
+      });
+      await expect(
+        queries.getOrderDetails(created.orderId, { userId: randomUUID() }),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(
+        (await queries.getOrderDetails(created.orderId, { staff: true }))
+          .orderId,
+      ).toBe(created.orderId);
+    });
+
+    it('never lets a finished order gain item lines', async () => {
+      const courseId = await paidCourse(100000);
+      const other = await paidCourse(1);
+      const user = await t.account();
+      const created = (await placeOrder(user, [courseId]).expect(201)).body;
+      await pay(created.code, 100000).expect(200);
+      await expect(
+        t.db.query(
+          `INSERT INTO order_items(order_id,course_id,position,course_title_snapshot,unit_price_snapshot,discount_snapshot,final_price_snapshot,currency)
+           VALUES ($1,$2,1,'free rider',0,0,0,'VND')`,
+          [created.orderId, other],
+        ),
+      ).rejects.toMatchObject({ code: '23001' });
+    });
+
+    it('cancels and expires concurrently without deadlocking', async () => {
+      const a = await paidCourse(100000);
+      const b = await paidCourse(100000);
+      const users = await Promise.all(
+        Array.from({ length: 6 }, () => t.account()),
+      );
+      const orders = await Promise.all(
+        users.map((u, i) =>
+          factory.createOrder(u.id, { courseIds: i % 2 ? [a, b] : [b, a] }),
+        ),
+      );
+      await t.db.query(
+        `UPDATE orders SET expires_at = now() - interval '1 minute' WHERE id = ANY($1)`,
+        [orders.slice(0, 3).map((o) => o.orderId)],
+      );
+      const { PaymentService } =
+        await import('../../../src/modules/payment/payment.service.js');
+      const results = await Promise.allSettled([
+        t.app.get(PaymentService).expirePendingOrders(),
+        pricing.updateCoursePricing(
+          a,
+          { accessType: 'FREE' as never },
+          owner.id,
+        ),
+        pricing.updateCoursePricing(
+          b,
+          { accessType: 'FREE' as never },
+          owner.id,
+        ),
+      ]);
+      expect(results.filter((r) => r.status === 'rejected')).toEqual([]);
+      const statuses = await t.db.query(
+        'SELECT status FROM orders WHERE id = ANY($1)',
+        [orders.map((o) => o.orderId)],
+      );
+      expect(
+        statuses.every((r: { status: string }) => r.status !== 'PENDING'),
+      ).toBe(true);
     });
   });
 
@@ -752,9 +904,10 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
         [unrelated.orderId]: 'PENDING',
       });
       expect(await count('enrollments WHERE user_id=$1', [buyer.id])).toBe(2);
-      expect((await queries.getOrderDetails(done.orderId)).finalTotal).toBe(
-        300000,
-      );
+      expect(
+        (await queries.getOrderDetails(done.orderId, { staff: true }))
+          .finalTotal,
+      ).toBe(300000);
     });
 
     it('survives checkouts, repricings and webhooks racing without deadlock', async () => {

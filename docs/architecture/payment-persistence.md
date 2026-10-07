@@ -75,7 +75,7 @@ chuyển xuống `order_items` (đơn nhiều khóa). `code varchar(50)` duy nh�
 `final_total = subtotal - discount_total`, `0 ≤ discount_total ≤ subtotal`.
 
 ### 2.2. `order_items` (snapshot)
-Tên khóa (≤255 ký tự, cắt theo code point), giá niêm yết, giảm giá riêng và giá
+`position` (thứ tự người mua chọn; đơn trước migration hardening đều là 0), tên khóa (≤255 ký tự, cắt theo code point), giá niêm yết, giảm giá riêng và giá
 cuối; unique `(order_id, course_id)`. CHECK `final = unit - discount`,
 `0 ≤ discount ≤ unit`, tên không rỗng. Đơn cũ được backfill: giá lấy từ
 `orders.amount` cũ (đúng số đã đóng băng); **tên** của đơn cũ chỉ có thể lấy
@@ -96,7 +96,7 @@ kể cả khoản tiền thật đã về nhưng đơn không còn hoàn tất �
 
 | Đối tượng | Trigger / ràng buộc |
 | --- | --- |
-| `order_items` | `BEFORE UPDATE OR DELETE` → từ chối (`restrict_violation`, `23001`) |
+| `order_items` | `BEFORE UPDATE OR DELETE` → từ chối (`restrict_violation`, `23001`); `BEFORE INSERT` chỉ cho đơn đang `PENDING` |
 | `orders` | UPDATE không được đổi `code, user_id, currency, subtotal, discount_total, final_total, created_at`; DELETE bị từ chối |
 | Trạng thái đơn | Chỉ `PENDING→{PROCESSING,COMPLETED,EXPIRED,CANCELLED}`, `PROCESSING→{COMPLETED,EXPIRED,CANCELLED}`, `COMPLETED→REFUNDED`; trùng với `canTransitionOrder` |
 | Tổng đơn | `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED` trên `orders` và `order_items`: lúc COMMIT đơn phải có ≥1 item, tổng `unit/discount/final` khớp header, cùng tiền tệ |
@@ -119,7 +119,7 @@ Va chạm mã (duy nhất bởi `orders_code_key`) làm lại **cả transaction
 | Service | Trách nhiệm |
 | --- | --- |
 | `OrderFactoryService.createOrder(userId, { courseIds })` | Khóa các khóa học `FOR SHARE` theo thứ tự id, kiểm tra (đã publish, `PAID`, chưa ghi danh, cùng tiền tệ), `buildOrderSnapshot`, ghi order + items nguyên tử |
-| `OrderQueryService.getOrderDetails(orderId, access)` / `listUserOrders` | Đọc từ snapshot, `REPEATABLE READ` để header/items/payments nhất quán; không bao giờ trả `raw_payload` |
+| `OrderQueryService.getOrderDetails(orderId, access)` / `listUserOrders` (`access` bắt buộc: `{ userId }` hoặc `{ staff: true }`, không có mặc định) | Đọc từ snapshot, `REPEATABLE READ` để header/items/payments nhất quán; không bao giờ trả `raw_payload` |
 | `PaymentTransactionService` | `record` (idempotent theo `(provider, providerTransactionId)`), `settle` (hoàn tất dòng `INITIATED` tại chỗ), `recordRefund` (khóa order, không hoàn quá số đã thu, `REFUNDED` toàn phần chuyển đơn sang `REFUNDED`) |
 
 Hoàn tiền hiện chỉ ghi sổ cái và đổi trạng thái đơn; **không** thu hồi
@@ -140,7 +140,7 @@ enrollment (quyết định chính sách truy cập, cần chốt riêng).
 
 | Endpoint | Mô tả |
 | --- | --- |
-| `POST /orders` `{ courseIds }` | Tạo đơn (1–20 khóa, không trùng) |
+| `POST /orders` `{ courseIds }` | Tạo đơn (1–20 khóa, không trùng; tối đa 10 đơn PENDING chưa hết hạn/người; cần `Origin`) |
 | `GET /orders`, `GET /orders/:id` | Lịch sử/chi tiết từ snapshot (chủ đơn; admin xem mọi đơn) |
 | `GET /orders/:id/status` | Trạng thái |
 

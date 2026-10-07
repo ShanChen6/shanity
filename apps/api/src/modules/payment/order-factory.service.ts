@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { EntityManager } from 'typeorm';
+import { MoreThan, type EntityManager } from 'typeorm';
 import { CourseAccessType } from '../../courses/course-access-type.js';
 import { CourseStatus } from '../../courses/course-status.js';
 import { Course } from '../../courses/course.entity.js';
@@ -17,6 +19,7 @@ import { Order, OrderStatus } from './entities/order.entity.js';
 import {
   buildOrderSnapshot,
   generateOrderCode,
+  MAX_PENDING_ORDERS_PER_USER,
   ORDER_TTL_MS,
   type OrderSnapshot,
 } from './order-snapshot.js';
@@ -69,8 +72,11 @@ export class OrderFactoryService {
   private async createInTransaction(
     manager: EntityManager,
     userId: string,
-    courseIds: readonly string[],
+    requestedIds: readonly string[],
   ): Promise<OrderView> {
+    // UUIDs compare case-insensitively in PostgreSQL but not in a JS Map.
+    const courseIds = requestedIds.map((id) => id.toLowerCase());
+    await this.assertPendingQuota(manager, userId);
     const courses = await this.lockPurchasableCourses(manager, courseIds);
     await this.assertNotEnrolled(manager, userId, courseIds);
 
@@ -109,6 +115,21 @@ export class OrderFactoryService {
     if (courses.some((course) => course.accessType !== CourseAccessType.PAID))
       throw new BadRequestException('COURSE_IS_FREE');
     return courses;
+  }
+
+  private async assertPendingQuota(manager: EntityManager, userId: string) {
+    const pending = await manager.getRepository(Order).count({
+      where: {
+        userId,
+        status: OrderStatus.PENDING,
+        expiresAt: MoreThan(new Date()),
+      },
+    });
+    if (pending >= MAX_PENDING_ORDERS_PER_USER)
+      throw new HttpException(
+        'TOO_MANY_PENDING_ORDERS',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
   }
 
   private async assertNotEnrolled(

@@ -42,6 +42,10 @@ export class OrderItem {
   })
   course: Relation<Course>;
 
+  // 0-based position the buyer chose; rows of one INSERT share created_at.
+  @Column({ type: 'smallint', default: 0 })
+  position: number;
+
   @Column({ name: 'course_title_snapshot', type: 'varchar', length: 255 })
   courseTitleSnapshot: string;
 

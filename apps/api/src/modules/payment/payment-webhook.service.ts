@@ -155,14 +155,14 @@ export class PaymentWebhookService {
             (await book(PaymentTransactionStatus.FAILED)).created,
           );
 
-        if (amount < order.finalTotal) {
-          const { created } = await book(PaymentTransactionStatus.FAILED);
-          if (created) {
-            order.status = OrderStatus.PROCESSING;
-            await manager.save(order);
-          }
-          return done('PARTIAL_AMOUNT', created);
-        }
+        // Short payment: keep the evidence but leave the order PENDING. Freezing
+        // it (PROCESSING) would let anyone who learns an order code lock the
+        // buyer out with a token transfer; the buyer can still pay in full.
+        if (amount < order.finalTotal)
+          return done(
+            'PARTIAL_AMOUNT',
+            (await book(PaymentTransactionStatus.FAILED)).created,
+          );
 
         const { created } = await book(PaymentTransactionStatus.SUCCESS);
         if (!created) return done('COMPLETED', false);
@@ -171,7 +171,7 @@ export class PaymentWebhookService {
         // Access derives from the items frozen at checkout, never `courses`.
         const items = await manager.getRepository(OrderItem).find({
           where: { orderId: order.id },
-          order: { createdAt: 'ASC', id: 'ASC' },
+          order: { position: 'ASC', id: 'ASC' },
         });
         return {
           outcome: { status: 'COMPLETED' } as WebhookOutcome,

@@ -1,6 +1,6 @@
 import { OrderStatus } from './entities/order.entity.js';
 
-// Mirrors the orders_status_transition trigger. Keep both in sync.
+// Mirrors the orders_guard_update trigger. Keep both in sync.
 const TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   [OrderStatus.PENDING]: [
     OrderStatus.PROCESSING,

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.module.js';
-import { Order, OrderStatus } from './entities/order.entity.js';
+import { Order } from './entities/order.entity.js';
 
 /** Order status polling and the expiry sweep. Settlement lives elsewhere. */
 @Injectable()
@@ -19,14 +19,27 @@ export class PaymentService {
     };
   }
 
+  /**
+   * Locks the rows in id order first (CTE), then updates them: concurrent
+   * sweeps and course-repricing cancellations touch overlapping orders and
+   * would otherwise lock them in different orders and deadlock.
+   */
   async expirePendingOrders() {
-    return this.database.dataSource.manager
-      .getRepository(Order)
-      .createQueryBuilder()
-      .update()
-      .set({ status: OrderStatus.EXPIRED })
-      .where('status = :status', { status: OrderStatus.PENDING })
-      .andWhere('expires_at < now()')
-      .execute();
+    const result: unknown = await this.database.dataSource.query(
+      `WITH locked AS (
+         SELECT id FROM orders
+          WHERE status = 'PENDING' AND expires_at < now()
+          ORDER BY id FOR UPDATE)
+       UPDATE orders o SET status = 'EXPIRED', updated_at = now()
+         FROM locked WHERE o.id = locked.id AND o.status = 'PENDING'
+       RETURNING o.id`,
+    );
+    return { affected: affectedRows(result) };
   }
+}
+
+/** pg returns [rows, count] for UPDATE ... RETURNING through TypeORM. */
+export function affectedRows(result: unknown): number {
+  if (Array.isArray(result) && typeof result[1] === 'number') return result[1];
+  return Array.isArray(result) ? result.length : 0;
 }

@@ -173,7 +173,7 @@ handleNotification(provider, {headers, payload, rawBody})
       order PENDING nhưng quá hạn           -> EXPIRED
       sai tiền tệ                           -> sổ cái FAILED                        -> CURRENCY_MISMATCH
       order không còn PENDING               -> sổ cái FAILED (bằng chứng)           -> IGNORED
-      amount < finalTotal                   -> sổ cái FAILED, order PROCESSING      -> PARTIAL_AMOUNT
+      amount < finalTotal                   -> sổ cái FAILED, order VẪN PENDING     -> PARTIAL_AMOUNT
       đủ tiền                               -> sổ cái SUCCESS, order COMPLETED      -> COMPLETED
     COMMIT
     nếu COMPLETED: publish OrderCompletedEvent (SAU commit)
@@ -413,6 +413,15 @@ Migration `202610120001_checkout_providers.ts`:
 - Dòng sổ cái `INITIATED` được phép cập nhật cả `currency` khi hoàn tất (số
   liệu cổng thực nhận), các trigger khác giữ nguyên.
 - Index một phần cho hai lượt quét của reconciler.
+Migration `202610130001_payment_hardening.ts` (từ review): `order_items.position`
+giữ thứ tự khóa học người mua chọn; `orders.currency` có lại `DEFAULT 'VND'`;
+trigger chỉ cho thêm item vào đơn còn `PENDING`.
+
+Các biện pháp khác: `OrdersController` dùng `OriginGuard` (mutating route cần
+đúng `Origin`); mỗi người mua giữ tối đa 10 đơn `PENDING` chưa hết hạn
+(`429 TOO_MANY_PENDING_ORDERS`) để mã đơn 4 ký tự/ngày không bị vét cạn; UUID
+chữ hoa được chuẩn hóa; `offset` bị chặn; việc hủy/hết hạn đơn khóa các dòng
+theo thứ tự `id` để không deadlock.
 - `bank_webhook_logs` không còn được ghi: idempotency do sổ cái đảm nhiệm. Bảng
   được giữ lại (không phá dữ liệu) và có thể xóa ở migration sau.
 
@@ -427,7 +436,7 @@ Migration `202610120001_checkout_providers.ts`:
 - Bus in-process không bền: độ trễ tối đa để vá một listener thất bại là chu kỳ
   của worker (5 phút) + tuổi tối thiểu 1 phút. Muốn đảm bảo mạnh hơn cần
   transactional outbox.
-- Đơn `PROCESSING` (thiếu tiền) không tự chuyển tiếp; xử lý thủ công như PAY1.
+- Chuyển thiếu tiền được ghi vào sổ cái nhưng **không** đóng băng đơn (trạng thái `PROCESSING` không còn do webhook đặt; trước đây ai biết mã đơn đều có thể khóa người mua bằng một khoản chuyển nhỏ). Khoản thiếu không được cộng dồn với lần chuyển sau; cần hoàn tiền thủ công.
 - Nhiều instance API đều chạy worker: các lượt quét idempotent nên an toàn,
   nhưng có thể gọi cổng trùng lặp.
 

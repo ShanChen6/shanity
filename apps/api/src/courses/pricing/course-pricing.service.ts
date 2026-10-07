@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { DatabaseService } from '../../database/database.module.js';
-import {
-  Order,
-  OrderStatus,
-} from '../../modules/payment/entities/order.entity.js';
+import { affectedRows } from '../../modules/payment/payment.service.js';
 import { CourseAccessType } from '../course-access-type.js';
 import { CourseCurrency } from '../course-currency.js';
 import { CoursePriceLog } from '../course-price-log.entity.js';
@@ -72,18 +69,20 @@ export class CoursePricingService {
     // keep their snapshot.
     let cancelledPendingOrders = 0;
     if (transition === PricingTransition.PAID_TO_FREE) {
-      const cancelled = await manager
-        .getRepository(Order)
-        .createQueryBuilder()
-        .update()
-        .set({ status: OrderStatus.CANCELLED })
-        .where('status = :status', { status: OrderStatus.PENDING })
-        .andWhere(
-          'id IN (SELECT order_id FROM order_items WHERE course_id = :courseId)',
-          { courseId },
-        )
-        .execute();
-      cancelledPendingOrders = cancelled.affected ?? 0;
+      // Rows are locked in id order before updating (see PaymentService.
+      // expirePendingOrders) so concurrent cancellations cannot deadlock.
+      const cancelled: unknown = await manager.query(
+        `WITH locked AS (
+           SELECT id FROM orders
+            WHERE status = 'PENDING'
+              AND id IN (SELECT order_id FROM order_items WHERE course_id = $1)
+            ORDER BY id FOR UPDATE)
+         UPDATE orders o SET status = 'CANCELLED', updated_at = now()
+           FROM locked WHERE o.id = locked.id AND o.status = 'PENDING'
+         RETURNING o.id`,
+        [courseId],
+      );
+      cancelledPendingOrders = affectedRows(cancelled);
     }
 
     await manager.getRepository(Course).update({ id: courseId }, next);

@@ -92,7 +92,7 @@ export class PaymentReconciliationService {
   async republishUnfulfilledOrders(minAgeSeconds = 60): Promise<number> {
     const rows = await this.database.dataSource.query<UnfulfilledRow[]>(
       `SELECT o.id, o.code, o.user_id,
-              array_agg(i.course_id ORDER BY i.created_at, i.id) AS course_ids
+              array_agg(i.course_id ORDER BY i.position, i.id) AS course_ids
          FROM orders o JOIN order_items i ON i.order_id = o.id
         WHERE o.status = 'COMPLETED'
           AND o.updated_at > now() - interval '30 days'
