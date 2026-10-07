@@ -888,6 +888,49 @@ describe(
         ).expect(409);
       });
 
+      it('refunds an order that was reconciled by hand (partial, then full)', async () => {
+        const o = await pendingOrder();
+        await post(
+          admin,
+          `${API}/${o.orderId}/reconcile`,
+          reconcileBody(),
+        ).expect(201);
+        const partial = await post(
+          finance,
+          `${API}/${o.orderId}/refund`,
+          refundBody({ refundAmount: 100000 }),
+        ).expect(201);
+        // No gateway behind a manual payment: recorded for a manual payout.
+        expect(partial.body.refund).toMatchObject({
+          mode: 'INTERNAL',
+          status: 'PARTIALLY_REFUNDED',
+        });
+        const full = await post(
+          admin,
+          `${API}/${o.orderId}/refund`,
+          refundBody({ refundAmount: 399000 }),
+        ).expect(201);
+        expect(full.body.refund).toMatchObject({
+          status: 'REFUNDED',
+          enrollmentsRevoked: 1,
+        });
+        expect((await orderRow(o.orderId)).status).toBe('REFUNDED');
+        expect(
+          (await enrollment(o.student.id, o.courseId))?.revoked_at,
+        ).toBeInstanceOf(Date);
+        expect(
+          (await ledger(o.orderId)).map(
+            (r: { provider: string; status: string }) =>
+              `${r.provider}:${r.status}`,
+          ),
+        ).toEqual([
+          'MANUAL_RECONCILED:SUCCESS',
+          'MANUAL_RECONCILED:PARTIALLY_REFUNDED',
+          'MANUAL_RECONCILED:REFUNDED',
+        ]);
+        expect(await audit(o.orderId, 'REFUND_ISSUED')).toHaveLength(2);
+      });
+
       it('refuses over-refunds, unpaid orders and malformed requests without writing', async () => {
         const paid = await paidOrder();
         const unpaid = await pendingOrder();

@@ -190,10 +190,11 @@ export class OrderAuditLogs1792022400001 implements MigrationInterface {
       DECLARE
         needed text;
       BEGIN
-        IF NEW.provider::text = 'MANUAL_RECONCILED' THEN
-          needed := 'MANUAL_RECONCILED';
-        ELSIF NEW.status IN ('REFUNDED','PARTIALLY_REFUNDED') THEN
+        -- A refund of a manually reconciled payment is a refund first.
+        IF NEW.status IN ('REFUNDED','PARTIALLY_REFUNDED') THEN
           needed := 'REFUND_ISSUED';
+        ELSIF NEW.provider::text = 'MANUAL_RECONCILED' THEN
+          needed := 'MANUAL_RECONCILED';
         ELSE
           RETURN NULL;
         END IF;

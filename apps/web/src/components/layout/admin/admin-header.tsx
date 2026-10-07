@@ -10,7 +10,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { getAdminSection } from "@/features/admin/navigation";
 import { AdminMobileNavigation } from "./admin-mobile-navigation";
 
-export function AdminHeader() {
+export function AdminHeader({ homeHref = "/admin" }: { homeHref?: string }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const { user } = useSession();
@@ -78,7 +78,7 @@ export function AdminHeader() {
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
               {section?.href !== "/admin" && section ? (
-                <Link href="/admin" className="text-muted hover:text-primary">
+                <Link href={homeHref} className="text-muted hover:text-primary">
                   Quản trị
                 </Link>
               ) : (
@@ -131,7 +131,11 @@ export function AdminHeader() {
             <span className="block truncate font-medium">
               {user?.displayName}
             </span>
-            <span className="block text-xs text-muted">Quản trị viên</span>
+            <span className="block text-xs text-muted">
+              {user?.roles.includes("admin")
+                ? "Quản trị viên"
+                : "Nhân viên tài chính"}
+            </span>
           </span>
         </Link>
         <AdminLogout />

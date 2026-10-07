@@ -4,7 +4,13 @@ import { AdminSidebar } from "./admin/admin-sidebar";
 import { AdminHeader } from "./admin/admin-header";
 import { AdminMainContent } from "./admin/admin-main-content";
 
-export function AdminLayout({ children }: { children: ReactNode }) {
+export function AdminLayout({
+  children,
+  homeHref = "/admin",
+}: {
+  children: ReactNode;
+  homeHref?: string;
+}) {
   return (
     <AdminFeedback>
       <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
@@ -14,9 +20,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         >
           Đến nội dung chính
         </a>
-        <AdminSidebar />
+        <AdminSidebar homeHref={homeHref} />
         <div className="min-w-0">
-          <AdminHeader />
+          <AdminHeader homeHref={homeHref} />
           <AdminMainContent>{children}</AdminMainContent>
         </div>
       </div>

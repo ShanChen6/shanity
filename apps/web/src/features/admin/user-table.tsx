@@ -85,11 +85,13 @@ export function UserTable({ query }: { query: string }) {
             <span>Vai trò</span>
             <Select name="role" defaultValue={params.get("role") ?? ""}>
               <option value="">Tất cả vai trò</option>
-              {Object.entries(roleLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
+              {Object.entries(roleLabels)
+                .filter(([value]) => value !== "finance_officer")
+                .map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
             </Select>
           </label>
           <label className="space-y-1 text-sm">

@@ -166,12 +166,19 @@ export function UserEditor({
                     <option value="STUDENT">Student</option>
                     <option value="INSTRUCTOR">Instructor</option>
                     <option value="ADMIN">Admin</option>
+                    <option value="FINANCE_OFFICER">Nhân viên tài chính</option>
                   </select>
                 )}
               </FormField>
               {role === "ADMIN" && (
                 <p className="text-sm text-muted">
                   Tài khoản này sẽ có toàn quyền quản trị hệ thống.
+                </p>
+              )}
+              {role === "FINANCE_OFFICER" && (
+                <p className="text-sm text-muted">
+                  Tài khoản này chỉ truy cập được trang Đơn hàng để xem, đối
+                  soát và hoàn tiền.
                 </p>
               )}
             </>

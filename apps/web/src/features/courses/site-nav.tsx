@@ -26,6 +26,8 @@ export function SiteNav() {
       links.push({ href: "/instructor/courses", label: "Giảng viên" });
     if (user.roles.includes("admin"))
       links.push({ href: "/admin", label: "Quản trị" });
+    else if (user.roles.includes("finance_officer"))
+      links.push({ href: "/admin/orders", label: "Quản lý đơn hàng" });
   }
 
   return (

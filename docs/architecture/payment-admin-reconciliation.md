@@ -186,7 +186,8 @@ Suy ra (không lưu riêng) từ sổ cái + audit + enrollment bởi `buildTime
 | --- | --- | --- |
 | Tích hợp API + DB | `apps/api/test/modules/payment/admin-orders.spec.ts` | không có route sửa trạng thái; DB từ chối `COMPLETED` không có tiền, dòng thủ công/hoàn tiền không có audit; SQL đổi trạng thái vẫn để lại audit; phân quyền (401/403/Origin); đối soát: thành công, EXPIRED, trạng thái không hợp lệ, validate, trùng giao dịch, tranh chấp đồng thời, rollback khi audit lỗi, webhook đến muộn không nhân đôi; chứng từ (upload, riêng tư, URL độc hại); hoàn tiền một phần/toàn phần/vượt mức/đồng thời/qua Stripe/cổng lỗi; audit append-only, ràng buộc CHECK, vòng đời, ghi lượt xem; tìm kiếm/lọc/sắp xếp/phân trang |
 | Đơn vị | `admin-order-timeline.spec.ts`, `stripe-provider.adapter.spec.ts` (refund) | dựng timeline, escape LIKE, hoàn tiền Stripe |
-| Web | `apps/web/src/features/admin-orders/*.test.tsx` | lọc/bảng/drawer/modal, không có lời gọi `PATCH/PUT/DELETE` |
+| Web (vitest) | `apps/web/src/features/admin-orders/*.test.tsx`, `src/lib/admin-access.test.ts` | lọc/bảng/drawer/modal, phân quyền finance officer, không có lời gọi `PATCH/PUT/DELETE` hay điều khiển đổi trạng thái |
+| E2E (Playwright, stack thật) | `apps/web/e2e/admin-orders.spec.ts` | học viên mua → admin tìm đơn → đối soát có chứng từ → học viên được cấp quyền → hoàn tiền một phần → hoàn đủ và thu hồi quyền; finance officer chỉ thấy console đơn hàng; học viên bị chặn. Chạy cả desktop và mobile. Cần `E2E_ADMIN_EMAIL`, `E2E_FINANCE_EMAIL`, `E2E_STAFF_PASSWORD` |
 
 ## 8. Giới hạn đã biết
 
