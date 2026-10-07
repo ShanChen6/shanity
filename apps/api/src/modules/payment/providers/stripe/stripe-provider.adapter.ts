@@ -15,6 +15,8 @@ import {
   type CreatePaymentResult,
   type PaymentProvider,
   type QueryPaymentResult,
+  type RefundPaymentInput,
+  type RefundPaymentResult,
   type VerifyNotificationInput,
   type VerifyNotificationResult,
 } from '../../interfaces/index.js';
@@ -159,10 +161,46 @@ export class StripeProviderAdapter implements PaymentProvider {
     };
   }
 
+  /**
+   * Refunds (part of) a Checkout payment. The session is looked up for its
+   * PaymentIntent, and the caller's idempotency key makes a retry after a lost
+   * response return the same refund instead of a second one.
+   */
+  async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentResult> {
+    const raw = await this.request(
+      'GET',
+      `/v1/checkout/sessions/${encodeURIComponent(input.providerTransactionId)}`,
+    );
+    const session = readCheckoutSession(raw);
+    // A session id from another order must never be refunded for this one.
+    if (session.orderCode !== input.orderCode)
+      throw new NotFoundException('PAYMENT_NOT_FOUND');
+    if (!session.paid) throw new BadRequestException('PAYMENT_NOT_REFUNDABLE');
+    const paymentIntent = raw.payment_intent;
+    if (typeof paymentIntent !== 'string' || !paymentIntent)
+      throw new BadGatewayException('PAYMENT_PROVIDER_BAD_RESPONSE');
+
+    const refund = await this.request(
+      'POST',
+      '/v1/refunds',
+      new URLSearchParams({
+        payment_intent: paymentIntent,
+        amount: String(fromMinorUnits(input.amount)),
+        'metadata[order_code]': input.orderCode,
+        'metadata[reason]': input.reason.slice(0, 500),
+      }),
+      { 'Idempotency-Key': input.idempotencyKey },
+    );
+    if (typeof refund.id !== 'string')
+      throw new BadGatewayException('PAYMENT_PROVIDER_BAD_RESPONSE');
+    return { providerRefundId: refund.id, rawPayload: refund };
+  }
+
   private async request(
     method: 'GET' | 'POST',
     path: string,
     form?: URLSearchParams,
+    extraHeaders: Record<string, string> = {},
   ): Promise<Record<string, any>> {
     const secretKey = process.env.STRIPE_SECRET_KEY;
     if (!secretKey)
@@ -174,6 +212,7 @@ export class StripeProviderAdapter implements PaymentProvider {
         method,
         headers: {
           Authorization: `Bearer ${secretKey}`,
+          ...extraHeaders,
           ...(form && {
             'Content-Type': 'application/x-www-form-urlencoded',
           }),

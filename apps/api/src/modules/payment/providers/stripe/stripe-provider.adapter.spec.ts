@@ -329,4 +329,74 @@ describe('StripeProviderAdapter', () => {
       );
     });
   });
+  describe('refundPayment', () => {
+    const refundInput = {
+      orderCode: 'SHAN-20261007-X89K',
+      providerTransactionId: 'cs_test_1',
+      amount: 150000n,
+      currency: 'VND',
+      reason: 'Học viên yêu cầu hoàn tiền',
+      idempotencyKey: 'a'.repeat(64),
+    };
+    const paidSession = {
+      id: 'cs_test_1',
+      client_reference_id: 'SHAN-20261007-X89K',
+      currency: 'vnd',
+      amount_total: 499000,
+      payment_status: 'paid',
+      status: 'complete',
+      payment_intent: 'pi_test_1',
+    };
+
+    it('refunds the session payment intent with an idempotency key', async () => {
+      const { fetchLike, calls } = stub((call) =>
+        call.url.endsWith('/v1/refunds')
+          ? json({ id: 're_1', status: 'succeeded' })
+          : json(paidSession),
+      );
+      const result = await new StripeProviderAdapter(fetchLike).refundPayment(
+        refundInput,
+      );
+      expect(result).toMatchObject({ providerRefundId: 're_1' });
+      expect(calls.map((call) => call.init.method)).toEqual(['GET', 'POST']);
+      const refund = calls[1]!;
+      expect(refund.url).toBe('https://api.stripe.com/v1/refunds');
+      expect(Object.fromEntries(refund.form!)).toMatchObject({
+        payment_intent: 'pi_test_1',
+        amount: '150000',
+        'metadata[order_code]': 'SHAN-20261007-X89K',
+      });
+      expect(
+        (refund.init.headers as Record<string, string>)['Idempotency-Key'],
+      ).toBe('a'.repeat(64));
+    });
+
+    it('never refunds another order, an unpaid session or a malformed reply', async () => {
+      const adapter = (body: unknown, status = 200) => {
+        const { fetchLike, calls } = stub(() => json(body, status));
+        return { adapter: new StripeProviderAdapter(fetchLike), calls };
+      };
+      const other = adapter({
+        ...paidSession,
+        client_reference_id: 'SHAN-OTHER',
+      });
+      await expect(other.adapter.refundPayment(refundInput)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(other.calls).toHaveLength(1); // looked up, never refunded
+
+      const unpaid = adapter({ ...paidSession, payment_status: 'unpaid' });
+      await expect(unpaid.adapter.refundPayment(refundInput)).rejects.toThrow(
+        BadRequestException,
+      );
+      const noIntent = adapter({ ...paidSession, payment_intent: null });
+      await expect(noIntent.adapter.refundPayment(refundInput)).rejects.toThrow(
+        BadGatewayException,
+      );
+      const down = adapter({ error: { type: 'api_error' } }, 500);
+      await expect(down.adapter.refundPayment(refundInput)).rejects.toThrow(
+        BadGatewayException,
+      );
+    });
+  });
 });

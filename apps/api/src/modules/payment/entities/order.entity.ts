@@ -73,6 +73,11 @@ export class Order {
   paymentProvider: PaymentProviderEnum | null;
 
   @Column({ name: 'expires_at', type: 'timestamptz' }) expiresAt: Date;
+
+  // Set by the database the moment the order becomes COMPLETED (trigger); it
+  // survives a later refund. Never written by application code.
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  completedAt: Date | null;
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
   @UpdateDateColumn({

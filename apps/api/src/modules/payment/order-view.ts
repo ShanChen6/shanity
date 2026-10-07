@@ -5,7 +5,10 @@ import type {
   PaymentTransaction,
   PaymentTransactionStatus,
 } from './entities/payment-transaction.entity.js';
-import type { PaymentProviderEnum } from './interfaces/payment-provider.enum.js';
+import type {
+  LedgerProvider,
+  PaymentProviderEnum,
+} from './interfaces/payment-provider.enum.js';
 
 export interface OrderItemView {
   id: string;
@@ -19,7 +22,7 @@ export interface OrderItemView {
 
 export interface PaymentView {
   id: string;
-  provider: PaymentProviderEnum;
+  provider: LedgerProvider;
   providerTransactionId: string | null;
   amount: number;
   feeAmount: number;

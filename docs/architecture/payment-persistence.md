@@ -105,6 +105,11 @@ kể cả khoản tiền thật đã về nhưng đơn không còn hoàn tất �
 `down()` của migration từ chối (không mất dữ liệu) khi tồn tại đơn nhiều
 item, đơn có giảm giá, giao dịch không phải VietQR hoặc bản ghi hoàn tiền.
 
+> **PAY17** mở rộng các bảo đảm này: `orders.completed_at` do trigger đặt; `COMPLETED`/`REFUNDED`
+> chỉ khi sổ cái có tiền tương ứng; mọi lần đổi `status` kéo theo một dòng `order_audit_logs`
+> (bất biến) trong cùng transaction; dòng sổ cái `MANUAL_RECONCILED`/hoàn tiền cần dòng audit cùng transaction.
+> Xem [payment-admin-reconciliation.md](payment-admin-reconciliation.md).
+
 ## 4. Mã đơn hàng
 
 `SHAN-YYYYMMDD-XXXX` (ngày UTC, 4 ký tự từ bảng chữ không gây nhầm lẫn). Ngân

@@ -19,3 +19,18 @@ export enum PaymentStatusEnum {
   CANCELLED = 'CANCELLED',
   EXPIRED = 'EXPIRED',
 }
+
+/**
+ * Ledger-only provider: money a back-office user reconciled by hand after the
+ * gateway notification was lost. It is never a checkout choice and has no
+ * adapter, which is why it is not a PaymentProviderEnum member; it exists in
+ * the database enum so such a payment is recognisable on the ledger.
+ */
+export const MANUAL_RECONCILED = 'MANUAL_RECONCILED' as const;
+
+/** Every value the payment ledger's `provider` column can hold. */
+export type LedgerProvider = PaymentProviderEnum | typeof MANUAL_RECONCILED;
+export const LEDGER_PROVIDERS: readonly LedgerProvider[] = [
+  ...Object.values(PaymentProviderEnum),
+  MANUAL_RECONCILED,
+];

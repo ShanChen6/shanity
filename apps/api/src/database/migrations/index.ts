@@ -33,6 +33,7 @@ import { PaymentPersistence1791676800001 } from './202610110001_payment_persiste
 import { CheckoutProviders1791763200001 } from './202610120001_checkout_providers.js';
 import { PaymentHardening1791849600001 } from './202610130001_payment_hardening.js';
 import { WebhookLogs1791936000001 } from './202610140001_webhook_logs.js';
+import { OrderAuditLogs1792022400001 } from './202610150001_order_audit_logs.js';
 
 export const migrationHistory = [
   {
@@ -244,6 +245,12 @@ export const migrationHistory = [
     name: 'WebhookLogs1791936000001',
     timestamp: 1791936000001,
     migration: WebhookLogs1791936000001,
+  },
+  {
+    legacy: null,
+    name: 'OrderAuditLogs1792022400001',
+    timestamp: 1792022400001,
+    migration: OrderAuditLogs1792022400001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

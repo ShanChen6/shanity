@@ -16,6 +16,7 @@ import {
   type AuthRequest,
 } from '../../auth/auth.guards.js';
 import { CheckoutService } from './checkout.service.js';
+import { clientIp, OrderAuditService } from './order-audit.service.js';
 import { OrderFactoryService } from './order-factory.service.js';
 import { OrderQueryService } from './order-query.service.js';
 import {
@@ -36,6 +37,7 @@ export class OrdersController {
     private readonly queries: OrderQueryService,
     private readonly students: StudentOrdersService,
     private readonly checkout: CheckoutService,
+    private readonly audit: OrderAuditService,
   ) {}
 
   /** Create (or reuse the identical unpaid) order from a course page. */
@@ -58,10 +60,21 @@ export class OrdersController {
   /** `ref` is the order code (SHAN-YYYYMMDD-XXXX) or its UUID. */
   @Get(':ref')
   @Header('Cache-Control', 'no-store')
-  detail(@Req() req: AuthRequest, @Param('ref') ref: string) {
-    return req.principal.roles.includes('admin')
-      ? this.queries.getOrderDetails(ref, { staff: true })
-      : this.students.get(req.principal.id, ref);
+  async detail(@Req() req: AuthRequest, @Param('ref') ref: string) {
+    if (!req.principal.roles.includes('admin'))
+      return this.students.get(req.principal.id, ref);
+    // Staff reading someone else's order is a "detail view": always audited.
+    const order = await this.queries.getOrderDetails(ref, { staff: true });
+    await this.audit.recordView(
+      {
+        principal: req.principal,
+        ipAddress: clientIp(req.ip),
+        userAgent: req.get('user-agent') ?? null,
+      },
+      order.orderId,
+      'Admin opened the order through the order API',
+    );
+    return order;
   }
 
   @Post(':ref/checkout')

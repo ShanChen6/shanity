@@ -10,7 +10,10 @@ import {
 import type { Relation } from 'typeorm';
 import { CourseCurrency } from '../../../courses/course-currency.js';
 import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
-import { PaymentProviderEnum } from '../interfaces/payment-provider.enum.js';
+import {
+  LEDGER_PROVIDERS,
+  type LedgerProvider,
+} from '../interfaces/payment-provider.enum.js';
 import { Order } from './order.entity.js';
 
 export enum PaymentTransactionStatus {
@@ -44,10 +47,10 @@ export class PaymentTransaction {
 
   @Column({
     type: 'enum',
-    enum: PaymentProviderEnum,
+    enum: LEDGER_PROVIDERS,
     enumName: 'PaymentProvider',
   })
-  provider: PaymentProviderEnum;
+  provider: LedgerProvider;
 
   // Bank FT code, Stripe charge id, ... Unique per provider.
   @Column({

@@ -7,20 +7,27 @@ import {
 import type { EntityManager } from 'typeorm';
 import { CourseCurrency } from '../../courses/course-currency.js';
 import { DatabaseService } from '../../database/database.module.js';
+import { OrderAuditAction } from './entities/order-audit-log.entity.js';
 import { Order, OrderStatus } from './entities/order.entity.js';
 import {
   PaymentTransaction,
   PaymentTransactionStatus,
 } from './entities/payment-transaction.entity.js';
 import type {
+  LedgerProvider,
   PaymentLedgerReader,
   PaymentProviderEnum,
   VerifiedPaymentRecord,
 } from './interfaces/index.js';
+import {
+  OrderAuditService,
+  SYSTEM_ACTOR,
+  type AuditActor,
+} from './order-audit.service.js';
 
 export interface RecordPaymentInput {
   orderId: string;
-  provider: PaymentProviderEnum;
+  provider: LedgerProvider;
   providerTransactionId: string | null;
   amount: number;
   currency: CourseCurrency;
@@ -31,6 +38,21 @@ export interface RecordPaymentInput {
   receivedAt?: Date;
 }
 
+/** Who issues a refund and why; becomes the REFUND_ISSUED audit row. */
+export interface RefundAudit {
+  actor: AuditActor;
+  reason: string;
+  /** Extra facts merged into the audit row's new state (mode, notify...). */
+  metadata?: Record<string, unknown>;
+}
+
+export interface RefundOutcome extends RecordedPayment {
+  fullyRefunded: boolean;
+  paid: number;
+  refunded: number;
+  refundable: number;
+}
+
 export interface RecordedPayment {
   transaction: PaymentTransaction;
   /** false when the (provider, providerTransactionId) event already existed. */
@@ -39,7 +61,7 @@ export interface RecordedPayment {
 
 export interface RecordRefundInput {
   orderId: string;
-  provider: PaymentProviderEnum;
+  provider: LedgerProvider;
   /** Provider refund id; makes the call idempotent. */
   providerTransactionId: string;
   amount: number;
@@ -53,7 +75,10 @@ const isPositiveSafeInteger = (value: number) =>
 
 @Injectable()
 export class PaymentTransactionService implements PaymentLedgerReader {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly audit: OrderAuditService,
+  ) {}
 
   /**
    * Appends one payment event to the ledger inside the caller's transaction
@@ -72,7 +97,7 @@ export class PaymentTransactionService implements PaymentLedgerReader {
       `INSERT INTO payment_transactions
          (order_id, provider, provider_transaction_id, amount, fee_amount,
           currency, transfer_content, status, raw_payload, received_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, COALESCE($10::timestamptz, now()))
        ON CONFLICT DO NOTHING
        RETURNING id`,
       [
@@ -85,7 +110,7 @@ export class PaymentTransactionService implements PaymentLedgerReader {
         input.transferContent ?? null,
         input.status,
         JSON.stringify(input.rawPayload),
-        input.receivedAt ?? new Date(),
+        input.receivedAt ?? null,
       ],
     );
     const insertedId = inserted[0]?.id;
@@ -110,7 +135,7 @@ export class PaymentTransactionService implements PaymentLedgerReader {
 
   findByProviderTransaction(
     manager: EntityManager,
-    provider: PaymentProviderEnum,
+    provider: LedgerProvider,
     providerTransactionId: string,
   ) {
     return manager
@@ -162,7 +187,8 @@ export class PaymentTransactionService implements PaymentLedgerReader {
       `UPDATE payment_transactions
           SET status = $2, provider_transaction_id = $3, amount = $4,
               fee_amount = $5, currency = $6, transfer_content = $7,
-              raw_payload = $8::jsonb, received_at = $9, updated_at = now()
+              raw_payload = $8::jsonb, received_at = COALESCE($9::timestamptz, now()),
+              updated_at = now()
         WHERE id = $1 AND status = 'INITIATED'`,
       [
         initiated.id,
@@ -173,7 +199,7 @@ export class PaymentTransactionService implements PaymentLedgerReader {
         input.currency,
         input.transferContent ?? null,
         JSON.stringify(input.rawPayload),
-        input.receivedAt ?? new Date(),
+        input.receivedAt ?? null,
       ],
     );
     return {
@@ -213,12 +239,36 @@ export class PaymentTransactionService implements PaymentLedgerReader {
       : null;
   }
 
+  /** What a SUCCESS payment covered and what has been handed back so far. */
+  async refundTotals(manager: EntityManager, orderId: string) {
+    const [totals] = await manager.query<
+      Array<{ paid: string; refunded: string }>
+    >(
+      `SELECT
+         COALESCE(sum(amount) FILTER (WHERE status = 'SUCCESS'), 0)::text AS paid,
+         COALESCE(sum(amount) FILTER (WHERE status IN ('REFUNDED','PARTIALLY_REFUNDED')), 0)::text AS refunded
+       FROM payment_transactions WHERE order_id = $1`,
+      [orderId],
+    );
+    const paid = Number(totals!.paid);
+    const refunded = Number(totals!.refunded);
+    return { paid, refunded, refundable: paid - refunded };
+  }
+
   /**
-   * Records a (partial) refund as a new ledger row. The order is locked so
-   * concurrent refunds cannot exceed what was paid; a full refund moves a
-   * COMPLETED order to REFUNDED. Course access is not revoked here.
+   * Records a (partial) refund as a new ledger row in its own transaction. The
+   * order is locked so concurrent refunds cannot exceed what was paid; a full
+   * refund moves a COMPLETED order to REFUNDED. Course access is not revoked
+   * here (the admin refund workflow does that). The refund is audited as
+   * `audit.actor`, SYSTEM unless the caller says otherwise.
    */
-  async recordRefund(input: RecordRefundInput): Promise<RecordedPayment> {
+  async recordRefund(
+    input: RecordRefundInput,
+    audit: RefundAudit = {
+      actor: SYSTEM_ACTOR,
+      reason: 'Refund recorded by the payment ledger',
+    },
+  ): Promise<RefundOutcome> {
     if (!isPositiveSafeInteger(input.amount))
       throw new BadRequestException('REFUND_AMOUNT_MUST_BE_POSITIVE');
     return this.database.dataSource.transaction(async (manager) => {
@@ -227,51 +277,92 @@ export class PaymentTransactionService implements PaymentLedgerReader {
         lock: { mode: 'pessimistic_write' },
       });
       if (!order) throw new NotFoundException('ORDER_NOT_FOUND');
-
-      const prior = await manager.getRepository(PaymentTransaction).findOneBy({
-        provider: input.provider,
-        providerTransactionId: input.providerTransactionId,
-      });
-      if (prior) {
-        if (prior.orderId !== order.id)
-          throw new ConflictException('PROVIDER_TRANSACTION_ID_REUSED');
-        return { transaction: prior, created: false };
-      }
-      if (order.status !== OrderStatus.COMPLETED)
-        throw new ConflictException('ORDER_NOT_REFUNDABLE');
-
-      const [totals] = await manager.query<
-        Array<{ paid: string; refunded: string }>
-      >(
-        `SELECT
-           COALESCE(sum(amount) FILTER (WHERE status = 'SUCCESS'), 0)::text AS paid,
-           COALESCE(sum(amount) FILTER (WHERE status IN ('REFUNDED','PARTIALLY_REFUNDED')), 0)::text AS refunded
-         FROM payment_transactions WHERE order_id = $1`,
-        [order.id],
-      );
-      const refundable = Number(totals!.paid) - Number(totals!.refunded);
-      if (input.amount > refundable)
-        throw new BadRequestException('REFUND_EXCEEDS_PAID_AMOUNT');
-
-      const fullyRefunded = input.amount === refundable;
-      const recorded = await this.record(manager, {
-        orderId: order.id,
-        provider: input.provider,
-        providerTransactionId: input.providerTransactionId,
-        amount: input.amount,
-        feeAmount: input.feeAmount,
-        currency: order.currency,
-        status: fullyRefunded
-          ? PaymentTransactionStatus.REFUNDED
-          : PaymentTransactionStatus.PARTIALLY_REFUNDED,
-        rawPayload: input.rawPayload,
-      });
-      if (fullyRefunded)
-        await manager
-          .getRepository(Order)
-          .update({ id: order.id }, { status: OrderStatus.REFUNDED });
-      return recorded;
+      return this.recordRefundLocked(manager, order, input, audit);
     });
+  }
+
+  /**
+   * The refund proper, for a caller that already holds the order's
+   * `pessimistic_write` lock inside `manager`'s transaction. Writes, in order:
+   * the ledger row, the REFUND_ISSUED audit row, and (full refund) the order's
+   * move to REFUNDED. The audit row is part of the same transaction, and the
+   * database refuses to commit a refund row without it.
+   */
+  async recordRefundLocked(
+    manager: EntityManager,
+    order: Order,
+    input: RecordRefundInput,
+    audit: RefundAudit,
+  ): Promise<RefundOutcome> {
+    if (!isPositiveSafeInteger(input.amount))
+      throw new BadRequestException('REFUND_AMOUNT_MUST_BE_POSITIVE');
+    const prior = await manager.getRepository(PaymentTransaction).findOneBy({
+      provider: input.provider,
+      providerTransactionId: input.providerTransactionId,
+    });
+    if (prior) {
+      if (prior.orderId !== order.id)
+        throw new ConflictException('PROVIDER_TRANSACTION_ID_REUSED');
+      return {
+        transaction: prior,
+        created: false,
+        fullyRefunded: prior.status === PaymentTransactionStatus.REFUNDED,
+        ...(await this.refundTotals(manager, order.id)),
+      };
+    }
+    if (order.status !== OrderStatus.COMPLETED)
+      throw new ConflictException('ORDER_NOT_REFUNDABLE');
+
+    const before = await this.refundTotals(manager, order.id);
+    if (input.amount > before.refundable)
+      throw new BadRequestException('REFUND_EXCEEDS_PAID_AMOUNT');
+
+    const fullyRefunded = input.amount === before.refundable;
+    const recorded = await this.record(manager, {
+      orderId: order.id,
+      provider: input.provider,
+      providerTransactionId: input.providerTransactionId,
+      amount: input.amount,
+      feeAmount: input.feeAmount,
+      currency: order.currency,
+      status: fullyRefunded
+        ? PaymentTransactionStatus.REFUNDED
+        : PaymentTransactionStatus.PARTIALLY_REFUNDED,
+      rawPayload: input.rawPayload,
+    });
+    const after = {
+      paid: before.paid,
+      refunded: before.refunded + input.amount,
+      refundable: before.refundable - input.amount,
+    };
+    await this.audit.append(manager, {
+      orderId: order.id,
+      actor: audit.actor,
+      action: OrderAuditAction.REFUND_ISSUED,
+      reason: audit.reason,
+      previousState: {
+        status: order.status,
+        paidTotal: before.paid,
+        refundedTotal: before.refunded,
+      },
+      newState: {
+        status: fullyRefunded ? OrderStatus.REFUNDED : order.status,
+        refundStatus: fullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+        refundAmount: input.amount,
+        paidTotal: after.paid,
+        refundedTotal: after.refunded,
+        currency: order.currency,
+        paymentTransactionId: recorded.transaction.id,
+        provider: input.provider,
+        providerTransactionId: input.providerTransactionId,
+        ...audit.metadata,
+      },
+    });
+    if (fullyRefunded)
+      await manager
+        .getRepository(Order)
+        .update({ id: order.id }, { status: OrderStatus.REFUNDED });
+    return { ...recorded, fullyRefunded, ...after };
   }
 
   private validate(input: RecordPaymentInput) {

@@ -317,7 +317,11 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       );
       const before = {
         orders: await count('orders WHERE user_id=$1', [user.id]),
-        items: await count('order_items'),
+        // Scoped to this buyer: other suites insert order items concurrently.
+        items: await count(
+          'order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id=$1)',
+          [user.id],
+        ),
       };
 
       await placeOrder(user, [paid, free]).expect(400);
@@ -338,7 +342,11 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
 
       expect({
         orders: await count('orders WHERE user_id=$1', [user.id]),
-        items: await count('order_items'),
+        // Scoped to this buyer: other suites insert order items concurrently.
+        items: await count(
+          'order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id=$1)',
+          [user.id],
+        ),
       }).toEqual(before);
     });
 

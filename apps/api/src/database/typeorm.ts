@@ -15,6 +15,7 @@ import { AttemptAnswerEntity } from '../modules/quiz/entities/attempt-answer.ent
 import { CoursePriceLog } from '../courses/course-price-log.entity.js';
 import { WebhookLog } from '../modules/payment/entities/webhook-log.entity.js';
 import { OrderItem } from '../modules/payment/entities/order-item.entity.js';
+import { OrderAuditLog } from '../modules/payment/entities/order-audit-log.entity.js';
 import { Order } from '../modules/payment/entities/order.entity.js';
 import { PaymentTransaction } from '../modules/payment/entities/payment-transaction.entity.js';
 import { migrations } from './migrations/index.js';
@@ -50,6 +51,7 @@ export function createAppDataSource(): DataSource {
       AttemptAnswerEntity,
       Order,
       OrderItem,
+      OrderAuditLog,
       CoursePriceLog,
       WebhookLog,
       PaymentTransaction,

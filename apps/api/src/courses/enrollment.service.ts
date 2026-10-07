@@ -66,7 +66,9 @@ export class EnrollmentService {
    * Fulfilment entry point: gives `userId` access to `courseId` regardless of
    * how it was paid for. It does no payment checks on purpose: callers are the
    * order-fulfilment listener (after a verified payment) and admin tooling.
-   * Idempotent — a second call, or a concurrent one, changes nothing.
+   * Idempotent — a second call, or a concurrent one, changes nothing. An
+   * enrollment revoked earlier (a refunded purchase) is reinstated, keeping its
+   * id and learning progress, because a new verified payment re-buys access.
    */
   async grantEnrollment(
     userId: string,
@@ -74,7 +76,9 @@ export class EnrollmentService {
   ): Promise<{ granted: boolean }> {
     const inserted = await this.database.dataSource.query<unknown[]>(
       `INSERT INTO enrollments(user_id, course_id) VALUES ($1, $2)
-       ON CONFLICT (user_id, course_id) DO NOTHING RETURNING id`,
+       ON CONFLICT (user_id, course_id)
+       DO UPDATE SET revoked_at = NULL WHERE enrollments.revoked_at IS NOT NULL
+       RETURNING id`,
       [userId, courseId],
     );
     return { granted: inserted.length > 0 };

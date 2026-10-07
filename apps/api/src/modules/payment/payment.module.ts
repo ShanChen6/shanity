@@ -1,6 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module.js';
 import { DatabaseModule } from '../../database/database.module.js';
+import { AdminOrderQueryService } from './admin/admin-order-query.service.js';
+import { AdminOrdersController } from './admin/admin-orders.controller.js';
+import { OrderReconciliationService } from './admin/order-reconciliation.service.js';
+import { OrderRefundService } from './admin/order-refund.service.js';
+import { PaymentProofService } from './admin/payment-proof.service.js';
+import {
+  LocalPaymentProofStorage,
+  PaymentProofStorage,
+} from './admin/payment-proof.storage.js';
 import { CheckoutService } from './checkout.service.js';
 import { PaymentEventsModule } from './events/payment-events.module.js';
 import {
@@ -8,7 +17,9 @@ import {
   PAYMENT_PROVIDERS,
   type PaymentProvider,
 } from './interfaces/index.js';
+import { OrderAuditService } from './order-audit.service.js';
 import { OrderFactoryService } from './order-factory.service.js';
+import { LoggingOrderNotifier, OrderNotifier } from './order-notifier.js';
 import { OrderQueryService } from './order-query.service.js';
 import {
   OrdersController,
@@ -41,13 +52,21 @@ import { WebhookProcessorService } from './webhook-processor.service.js';
     StudentOrdersController,
     PaymentMethodsController,
     WebhookController,
+    AdminOrdersController,
   ],
   providers: [
     PaymentService,
     PaymentTransactionService,
+    OrderAuditService,
     OrderFactoryService,
     OrderQueryService,
     StudentOrdersService,
+    AdminOrderQueryService,
+    OrderReconciliationService,
+    OrderRefundService,
+    PaymentProofService,
+    { provide: PaymentProofStorage, useClass: LocalPaymentProofStorage },
+    { provide: OrderNotifier, useClass: LoggingOrderNotifier },
     CheckoutService,
     PaymentSettlementService,
     WebhookProcessorService,
@@ -75,6 +94,7 @@ import { WebhookProcessorService } from './webhook-processor.service.js';
   exports: [
     PaymentService,
     PaymentTransactionService,
+    OrderAuditService,
     OrderFactoryService,
     OrderQueryService,
     CheckoutService,

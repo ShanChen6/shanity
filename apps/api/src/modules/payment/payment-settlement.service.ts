@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database.module.js';
 import { OrderCompletedEvent } from './events/order-completed.event.js';
 import { PaymentEventBus } from './events/payment-event-bus.js';
 import { OrderItem } from './entities/order-item.entity.js';
+import { OrderAuditAction } from './entities/order-audit-log.entity.js';
 import { Order, OrderStatus } from './entities/order.entity.js';
 import { PaymentTransactionStatus } from './entities/payment-transaction.entity.js';
 import {
@@ -12,6 +13,7 @@ import {
   type VerifyNotificationResult,
 } from './interfaces/index.js';
 import { fromMinorUnits } from './money.js';
+import { OrderAuditService, SYSTEM_ACTOR } from './order-audit.service.js';
 import { PaymentTransactionService } from './payment-transaction.service.js';
 
 export type WebhookStatus =
@@ -84,6 +86,7 @@ export class PaymentSettlementService {
     private readonly database: DatabaseService,
     private readonly ledger: PaymentTransactionService,
     private readonly events: PaymentEventBus,
+    private readonly audit: OrderAuditService,
   ) {}
 
   async settle(
@@ -197,6 +200,22 @@ export class PaymentSettlementService {
         const { created } = await book(PaymentTransactionStatus.SUCCESS);
         result = done('COMPLETED', created);
         if (created) {
+          // Audit first: the trail records why the status moves, and the
+          // database refuses a silent transition anyway.
+          await this.audit.append(manager, {
+            orderId: order.id,
+            actor: SYSTEM_ACTOR,
+            action: OrderAuditAction.STATUS_CHANGED,
+            reason: `Payment confirmed by ${provider} (${fact.providerTransactionId || 'no transaction id'})`,
+            previousState: { status: order.status },
+            newState: {
+              status: OrderStatus.COMPLETED,
+              provider,
+              providerTransactionId: fact.providerTransactionId || null,
+              amount,
+              currency: order.currency,
+            },
+          });
           order.status = OrderStatus.COMPLETED;
           await manager.save(order);
           // Access derives from the items frozen at checkout, never `courses`.

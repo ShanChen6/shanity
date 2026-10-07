@@ -58,7 +58,7 @@ export async function learningApp(
       .send(body);
 
   async function account(
-    role: 'student' | 'instructor' = 'student',
+    role: 'student' | 'instructor' | 'admin' | 'finance_officer' = 'student',
   ): Promise<Account> {
     const email = `${randomUUID()}@example.invalid`;
     const response = await http()
@@ -69,10 +69,10 @@ export async function learningApp(
     const [user] = await db.query('SELECT id FROM users WHERE email=$1', [
       email,
     ]);
-    if (role === 'instructor')
+    if (role !== 'student')
       await db.query(
-        `INSERT INTO user_roles(user_id, role_code) VALUES ($1, 'instructor')`,
-        [user.id],
+        `INSERT INTO user_roles(user_id, role_code) VALUES ($1, $2)`,
+        [user.id, role],
       );
     return { id: user.id as string, email, session: cookies(response) };
   }

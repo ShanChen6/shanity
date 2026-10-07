@@ -84,6 +84,25 @@ export interface QueryPaymentResult {
   paidAt?: Date;
 }
 
+export interface RefundPaymentInput {
+  orderCode: string;
+  /** The provider's id of the payment being refunded (Stripe session id...). */
+  providerTransactionId: string;
+  /** Minor units; at most what is still refundable. */
+  amount: bigint;
+  currency: string;
+  /** Why; forwarded to the gateway for its own records. */
+  reason: string;
+  /** Same key => same refund, so a retried request can never refund twice. */
+  idempotencyKey: string;
+}
+
+export interface RefundPaymentResult {
+  /** The provider's id for the refund; becomes the refund ledger row's id. */
+  providerRefundId: string;
+  rawPayload: Record<string, any>;
+}
+
 export interface PaymentProvider {
   readonly providerName: PaymentProviderEnum;
   /** ISO 4217 codes this gateway can charge. Checked before createPayment. */
@@ -107,6 +126,12 @@ export interface PaymentProvider {
     orderCode: string,
     providerTransactionId?: string,
   ): Promise<QueryPaymentResult>;
+
+  /**
+   * Hands money back through the gateway. Optional: a bank transfer has no
+   * refund API, so the platform records an internal refund instead.
+   */
+  refundPayment?(input: RefundPaymentInput): Promise<RefundPaymentResult>;
 }
 
 /** Injection token for the list of registered concrete providers. */
