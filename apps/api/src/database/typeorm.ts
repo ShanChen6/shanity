@@ -16,7 +16,6 @@ import { CoursePriceLog } from '../courses/course-price-log.entity.js';
 import { OrderItem } from '../modules/payment/entities/order-item.entity.js';
 import { Order } from '../modules/payment/entities/order.entity.js';
 import { PaymentTransaction } from '../modules/payment/entities/payment-transaction.entity.js';
-import { BankWebhookLog } from '../modules/payment/entities/bank-webhook-log.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -52,7 +51,6 @@ export function createAppDataSource(): DataSource {
       OrderItem,
       CoursePriceLog,
       PaymentTransaction,
-      BankWebhookLog,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

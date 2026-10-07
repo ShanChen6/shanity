@@ -55,7 +55,9 @@ describe('buildOrderSnapshot', () => {
       course({ id: 'course-b', title: 'B', price: 300000 }),
     ]);
     expect(snapshot.subtotal).toBe(799000);
-    expect(snapshot.finalTotal).toBe(snapshot.subtotal - snapshot.discountTotal);
+    expect(snapshot.finalTotal).toBe(
+      snapshot.subtotal - snapshot.discountTotal,
+    );
     expect(snapshot.items.map((item) => item.courseId)).toEqual([
       'course-a',
       'course-b',

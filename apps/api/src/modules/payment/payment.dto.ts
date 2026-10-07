@@ -3,16 +3,13 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
-  IsInt,
-  IsNotEmpty,
-  IsObject,
+  IsEnum,
   IsOptional,
-  IsPositive,
-  Max,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { PaymentProviderEnum } from './interfaces/payment-provider.enum.js';
 import { MAX_ORDER_ITEMS } from './order-snapshot.js';
 
 export class CreateOrderDto {
@@ -24,12 +21,18 @@ export class CreateOrderDto {
   courseIds: string[];
 }
 
-export class VietQrWebhookDto {
-  // Matches payment_transactions.provider_transaction_id (varchar(100)).
-  @IsString() @IsNotEmpty() @MaxLength(100) transactionId: string;
-  @IsInt() @IsPositive() @Max(Number.MAX_SAFE_INTEGER) amount: number;
-  @IsString() @IsNotEmpty() @MaxLength(500) transferContent: string;
-  // Some forwarders wrap the original bank notification. The complete HTTP
-  // body is persisted regardless; this field is intentionally unconstrained.
-  @IsOptional() @IsObject() rawPayload?: Record<string, unknown>;
+export class InitiateCheckoutDto {
+  @IsEnum(PaymentProviderEnum)
+  provider: PaymentProviderEnum;
+
+  // Must share the web app's origin; validated by CheckoutService.
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  returnUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  cancelUrl?: string;
 }

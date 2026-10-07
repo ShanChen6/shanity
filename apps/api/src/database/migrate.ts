@@ -71,8 +71,7 @@ async function prepareHistory(runner: QueryRunner, adoptLegacy: boolean) {
   if (
     previous.some(
       (row, i) =>
-        !migrationHistory[i]?.legacy ||
-        row.name !== migrationHistory[i].legacy,
+        !migrationHistory[i]?.legacy || row.name !== migrationHistory[i].legacy,
     )
   ) {
     throw new Error(

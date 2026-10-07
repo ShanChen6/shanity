@@ -57,7 +57,20 @@ describe('VietQR payment engine (PAY1, PAY3-5 order model)', () => {
         },
       ],
     });
-    const qr = new URL(created.body.qrCodeUrl);
+    // The order itself is gateway-neutral; the QR comes from checkout.
+    expect(created.body.qrCodeUrl).toBeUndefined();
+    const checkout = await t
+      .http()
+      .post(`/orders/${created.body.orderId}/checkout`)
+      .set('Cookie', student.session)
+      .send({ provider: 'VIETQR' })
+      .expect(201);
+    expect(checkout.body).toMatchObject({
+      provider: 'VIETQR',
+      amount: 250000,
+      currency: 'VND',
+    });
+    const qr = new URL(checkout.body.qrCodeUrl);
     expect(qr.hostname).toBe('img.vietqr.io');
     expect(qr.searchParams.get('amount')).toBe('250000');
     // Banks strip punctuation, so the memo is the code without dashes.

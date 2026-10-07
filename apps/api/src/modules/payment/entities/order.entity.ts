@@ -9,6 +9,7 @@ import {
 import type { Relation } from 'typeorm';
 import { CourseCurrency } from '../../../courses/course-currency.js';
 import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
+import { PaymentProviderEnum } from '../interfaces/payment-provider.enum.js';
 import type { OrderItem } from './order-item.entity.js';
 
 export enum OrderStatus {
@@ -18,11 +19,6 @@ export enum OrderStatus {
   EXPIRED = 'EXPIRED',
   CANCELLED = 'CANCELLED',
   REFUNDED = 'REFUNDED',
-}
-
-export enum PaymentMethod {
-  VIETQR = 'VIETQR',
-  MANUAL_BANK = 'MANUAL_BANK',
 }
 
 // The order header is a frozen financial record: code, owner, currency and the
@@ -65,15 +61,16 @@ export class Order {
   })
   finalTotal: number;
 
-  // The payment method the buyer was shown; the provider that actually moved
-  // money is recorded per payment_transactions row.
+  // Gateway the buyer last started checkout with; null until checkout. The
+  // provider that actually moved money is on the payment_transactions rows.
   @Column({
-    name: 'payment_method',
+    name: 'payment_provider',
     type: 'enum',
-    enum: PaymentMethod,
-    enumName: 'PaymentMethod',
+    enum: PaymentProviderEnum,
+    enumName: 'PaymentProvider',
+    nullable: true,
   })
-  paymentMethod: PaymentMethod;
+  paymentProvider: PaymentProviderEnum | null;
 
   @Column({ name: 'expires_at', type: 'timestamptz' }) expiresAt: Date;
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })

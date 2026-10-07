@@ -61,4 +61,22 @@ export class EnrollmentService {
       throw error;
     }
   }
+
+  /**
+   * Fulfilment entry point: gives `userId` access to `courseId` regardless of
+   * how it was paid for. It does no payment checks on purpose: callers are the
+   * order-fulfilment listener (after a verified payment) and admin tooling.
+   * Idempotent — a second call, or a concurrent one, changes nothing.
+   */
+  async grantEnrollment(
+    userId: string,
+    courseId: string,
+  ): Promise<{ granted: boolean }> {
+    const inserted = await this.database.dataSource.query<unknown[]>(
+      `INSERT INTO enrollments(user_id, course_id) VALUES ($1, $2)
+       ON CONFLICT (user_id, course_id) DO NOTHING RETURNING id`,
+      [userId, courseId],
+    );
+    return { granted: inserted.length > 0 };
+  }
 }

@@ -30,6 +30,7 @@ import { QuizDiscoveryMetadata1791417600008 } from './202610080008_quiz_discover
 import { VietQrPayments1791504000001 } from './202610090001_vietqr_payments.js';
 import { CoursePricing1791590400001 } from './202610100001_course_pricing.js';
 import { PaymentPersistence1791676800001 } from './202610110001_payment_persistence.js';
+import { CheckoutProviders1791763200001 } from './202610120001_checkout_providers.js';
 
 export const migrationHistory = [
   {
@@ -223,6 +224,12 @@ export const migrationHistory = [
     name: 'PaymentPersistence1791676800001',
     timestamp: 1791676800001,
     migration: PaymentPersistence1791676800001,
+  },
+  {
+    legacy: null,
+    name: 'CheckoutProviders1791763200001',
+    timestamp: 1791763200001,
+    migration: CheckoutProviders1791763200001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

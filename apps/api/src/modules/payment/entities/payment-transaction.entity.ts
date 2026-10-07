@@ -10,15 +10,8 @@ import {
 import type { Relation } from 'typeorm';
 import { CourseCurrency } from '../../../courses/course-currency.js';
 import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
+import { PaymentProviderEnum } from '../interfaces/payment-provider.enum.js';
 import { Order } from './order.entity.js';
-
-export enum PaymentProvider {
-  VIETQR = 'VIETQR',
-  STRIPE = 'STRIPE',
-  MOMO = 'MOMO',
-  VNPAY = 'VNPAY',
-  MANUAL_BANK = 'MANUAL_BANK',
-}
 
 export enum PaymentTransactionStatus {
   INITIATED = 'INITIATED',
@@ -49,8 +42,12 @@ export class PaymentTransaction {
   })
   order: Relation<Order>;
 
-  @Column({ type: 'enum', enum: PaymentProvider, enumName: 'PaymentProvider' })
-  provider: PaymentProvider;
+  @Column({
+    type: 'enum',
+    enum: PaymentProviderEnum,
+    enumName: 'PaymentProvider',
+  })
+  provider: PaymentProviderEnum;
 
   // Bank FT code, Stripe charge id, ... Unique per provider.
   @Column({

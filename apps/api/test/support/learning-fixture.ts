@@ -1,4 +1,4 @@
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -17,14 +17,20 @@ export type CourseFixture = {
 const PASSWORD = 'Testing-a-long-password-42';
 
 /** Boots the real AppModule against PGDATABASE (must be an isolated *_test db). */
-export async function learningApp(label: string) {
+export async function learningApp(
+  label: string,
+  // Lets a suite swap collaborators (e.g. a gateway's HTTP client).
+  customize: (builder: TestingModuleBuilder) => TestingModuleBuilder = (b) => b,
+) {
   if (!process.env.PGDATABASE?.endsWith('_test'))
     throw new Error('Run edge-case suites against an isolated *_test database');
   const { AppModule } = await import('../../src/app.module.js');
-  const module = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const app: INestApplication = module.createNestApplication();
+  const module = await customize(
+    Test.createTestingModule({ imports: [AppModule] }),
+  ).compile();
+  const app: INestApplication = module.createNestApplication({
+    rawBody: true,
+  });
   app.use((req: Request, _res: Response, next: NextFunction) => {
     Object.defineProperty(req, 'ip', { value: `${label}-${randomUUID()}` });
     next();

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { DatabaseService } from '../../../src/database/database.module.js';
 import { CoursePricingService } from '../../../src/courses/pricing/course-pricing.service.js';
-import { PaymentProvider } from '../../../src/modules/payment/entities/payment-transaction.entity.js';
+import { PaymentProviderEnum } from '../../../src/modules/payment/interfaces/index.js';
 import {
   OrderFactoryService,
   type OrderCodeGenerator,
@@ -17,7 +17,9 @@ import { learningApp, type Account } from '../../support/learning-fixture.js';
  * agreed to at checkout. Repricing or renaming a course later must never leak
  * into an existing order, and the database itself refuses to rewrite it.
  */
-describe('PAY3-5 order snapshot invariant', () => {
+// Each test registers accounts (password hashing) and courses over HTTP, so
+// give them room when the whole suite runs in parallel.
+describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
   let t: Awaited<ReturnType<typeof learningApp>>;
   let owner: Account;
   let factory: OrderFactoryService;
@@ -28,6 +30,9 @@ describe('PAY3-5 order snapshot invariant', () => {
 
   beforeAll(async () => {
     process.env.BANK_WEBHOOK_API_KEY = apiKey;
+    process.env.VIETQR_BANK_ID = '970422';
+    process.env.VIETQR_ACCOUNT_NO = '123456789';
+    process.env.VIETQR_ACCOUNT_NAME = 'SHANITY';
     t = await learningApp('order-snapshot');
     owner = await t.account('instructor');
     factory = t.app.get(OrderFactoryService);
@@ -131,8 +136,15 @@ describe('PAY3-5 order snapshot invariant', () => {
         finalPriceSnapshot: 499000,
         currency: 'VND',
       });
-      // The QR still asks for the frozen amount.
-      expect(new URL(refetched.qrCodeUrl).searchParams.get('amount')).toBe(
+      // Checkout (and so the QR) still asks for the frozen amount.
+      const checkout = await t
+        .http()
+        .post(`/orders/${t1.orderId}/checkout`)
+        .set('Cookie', userA.session)
+        .send({ provider: 'VIETQR' })
+        .expect(201);
+      expect(checkout.body.amount).toBe(499000);
+      expect(new URL(checkout.body.qrCodeUrl).searchParams.get('amount')).toBe(
         '499000',
       );
 
@@ -434,7 +446,7 @@ describe('PAY3-5 order snapshot invariant', () => {
         finalTotal: number,
       ) =>
         manager.query(
-          `INSERT INTO orders(code,user_id,currency,subtotal,discount_total,final_total,status,payment_method,expires_at)
+          `INSERT INTO orders(code,user_id,currency,subtotal,discount_total,final_total,status,payment_provider,expires_at)
            VALUES ($1,$2,'VND',$3::bigint,$3::bigint - $4::bigint,$4::bigint,'PENDING','VIETQR',now() + interval '15 minutes') RETURNING id`,
           [code, user.id, subtotal, finalTotal],
         );
@@ -465,7 +477,7 @@ describe('PAY3-5 order snapshot invariant', () => {
       // header total that breaks finalTotal = subtotal - discountTotal
       await expect(
         t.db.query(
-          `INSERT INTO orders(code,user_id,currency,subtotal,discount_total,final_total,status,payment_method,expires_at)
+          `INSERT INTO orders(code,user_id,currency,subtotal,discount_total,final_total,status,payment_provider,expires_at)
            VALUES ($2,$1,'VND',100,0,90,'PENDING','VIETQR',now())`,
           [user.id, codes.MATH],
         ),
@@ -631,7 +643,7 @@ describe('PAY3-5 order snapshot invariant', () => {
       const database = t.app.get(DatabaseService);
       const input = {
         orderId: first.orderId,
-        provider: PaymentProvider.STRIPE,
+        provider: PaymentProviderEnum.STRIPE,
         providerTransactionId: `ch_${uid()}`,
         amount: 100000,
         currency: first.currency,
@@ -672,7 +684,7 @@ describe('PAY3-5 order snapshot invariant', () => {
       const refund = (id: string, amount: number) =>
         ledger.recordRefund({
           orderId: order.orderId,
-          provider: PaymentProvider.VIETQR,
+          provider: PaymentProviderEnum.VIETQR,
           providerTransactionId: id,
           amount,
           rawPayload: { refund: id },

@@ -8,13 +8,12 @@ import {
 } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { CourseAccessType } from '../../courses/course-access-type.js';
-import { CourseCurrency } from '../../courses/course-currency.js';
 import { CourseStatus } from '../../courses/course-status.js';
 import { Course } from '../../courses/course.entity.js';
 import { Enrollment } from '../../courses/enrollment.entity.js';
 import { DatabaseService } from '../../database/database.module.js';
 import { OrderItem } from './entities/order-item.entity.js';
-import { Order, OrderStatus, PaymentMethod } from './entities/order.entity.js';
+import { Order, OrderStatus } from './entities/order.entity.js';
 import {
   buildOrderSnapshot,
   generateOrderCode,
@@ -109,9 +108,6 @@ export class OrderFactoryService {
       throw new NotFoundException('COURSE_NOT_FOUND');
     if (courses.some((course) => course.accessType !== CourseAccessType.PAID))
       throw new BadRequestException('COURSE_IS_FREE');
-    // VietQR transfers settle in VND only.
-    if (courses.some((course) => course.currency !== CourseCurrency.VND))
-      throw new BadRequestException('UNSUPPORTED_PAYMENT_CURRENCY');
     return courses;
   }
 
@@ -144,7 +140,7 @@ export class OrderFactoryService {
         subtotal: snapshot.subtotal,
         discountTotal: snapshot.discountTotal,
         finalTotal: snapshot.finalTotal,
-        paymentMethod: PaymentMethod.VIETQR,
+        paymentProvider: null,
         expiresAt: new Date(Date.now() + ORDER_TTL_MS),
       }),
     );

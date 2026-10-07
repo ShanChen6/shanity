@@ -2,10 +2,10 @@ import type { CourseCurrency } from '../../courses/course-currency.js';
 import type { OrderItem } from './entities/order-item.entity.js';
 import type { Order, OrderStatus } from './entities/order.entity.js';
 import type {
-  PaymentProvider,
   PaymentTransaction,
   PaymentTransactionStatus,
 } from './entities/payment-transaction.entity.js';
+import type { PaymentProviderEnum } from './interfaces/payment-provider.enum.js';
 
 export interface OrderItemView {
   id: string;
@@ -19,7 +19,7 @@ export interface OrderItemView {
 
 export interface PaymentView {
   id: string;
-  provider: PaymentProvider;
+  provider: PaymentProviderEnum;
   providerTransactionId: string | null;
   amount: number;
   feeAmount: number;
@@ -37,6 +37,7 @@ export interface OrderView {
   subtotal: number;
   discountTotal: number;
   finalTotal: number;
+  paymentProvider: PaymentProviderEnum | null;
   expiresAt: Date;
   createdAt: Date;
   items: OrderItemView[];
@@ -55,6 +56,7 @@ export const toOrderView = (
   subtotal: order.subtotal,
   discountTotal: order.discountTotal,
   finalTotal: order.finalTotal,
+  paymentProvider: order.paymentProvider,
   expiresAt: order.expiresAt,
   createdAt: order.createdAt,
   items: items.map((item) => ({

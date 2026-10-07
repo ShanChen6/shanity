@@ -9,14 +9,18 @@ import { CourseCurrency } from '../../courses/course-currency.js';
 import { DatabaseService } from '../../database/database.module.js';
 import { Order, OrderStatus } from './entities/order.entity.js';
 import {
-  PaymentProvider,
   PaymentTransaction,
   PaymentTransactionStatus,
 } from './entities/payment-transaction.entity.js';
+import type {
+  PaymentLedgerReader,
+  PaymentProviderEnum,
+  VerifiedPaymentRecord,
+} from './interfaces/index.js';
 
 export interface RecordPaymentInput {
   orderId: string;
-  provider: PaymentProvider;
+  provider: PaymentProviderEnum;
   providerTransactionId: string | null;
   amount: number;
   currency: CourseCurrency;
@@ -35,7 +39,7 @@ export interface RecordedPayment {
 
 export interface RecordRefundInput {
   orderId: string;
-  provider: PaymentProvider;
+  provider: PaymentProviderEnum;
   /** Provider refund id; makes the call idempotent. */
   providerTransactionId: string;
   amount: number;
@@ -48,7 +52,7 @@ const isPositiveSafeInteger = (value: number) =>
   Number.isSafeInteger(value) && value > 0;
 
 @Injectable()
-export class PaymentTransactionService {
+export class PaymentTransactionService implements PaymentLedgerReader {
   constructor(private readonly database: DatabaseService) {}
 
   /**
@@ -102,6 +106,111 @@ export class PaymentTransactionService {
     if (!existing || existing.orderId !== input.orderId)
       throw new ConflictException('PROVIDER_TRANSACTION_ID_REUSED');
     return { transaction: existing, created: false };
+  }
+
+  findByProviderTransaction(
+    manager: EntityManager,
+    provider: PaymentProviderEnum,
+    providerTransactionId: string,
+  ) {
+    return manager
+      .getRepository(PaymentTransaction)
+      .findOneBy({ provider, providerTransactionId });
+  }
+
+  /**
+   * Books the outcome of a provider attempt. If checkout left an INITIATED row
+   * for this provider (matched by provider transaction id, else the newest
+   * attempt for the order) that row is completed in place; otherwise a new row
+   * is appended. A provider event that was already settled is returned
+   * untouched with `created: false`, which is what makes redelivery safe.
+   *
+   * The caller must hold the order lock so concurrent settlements of the same
+   * order are serialised.
+   */
+  async settle(
+    manager: EntityManager,
+    input: RecordPaymentInput,
+  ): Promise<RecordedPayment> {
+    this.validate(input);
+    const existing = input.providerTransactionId
+      ? await this.findByProviderTransaction(
+          manager,
+          input.provider,
+          input.providerTransactionId,
+        )
+      : null;
+    if (existing && existing.orderId !== input.orderId)
+      throw new ConflictException('PROVIDER_TRANSACTION_ID_REUSED');
+    if (existing && existing.status !== PaymentTransactionStatus.INITIATED)
+      return { transaction: existing, created: false };
+
+    const initiated =
+      existing ??
+      (await manager.getRepository(PaymentTransaction).findOne({
+        where: {
+          orderId: input.orderId,
+          provider: input.provider,
+          status: PaymentTransactionStatus.INITIATED,
+        },
+        order: { createdAt: 'DESC', id: 'DESC' },
+      }));
+    if (!initiated) return this.record(manager, input);
+
+    // Allowed by the ledger guard: INITIATED rows may be completed once.
+    await manager.query(
+      `UPDATE payment_transactions
+          SET status = $2, provider_transaction_id = $3, amount = $4,
+              fee_amount = $5, currency = $6, transfer_content = $7,
+              raw_payload = $8::jsonb, received_at = $9, updated_at = now()
+        WHERE id = $1 AND status = 'INITIATED'`,
+      [
+        initiated.id,
+        input.status,
+        input.providerTransactionId,
+        input.amount,
+        input.feeAmount ?? 0,
+        input.currency,
+        input.transferContent ?? null,
+        JSON.stringify(input.rawPayload),
+        input.receivedAt ?? new Date(),
+      ],
+    );
+    return {
+      transaction: await manager
+        .getRepository(PaymentTransaction)
+        .findOneByOrFail({ id: initiated.id }),
+      created: true,
+    };
+  }
+
+  /** PaymentLedgerReader: what a push-only gateway has already proven. */
+  async findSuccessfulPayment(
+    provider: PaymentProviderEnum,
+    orderCode: string,
+  ): Promise<VerifiedPaymentRecord | null> {
+    const [row] = await this.database.dataSource.query<
+      Array<{
+        provider_transaction_id: string;
+        amount: string;
+        currency: string;
+        received_at: Date;
+      }>
+    >(
+      `SELECT t.provider_transaction_id, t.amount::text AS amount, t.currency, t.received_at
+         FROM payment_transactions t JOIN orders o ON o.id = t.order_id
+        WHERE o.code = $1 AND t.provider = $2 AND t.status = 'SUCCESS'
+        ORDER BY t.received_at DESC LIMIT 1`,
+      [orderCode, provider],
+    );
+    return row
+      ? {
+          providerTransactionId: row.provider_transaction_id,
+          amount: Number(row.amount),
+          currency: row.currency,
+          receivedAt: row.received_at,
+        }
+      : null;
   }
 
   listByOrder(orderId: string, manager?: EntityManager) {

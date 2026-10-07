@@ -49,9 +49,9 @@ describe('EnrollmentService.enrollCourse', () => {
     ]);
 
     expect(stored).toHaveLength(1);
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
-      1,
-    );
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
     const rejected = results.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -65,7 +65,7 @@ describe('EnrollmentService.enrollCourse', () => {
         id: 'course-id',
         status: CourseStatus.PUBLISHED,
         accessType: CourseAccessType.FREE,
-      price: 0,
+        price: 0,
       }),
     };
     const enrollmentRepository = {
@@ -82,7 +82,9 @@ describe('EnrollmentService.enrollCourse', () => {
     } as unknown as DatabaseService;
     const service = new EnrollmentService(database);
 
-    await expect(service.enrollCourse('user-id', 'course-id')).rejects.toMatchObject({
+    await expect(
+      service.enrollCourse('user-id', 'course-id'),
+    ).rejects.toMatchObject({
       status: 409,
     });
     expect(enrollmentRepository.save).not.toHaveBeenCalled();
