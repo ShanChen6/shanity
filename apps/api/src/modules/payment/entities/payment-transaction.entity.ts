@@ -1,4 +1,5 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
 
 export enum PaymentTransactionStatus {
   INITIATED = 'INITIATED',
@@ -22,7 +23,8 @@ export class PaymentTransaction {
     nullable: true,
   })
   providerTransactionId: string | null;
-  @Column({ type: 'integer' }) amount: number;
+  @Column({ type: 'bigint', transformer: bigintNumberTransformer })
+  amount: number;
   @Column({ name: 'transfer_content', type: 'text' }) transferContent: string;
   @Column({
     type: 'enum',

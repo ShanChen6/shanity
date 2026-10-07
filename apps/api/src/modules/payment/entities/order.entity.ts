@@ -5,6 +5,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
+import { CourseCurrency } from '../../../courses/course-currency.js';
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -28,7 +30,11 @@ export class Order {
   @Column({ type: 'varchar', length: 32 }) code: string;
   @Column({ name: 'user_id', type: 'uuid' }) userId: string;
   @Column({ name: 'course_id', type: 'uuid' }) courseId: string;
-  @Column({ type: 'integer' }) amount: number;
+  // Total payable, frozen at creation from the order items' price snapshots.
+  @Column({ type: 'bigint', transformer: bigintNumberTransformer })
+  amount: number;
+  @Column({ type: 'varchar', length: 3, default: CourseCurrency.VND })
+  currency: CourseCurrency;
   @Column({ type: 'enum', enum: OrderStatus, enumName: 'OrderStatus' })
   status: OrderStatus;
   @Column({

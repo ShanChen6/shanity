@@ -12,6 +12,9 @@ import { PublicCoursesController } from './courses.controller.js';
 import { CoursesService } from './courses.service.js';
 import { CoursePublishabilityValidator } from './course-publishability.validator.js';
 import { CourseAccessService } from './course-access.service.js';
+import { CoursePricingController } from './pricing/course-pricing.controller.js';
+import { CoursePricingService } from './pricing/course-pricing.service.js';
+import { EnrollmentService } from './enrollment.service.js';
 import { LessonsModule } from '../modules/lessons/lessons.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import {
@@ -30,6 +33,7 @@ import { LessonAccessService } from '../modules/lessons/lesson-access.service.js
   controllers: [
     CoursesController,
     PublicCoursesController,
+    CoursePricingController,
     InstructorContentController,
     CourseMediaController,
     VideoPlaybackController,
@@ -39,6 +43,8 @@ import { LessonAccessService } from '../modules/lessons/lesson-access.service.js
   ],
   providers: [
     CoursesService,
+    CoursePricingService,
+    EnrollmentService,
     CourseAccessService,
     CoursePublishabilityValidator,
     OriginGuard,
@@ -49,6 +55,6 @@ import { LessonAccessService } from '../modules/lessons/lesson-access.service.js
     LessonAccessService,
     LessonAccessGuard,
   ],
-  exports: [CourseAccessService],
+  exports: [CourseAccessService, CoursePricingService, EnrollmentService],
 })
 export class CoursesModule {}

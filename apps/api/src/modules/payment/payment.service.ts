@@ -9,6 +9,9 @@ import { DatabaseService } from '../../database/database.module.js';
 import { Course } from '../../courses/course.entity.js';
 import { CourseStatus } from '../../courses/course-status.js';
 import { Enrollment } from '../../courses/enrollment.entity.js';
+import { CourseAccessType } from '../../courses/course-access-type.js';
+import { CourseCurrency } from '../../courses/course-currency.js';
+import { OrderItem } from './entities/order-item.entity.js';
 import { Order, OrderStatus, PaymentMethod } from './entities/order.entity.js';
 import {
   PaymentTransaction,
@@ -23,29 +26,53 @@ export class PaymentService {
   constructor(private readonly database: DatabaseService) {}
 
   async createOrder(userId: string, courseId: string) {
-    const manager = this.database.dataSource.manager;
-    const course = await manager
-      .getRepository(Course)
-      .findOneBy({ id: courseId });
-    if (!course || course.status !== CourseStatus.PUBLISHED)
-      throw new NotFoundException('COURSE_NOT_FOUND');
-    if (await manager.getRepository(Enrollment).existsBy({ userId, courseId }))
-      throw new BadRequestException('ALREADY_ENROLLED');
+    const code = await this.uniqueCode();
+    const order = await this.database.dataSource.transaction(
+      async (manager) => {
+        // FOR SHARE: a concurrent repricing (FOR UPDATE) either finishes
+        // before this read or waits until the order and its snapshot commit.
+        const course = await manager.getRepository(Course).findOne({
+          where: { id: courseId },
+          lock: { mode: 'pessimistic_read' },
+        });
+        if (!course || course.status !== CourseStatus.PUBLISHED)
+          throw new NotFoundException('COURSE_NOT_FOUND');
+        if (course.accessType !== CourseAccessType.PAID)
+          throw new BadRequestException('COURSE_IS_FREE');
+        // VietQR transfers settle in VND only.
+        if (course.currency !== CourseCurrency.VND)
+          throw new BadRequestException('UNSUPPORTED_PAYMENT_CURRENCY');
+        if (
+          await manager.getRepository(Enrollment).existsBy({ userId, courseId })
+        )
+          throw new BadRequestException('ALREADY_ENROLLED');
 
-    const order = manager.getRepository(Order).create({
-      code: await this.uniqueCode(),
-      userId,
-      courseId,
-      amount: course.price,
-      status: OrderStatus.PENDING,
-      paymentMethod: PaymentMethod.VIETQR,
-      expiresAt: new Date(Date.now() + 15 * 60_000),
-    });
-    await manager.save(order);
+        const saved = await manager.getRepository(Order).save(
+          manager.getRepository(Order).create({
+            code,
+            userId,
+            courseId,
+            amount: course.price,
+            currency: course.currency,
+            status: OrderStatus.PENDING,
+            paymentMethod: PaymentMethod.VIETQR,
+            expiresAt: new Date(Date.now() + 15 * 60_000),
+          }),
+        );
+        await manager.getRepository(OrderItem).insert({
+          orderId: saved.id,
+          courseId,
+          unitPriceSnapshot: course.price,
+          currency: course.currency,
+        });
+        return saved;
+      },
+    );
     return {
       orderId: order.id,
       code: order.code,
       amount: order.amount,
+      currency: order.currency,
       expiresAt: order.expiresAt,
       qrCodeUrl: this.qrUrl(order),
     };

@@ -11,6 +11,9 @@ import { User } from '../users/user.entity.js';
 import { Chapter } from './chapter.entity.js';
 import { Enrollment } from './enrollment.entity.js';
 import { CourseStatus } from './course-status.js';
+import { CourseAccessType } from './course-access-type.js';
+import { CourseCurrency } from './course-currency.js';
+import { bigintNumberTransformer } from '../database/bigint-number.transformer.js';
 
 @Entity('courses')
 @Index('courses_instructor_idx', ['instructorId'])
@@ -43,8 +46,29 @@ export class Course {
   @Column({ type: 'text', default: 'vi' })
   language: string;
 
-  @Column({ type: 'integer', default: 0 })
+  @Column({
+    name: 'access_type',
+    type: 'enum',
+    enum: CourseAccessType,
+    enumName: 'CourseAccessType',
+    default: CourseAccessType.FREE,
+  })
+  accessType: CourseAccessType;
+
+  // Raw minor units: VND integer, USD cents. FREE => 0, PAID => > 0 (DB CHECK).
+  @Column({
+    type: 'bigint',
+    default: 0,
+    transformer: bigintNumberTransformer,
+  })
   price: number;
+
+  @Column({
+    type: 'varchar',
+    length: 3,
+    default: CourseCurrency.VND,
+  })
+  currency: CourseCurrency;
 
   // Students must complete each required lesson before opening later ones.
   @Column({ name: 'is_sequential', type: 'boolean', default: false })
@@ -81,6 +105,11 @@ export class Course {
   // PostgreSQL's trigger updates this for ORM and direct SQL writes.
   @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
+
+  // Publication stays single-sourced in `status`; this is the derived flag.
+  get isPublished(): boolean {
+    return this.status === CourseStatus.PUBLISHED;
+  }
 
   @OneToMany(() => Chapter, (chapter) => chapter.course)
   chapters: Chapter[];
