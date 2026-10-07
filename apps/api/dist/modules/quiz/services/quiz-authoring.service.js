@@ -21,7 +21,7 @@ import { QuizTargetValidationService, rethrowQuizTargetViolation, } from './quiz
 const error = (code) => ({ message: code, code });
 export const quizNotEditable = () => new ConflictException({
     statusCode: 409,
-    message: 'Only DRAFT quizzes are edited in place; publish a new version instead',
+    message: 'Only DRAFT quizzes are edited in place; open a new version first',
     code: 'QUIZ_NOT_EDITABLE',
 });
 function toQuizConfig(quiz) {
@@ -42,6 +42,8 @@ function toQuizConfig(quiz) {
         gradingPolicy: quiz.gradingPolicy,
         shuffleQuestions: quiz.shuffleQuestions,
         shuffleOptions: quiz.shuffleOptions,
+        difficulty: quiz.difficulty,
+        tags: quiz.tags,
         createdBy: quiz.createdBy,
         publishedAt: quiz.publishedAt,
         createdAt: quiz.createdAt,
@@ -100,10 +102,12 @@ let QuizAuthoringService = class QuizAuthoringService {
                 maxAttempts: dto.maxAttempts ?? null,
                 durationMinutes: dto.durationMinutes ?? null,
                 isRequired,
-                reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.ALWAYS,
+                reviewPolicy: dto.reviewPolicy ?? ReviewPolicy.AFTER_SUBMIT,
                 gradingPolicy: dto.gradingPolicy ?? GradingPolicy.HIGHEST,
                 shuffleQuestions: dto.shuffleQuestions ?? true,
                 shuffleOptions: dto.shuffleOptions ?? true,
+                difficulty: dto.difficulty ?? null,
+                tags: dto.tags ?? [],
             });
             const { identifiers } = await quizzes.insert(quiz);
             return { id: identifiers[0].id, courseId: target.courseId };
@@ -211,6 +215,10 @@ let QuizAuthoringService = class QuizAuthoringService {
                 changes.shuffleQuestions = dto.shuffleQuestions;
             if (dto.shuffleOptions !== undefined)
                 changes.shuffleOptions = dto.shuffleOptions;
+            if (dto.difficulty !== undefined)
+                changes.difficulty = dto.difficulty;
+            if (dto.tags !== undefined)
+                changes.tags = dto.tags;
             if (!Object.keys(changes).length)
                 return;
             await manager

@@ -78,6 +78,14 @@ export class QuizAuthoringController {
     return this.publishing.publish(req.quiz!.id, req.quiz!.courseId);
   }
 
+  // Reopens a PUBLISHED quiz as the next version's DRAFT.
+  @Post(':id/versions')
+  @UseGuards(QuizAuthorizationGuard)
+  @Header('Cache-Control', 'private, no-store')
+  openNewVersion(@Req() req: QuizAuthorizationRequest) {
+    return this.publishing.openNewVersion(req.quiz!.id, req.quiz!.courseId);
+  }
+
   @Delete(':id')
   @UseGuards(QuizAuthorizationGuard)
   @HttpCode(200)

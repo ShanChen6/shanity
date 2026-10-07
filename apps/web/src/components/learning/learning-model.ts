@@ -75,22 +75,40 @@ export function lessonProgressStatus(
   return context.statuses.get(lesson.id) ?? "NOT_STARTED";
 }
 
-export type PrerequisiteLesson = { id: string; title: string; slug: string };
+export type PrerequisiteLesson = {
+  id: string;
+  title: string;
+  slug: string;
+  // Set when what remains is passing this lesson's required quiz.
+  quizId?: string | null;
+};
 
 // Mirror of the server rule (CourseAccessService): in a sequential course a
-// lesson is locked behind the first earlier required lesson not yet completed.
-// Optional lessons never block; previews are never locked (they are public).
-// Returns lessonId -> the lesson to complete first.
+// lesson is locked behind the first earlier lesson that is not done: a
+// required lesson not yet completed, or any lesson whose required quiz is not
+// passed yet (`pendingQuizOf`). Optional lessons never block on their own;
+// previews are never locked (they are public).
+// Returns lessonId -> the lesson to finish first.
 export function sequentialLocks(
   curriculum: SyllabusChapter[],
   isCompleted: (lessonId: string) => boolean,
+  pendingQuizOf: (lessonId: string) => string | null = () => null,
 ): ReadonlyMap<string, PrerequisiteLesson> {
   const locks = new Map<string, PrerequisiteLesson>();
   let blocker: PrerequisiteLesson | null = null;
   for (const lesson of flattenLessons(curriculum)) {
     if (blocker && !lesson.isPreview) locks.set(lesson.id, blocker);
-    if (!blocker && lesson.isRequired && !isCompleted(lesson.id))
-      blocker = { id: lesson.id, title: lesson.title, slug: lesson.slug };
+    if (blocker) continue;
+    const quizId = pendingQuizOf(lesson.id);
+    if ((lesson.isRequired && !isCompleted(lesson.id)) || quizId)
+      blocker = {
+        id: lesson.id,
+        title: lesson.title,
+        slug: lesson.slug,
+        ...(quizId && !(lesson.isRequired && !isCompleted(lesson.id))
+          ? { quizId }
+          : {}),
+      };
   }
   return locks;
 }
@@ -104,3 +122,6 @@ export const STATUS_LABEL: Record<LessonProgressStatus, string> = {
 
 export const learningPath = (courseSlug: string, lessonSlug: string) =>
   `/learn/${encodeURIComponent(courseSlug)}/${encodeURIComponent(lessonSlug)}`;
+
+export const quizPath = (courseSlug: string, quizId: string) =>
+  `/learn/${encodeURIComponent(courseSlug)}/quiz/${encodeURIComponent(quizId)}`;

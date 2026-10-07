@@ -9,6 +9,7 @@ export declare class CourseProgressSummaryDto {
     totalRequiredQuizzes: number;
     passedQuizzes: number;
     passedRequiredQuizzes: number;
+    completedQuizzes: number;
     percentage: number;
     isCompleted: boolean;
     lastAccessedLessonId?: string;

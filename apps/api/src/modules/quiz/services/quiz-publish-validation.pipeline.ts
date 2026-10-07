@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
-import { QuizEntity, ReviewPolicy } from '../entities/quiz.entity.js';
+import {
+  QuizEntity,
+  QuizScope,
+  ReviewPolicy,
+} from '../entities/quiz.entity.js';
 import { QuizQuestionEntity } from '../entities/quiz-question.entity.js';
 import { validateQuizStructure } from './quiz-structure.js';
 import { QuizTargetValidationService } from './quiz-target-validation.service.js';
@@ -12,7 +16,8 @@ export type QuizPublishIssue = { code: string; questionId?: string };
  * every violation (empty = publishable), reading through the publish
  * transaction's manager so it judges exactly the rows that transaction locks:
  *
- * 1. target: scope/target binding still valid;
+ * 1. target: scope/target binding still valid, and a slug for STANDALONE
+ *    (learners discover and open those by slug);
  * 2-5. questions and options (see validateQuizStructure), points > 0;
  * 5. passingScore within 1..100;
  * 6. maxAttempts and durationMinutes null or a positive integer, and a
@@ -38,6 +43,8 @@ export class QuizPublishValidationPipeline {
       const { code } = error.getResponse() as { code: string };
       issues.push({ code });
     }
+    if (quiz.scope === QuizScope.STANDALONE && !quiz.slug)
+      issues.push({ code: 'STANDALONE_QUIZ_REQUIRES_SLUG' });
 
     const questions = await manager.getRepository(QuizQuestionEntity).find({
       where: { quizId: quiz.id },

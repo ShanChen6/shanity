@@ -39,6 +39,8 @@ export declare class QuizAuthoringService {
         gradingPolicy: GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;
@@ -91,6 +93,8 @@ export declare class QuizAuthoringService {
         gradingPolicy: GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;
@@ -120,6 +124,8 @@ export declare class QuizAuthoringService {
         gradingPolicy: GradingPolicy;
         shuffleQuestions: boolean;
         shuffleOptions: boolean;
+        difficulty: import("../entities/quiz.entity.js").QuizDifficulty | null;
+        tags: string[];
         createdBy: string;
         publishedAt: Date | null;
         createdAt: Date;

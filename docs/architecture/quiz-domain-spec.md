@@ -304,7 +304,7 @@ Authoring must support create, optimistic settings update, Question/Option CRUD/
 
 Learner operations must support safe availability, start/resume, frozen Attempt retrieval, idempotent per-Question response replacement, submit, policy-redacted review, and own history. Start/submit accept user-and-command-scoped `Idempotency-Key`.
 
-Stable errors include `QUIZ_NOT_PUBLISHED`, `QUIZ_ARCHIVED`, `TARGET_UNAVAILABLE`, `PREREQUISITE_NOT_COMPLETED`, `MAX_ATTEMPTS_EXCEEDED`, `ATTEMPT_EXPIRED`, `ATTEMPT_NOT_IN_PROGRESS`, `QUESTION_NOT_IN_SNAPSHOT`, `INVALID_RESPONSE_TYPE`, and `REVIEW_NOT_AVAILABLE`.
+Stable learner errors include `QUIZ_FORBIDDEN` (draft, archived or missing, indistinguishable), `TARGET_COURSE_FORBIDDEN` (with `reason`: `ENROLLMENT_REQUIRED`, `ENROLLMENT_SUSPENDED` or `TARGET_UNAVAILABLE`), `PREREQUISITE_LESSON_NOT_COMPLETED`, `MAX_ATTEMPTS_REACHED`, `ATTEMPT_EXPIRED` (a late answer; the attempt is auto-submitted and the body carries `notice: ATTEMPT_TIMED_OUT`), `SUBMISSION_IN_PROGRESS`, `ATTEMPT_NOT_IN_PROGRESS`, `QUESTION_NOT_IN_SNAPSHOT`, `INVALID_OPTION_FOR_QUESTION`, `INVALID_RESPONSE_TYPE`, and `REVIEW_NOT_AVAILABLE`. Deadlines use the database clock only; `POST /submit` alone gets a 5-second grace period.
 
 ## 11. Security, operations, and edge cases
 

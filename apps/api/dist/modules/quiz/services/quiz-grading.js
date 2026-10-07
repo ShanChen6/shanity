@@ -17,13 +17,20 @@ export function gradeAttempt(snapshot, saved) {
     });
     const totalPoints = snapshot.questions.reduce((sum, question) => sum + question.points, 0);
     const earnedPoints = answers.reduce((sum, answer) => sum + answer.pointsEarned, 0);
-    const score = totalPoints > 0 ? Math.floor((earnedPoints * 100) / totalPoints + 0.5) : 0;
+    const hundredths = percentHundredths(earnedPoints, totalPoints);
+    const percentage = hundredths / 100;
     return {
         answers,
         earnedPoints,
         totalPoints,
-        score,
-        isPassed: score >= snapshot.quiz.passingScore,
+        percentage,
+        score: Math.floor(hundredths / 100),
+        isPassed: hundredths >= snapshot.quiz.passingScore * 100,
     };
+}
+function percentHundredths(earned, total) {
+    if (total <= 0)
+        return 0;
+    return Math.floor((2 * earned * 10_000 + total) / (2 * total));
 }
 //# sourceMappingURL=quiz-grading.js.map

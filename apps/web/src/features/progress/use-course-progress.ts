@@ -16,6 +16,12 @@ export type CourseProgressSummary = {
   totalRequiredLessons: number;
   completedLessons: number;
   completedRequiredLessons: number;
+  // Course-bound quizzes. A quiz step completes when a required quiz is
+  // passed or an optional one is submitted.
+  totalQuizzes?: number;
+  totalRequiredQuizzes?: number;
+  passedRequiredQuizzes?: number;
+  completedQuizzes?: number;
   percentage: number;
   isCompleted: boolean;
   lastAccessedLessonId?: string;
@@ -65,8 +71,8 @@ const RANK: Record<ServerLessonStatus, number> = {
 };
 
 // Mirror of the server formula (CourseProgressCalculatorService): required,
-// published lessons only, floored, capped. Floor means 100% only when every
-// required lesson is done (199/200 is 99%, not "completed").
+// published lessons plus quiz steps, floored, capped. Floor means 100% only
+// when every counted step is done (199/200 is 99%, not "completed").
 export const progressPercentage = (completed: number, total: number) =>
   total > 0 ? Math.min(100, Math.floor((completed * 100) / total)) : 100;
 
@@ -87,8 +93,8 @@ export function withLessonStatus(
     (lesson) => lesson.isRequired,
   ).length;
   const percentage = progressPercentage(
-    completedRequiredLessons,
-    data.totalRequiredLessons,
+    completedRequiredLessons + (data.completedQuizzes ?? 0),
+    data.totalRequiredLessons + (data.totalQuizzes ?? 0),
   );
   return {
     ...data,
@@ -96,7 +102,10 @@ export function withLessonStatus(
     completedLessons: completed.length,
     completedRequiredLessons,
     percentage,
-    isCompleted: percentage === 100,
+    // Optional quizzes never block completion; required ones must be passed.
+    isCompleted:
+      completedRequiredLessons >= data.totalRequiredLessons &&
+      (data.passedRequiredQuizzes ?? 0) >= (data.totalRequiredQuizzes ?? 0),
   };
 }
 

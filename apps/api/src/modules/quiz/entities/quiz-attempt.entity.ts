@@ -16,6 +16,8 @@ import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 
 export enum QuizAttemptStatus {
   IN_PROGRESS = 'IN_PROGRESS',
+  // Committed while exactly one request grades the attempt.
+  SUBMITTING = 'SUBMITTING',
   SUBMITTED = 'SUBMITTED',
   TIMED_OUT = 'TIMED_OUT',
   ABANDONED = 'ABANDONED',
@@ -25,7 +27,7 @@ export enum QuizAttemptStatus {
 @Index('IDX_quiz_attempts_user_quiz', ['userId', 'quizId', 'status'])
 @Index('UQ_quiz_attempts_active', ['userId', 'quizId'], {
   unique: true,
-  where: `status = 'IN_PROGRESS'`,
+  where: `status IN ('IN_PROGRESS', 'SUBMITTING')`,
 })
 @Unique('UQ_quiz_attempts_user_quiz_number', [
   'userId',
@@ -84,9 +86,21 @@ export class QuizAttemptEntity {
   @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
   submittedAt: Date | null;
 
-  // Percentage 0..100.
+  // Whole percentage, floor(percentage), so score >= passingScore exactly
+  // when isPassed.
   @Column({ type: 'smallint', nullable: true })
   score: number | null;
+
+  // Official result, set when the attempt closes.
+  @Column({ name: 'earned_points', type: 'integer', nullable: true })
+  earnedPoints: number | null;
+
+  @Column({ name: 'total_points', type: 'integer', nullable: true })
+  totalPoints: number | null;
+
+  // earnedPoints * 100 / totalPoints, rounded half up to 2 decimals.
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
+  percentage: string | null;
 
   @Column({ name: 'is_passed', type: 'boolean', nullable: true })
   isPassed: boolean | null;

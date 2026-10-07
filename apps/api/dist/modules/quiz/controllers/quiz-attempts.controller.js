@@ -30,6 +30,9 @@ let QuizAttemptsController = class QuizAttemptsController {
     saveAnswer(req, attemptId, body) {
         return this.attempts.saveAnswer(req.principal, attemptId, body);
     }
+    result(req, attemptId) {
+        return this.attempts.result(req.principal, attemptId);
+    }
     submit(req, attemptId) {
         return this.attempts.submit(req.principal, attemptId);
     }
@@ -63,6 +66,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, SaveAttemptAnswerDto]),
     __metadata("design:returntype", void 0)
 ], QuizAttemptsController.prototype, "saveAnswer", null);
+__decorate([
+    Get('quiz-attempts/:attemptId/result'),
+    Header('Cache-Control', 'private, no-store'),
+    __param(0, Req()),
+    __param(1, Param('attemptId', new ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], QuizAttemptsController.prototype, "result", null);
 __decorate([
     Post('quiz-attempts/:attemptId/submit'),
     HttpCode(200),

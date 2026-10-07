@@ -1,9 +1,10 @@
-import type { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
+import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 import { LearnerQuestionResponseDto } from './quiz-question-response.dto.js';
 export declare class SaveAttemptAnswerDto {
     questionId: string;
-    selectedOptionIds: string[];
+    selectedOptionId?: string;
+    selectedOptionIds?: string[];
 }
 export type SavedAnswerRow = {
     questionId: string;
@@ -12,6 +13,7 @@ export type SavedAnswerRow = {
 };
 export declare class LearnerAttemptAnswerResponseDto {
     questionId: string;
+    selectedOptionId: string | null;
     selectedOptionIds: string[];
     savedAt: Date;
     static from(answer: SavedAnswerRow): LearnerAttemptAnswerResponseDto;
@@ -27,6 +29,9 @@ export type AttemptSource = {
     submittedAt: Date | null;
     score: number | null;
     isPassed: boolean | null;
+    earnedPoints: number | null;
+    totalPoints: number | null;
+    percentage: number | null;
     serverNow: Date;
 };
 export declare class LearnerAttemptResponseDto {
@@ -39,6 +44,10 @@ export declare class LearnerAttemptResponseDto {
     submittedAt: Date | null;
     score: number | null;
     isPassed: boolean | null;
+    earnedPoints: number | null;
+    totalPoints: number | null;
+    percentage: number | null;
+    notice?: 'ATTEMPT_TIMED_OUT';
     serverNow: Date;
     quiz?: {
         title: string;

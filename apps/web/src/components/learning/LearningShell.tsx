@@ -85,7 +85,10 @@ function ShellLoader({
 
 function ShellContent({ children }: { children: ReactNode }) {
   const learning = useLearning();
-  const { lessonSlug } = useParams<{ lessonSlug?: string }>();
+  const { lessonSlug, quizId } = useParams<{
+    lessonSlug?: string;
+    quizId?: string;
+  }>();
   const [menuOpen, setMenuOpen] = useState(false);
   const sidebar = (onNavigate?: () => void) => (
     <CurriculumSidebar
@@ -95,6 +98,10 @@ function ShellContent({ children }: { children: ReactNode }) {
       statusOf={learning.statusOf}
       prerequisiteOf={learning.prerequisiteOf}
       onNavigate={onNavigate}
+      quizzesOf={learning.quizzesOf}
+      isQuizLocked={learning.isQuizLocked}
+      activeQuizId={quizId}
+      courseId={learning.syllabus.course.id}
     />
   );
   return (

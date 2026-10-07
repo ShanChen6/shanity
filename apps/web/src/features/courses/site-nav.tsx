@@ -22,6 +22,8 @@ export function SiteNav() {
   const links = [{ href: "/courses", label: "Khóa học" }];
   if (user) {
     links.push({ href: "/my-learning", label: "Góc học tập" });
+    links.push({ href: "/quizzes", label: "Quiz" });
+    links.push({ href: "/my-quiz-attempts", label: "Bài thi của tôi" });
     if (user.roles.includes("instructor"))
       links.push({ href: "/instructor/courses", label: "Giảng viên" });
     if (user.roles.includes("admin"))

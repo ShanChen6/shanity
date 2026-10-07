@@ -24,11 +24,17 @@ export var QuizStatus;
 })(QuizStatus || (QuizStatus = {}));
 export var ReviewPolicy;
 (function (ReviewPolicy) {
-    ReviewPolicy["ALWAYS"] = "ALWAYS";
+    ReviewPolicy["AFTER_SUBMIT"] = "AFTER_SUBMIT";
     ReviewPolicy["AFTER_PASS"] = "AFTER_PASS";
     ReviewPolicy["AFTER_EXHAUSTED"] = "AFTER_EXHAUSTED";
     ReviewPolicy["NEVER"] = "NEVER";
 })(ReviewPolicy || (ReviewPolicy = {}));
+export var QuizDifficulty;
+(function (QuizDifficulty) {
+    QuizDifficulty["BEGINNER"] = "BEGINNER";
+    QuizDifficulty["INTERMEDIATE"] = "INTERMEDIATE";
+    QuizDifficulty["ADVANCED"] = "ADVANCED";
+})(QuizDifficulty || (QuizDifficulty = {}));
 export var GradingPolicy;
 (function (GradingPolicy) {
     GradingPolicy["HIGHEST"] = "HIGHEST";
@@ -48,6 +54,8 @@ let QuizEntity = class QuizEntity {
     isRequired;
     reviewPolicy;
     gradingPolicy;
+    difficulty;
+    tags;
     shuffleQuestions;
     shuffleOptions;
     version;
@@ -117,7 +125,7 @@ __decorate([
         type: 'enum',
         enum: ReviewPolicy,
         enumName: 'ReviewPolicy',
-        default: ReviewPolicy.ALWAYS,
+        default: ReviewPolicy.AFTER_SUBMIT,
     }),
     __metadata("design:type", String)
 ], QuizEntity.prototype, "reviewPolicy", void 0);
@@ -131,6 +139,19 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], QuizEntity.prototype, "gradingPolicy", void 0);
+__decorate([
+    Column({
+        type: 'enum',
+        enum: QuizDifficulty,
+        enumName: 'QuizDifficulty',
+        nullable: true,
+    }),
+    __metadata("design:type", Object)
+], QuizEntity.prototype, "difficulty", void 0);
+__decorate([
+    Column({ type: 'text', array: true, default: () => `'{}'` }),
+    __metadata("design:type", Array)
+], QuizEntity.prototype, "tags", void 0);
 __decorate([
     Column({ name: 'shuffle_questions', type: 'boolean', default: true }),
     __metadata("design:type", Boolean)

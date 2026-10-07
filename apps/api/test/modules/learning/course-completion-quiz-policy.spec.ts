@@ -249,8 +249,10 @@ describe('Q9 required quiz and course completion policy', () => {
       ] as const)
         await t.db.query(
           `INSERT INTO quiz_attempts(user_id, quiz_id, quiz_version, attempt_number,
-             quiz_snapshot, status, submitted_at, score, is_passed)
-           VALUES ($1, $2, 1, $3, '{"questions": []}', 'SUBMITTED', now(), $4, $5)`,
+             quiz_snapshot, status, submitted_at, score, is_passed,
+             earned_points, total_points, percentage)
+           VALUES ($1, $2, 1, $3, '{"questions": []}', 'SUBMITTED', now(),
+             $4::int, $5, $4::int, 100, $4::int)`,
           [student.id, standalone.id, number, passed ? 100 : 0, passed],
         );
 

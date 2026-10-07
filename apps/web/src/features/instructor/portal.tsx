@@ -45,6 +45,7 @@ function PortalSession({ children }: { children: ReactNode }) {
           <nav aria-label="Instructor navigation">
             <Link href="/instructor/courses">← My Courses</Link>
             <Link href="/instructor/courses/new">＋ New Course</Link>
+            <Link href="/instructor/quizzes">✎ Quizzes</Link>
             <Link href="/courses">Khám phá khóa học ↗</Link>
           </nav>
           <p className="instructor-sidebar-note">

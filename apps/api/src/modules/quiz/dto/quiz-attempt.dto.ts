@@ -1,18 +1,38 @@
-import { ArrayMaxSize, ArrayUnique, IsArray, IsUUID } from 'class-validator';
-import type { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsUUID,
+  ValidateIf,
+} from 'class-validator';
+import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 import { LearnerQuestionResponseDto } from './quiz-question-response.dto.js';
 
+/**
+ * Exactly one of `selectedOptionId` (one option) or `selectedOptionIds` (one
+ * id for SINGLE_CHOICE, several for MULTIPLE_CHOICE, [] clears). Both must
+ * exist in this question of the attempt's snapshot.
+ */
 export class SaveAttemptAnswerDto {
   @IsUUID()
   questionId!: string;
 
-  // One id for SINGLE_CHOICE, several for MULTIPLE_CHOICE, [] clears.
+  @ValidateIf(
+    (dto: SaveAttemptAnswerDto) =>
+      dto.selectedOptionIds === undefined || dto.selectedOptionId !== undefined,
+  )
+  @IsUUID()
+  selectedOptionId?: string;
+
+  @ValidateIf(
+    (dto: SaveAttemptAnswerDto) => dto.selectedOptionIds !== undefined,
+  )
   @IsArray()
   @ArrayMaxSize(50)
   @ArrayUnique()
   @IsUUID('all', { each: true })
-  selectedOptionIds!: string[];
+  selectedOptionIds?: string[];
 }
 
 export type SavedAnswerRow = {
@@ -23,12 +43,19 @@ export type SavedAnswerRow = {
 
 export class LearnerAttemptAnswerResponseDto {
   questionId: string;
+  // The one selected option; null when none or several are selected.
+  selectedOptionId: string | null;
   selectedOptionIds: string[];
+  // Database clock at the save, never the client's.
   savedAt: Date;
 
   static from(answer: SavedAnswerRow): LearnerAttemptAnswerResponseDto {
     return Object.assign(new LearnerAttemptAnswerResponseDto(), {
       questionId: answer.questionId,
+      selectedOptionId:
+        answer.selectedOptionIds.length === 1
+          ? answer.selectedOptionIds[0]
+          : null,
       selectedOptionIds: answer.selectedOptionIds,
       savedAt: answer.savedAt,
     });
@@ -46,6 +73,9 @@ export type AttemptSource = {
   submittedAt: Date | null;
   score: number | null;
   isPassed: boolean | null;
+  earnedPoints: number | null;
+  totalPoints: number | null;
+  percentage: number | null;
   serverNow: Date;
 };
 
@@ -65,6 +95,12 @@ export class LearnerAttemptResponseDto {
   submittedAt: Date | null;
   score: number | null;
   isPassed: boolean | null;
+  earnedPoints: number | null;
+  totalPoints: number | null;
+  // 0..100 with 2 decimals; null until graded.
+  percentage: number | null;
+  // Set when the deadline closed the attempt: auto-submitted, not by the user.
+  notice?: 'ATTEMPT_TIMED_OUT';
   // Database clock, so clients can run a countdown without trusting theirs.
   serverNow: Date;
   quiz?: {
@@ -91,6 +127,12 @@ export class LearnerAttemptResponseDto {
       submittedAt: attempt.submittedAt,
       score: attempt.score,
       isPassed: attempt.isPassed,
+      earnedPoints: attempt.earnedPoints,
+      totalPoints: attempt.totalPoints,
+      percentage: attempt.percentage,
+      ...(attempt.status === QuizAttemptStatus.TIMED_OUT && {
+        notice: 'ATTEMPT_TIMED_OUT' as const,
+      }),
       serverNow: attempt.serverNow,
       ...(answers && {
         quiz: {
