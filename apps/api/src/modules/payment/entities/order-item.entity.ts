@@ -12,8 +12,9 @@ import { CourseCurrency } from '../../../courses/course-currency.js';
 import { bigintNumberTransformer } from '../../../database/bigint-number.transformer.js';
 import { Order } from './order.entity.js';
 
-// The price lives here, independent of courses.price, so later repricing never
-// rewrites what a buyer agreed to pay.
+// Append-only data snapshot taken at checkout. `courseId` is a reference for
+// navigation and enrollment only: it must never be used to look up a price or
+// title. Rows cannot be updated or deleted (database trigger).
 @Entity('order_items')
 @Index('order_items_order_course_key', ['orderId', 'courseId'], {
   unique: true,
@@ -23,7 +24,10 @@ export class OrderItem {
   @PrimaryGeneratedColumn('uuid') id: string;
 
   @Column({ name: 'order_id', type: 'uuid' }) orderId: string;
-  @ManyToOne(() => Order, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => Order, (order) => order.items, {
+    nullable: false,
+    onDelete: 'RESTRICT',
+  })
   @JoinColumn({
     name: 'order_id',
     foreignKeyConstraintName: 'FK_order_items_order',
@@ -38,6 +42,10 @@ export class OrderItem {
   })
   course: Relation<Course>;
 
+  @Column({ name: 'course_title_snapshot', type: 'varchar', length: 255 })
+  courseTitleSnapshot: string;
+
+  // List price at checkout, minor units.
   @Column({
     name: 'unit_price_snapshot',
     type: 'bigint',
@@ -45,7 +53,23 @@ export class OrderItem {
   })
   unitPriceSnapshot: number;
 
-  @Column({ type: 'varchar', length: 3 }) currency: CourseCurrency;
+  @Column({
+    name: 'discount_snapshot',
+    type: 'bigint',
+    default: 0,
+    transformer: bigintNumberTransformer,
+  })
+  discountSnapshot: number;
+
+  // unitPriceSnapshot - discountSnapshot (CHECK constraint).
+  @Column({
+    name: 'final_price_snapshot',
+    type: 'bigint',
+    transformer: bigintNumberTransformer,
+  })
+  finalPriceSnapshot: number;
+
+  @Column({ type: 'varchar', length: 10 }) currency: CourseCurrency;
 
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;

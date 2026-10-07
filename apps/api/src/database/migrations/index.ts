@@ -29,6 +29,7 @@ import { QuizSubmissionGrading1791417600007 } from './202610080007_quiz_submissi
 import { QuizDiscoveryMetadata1791417600008 } from './202610080008_quiz_discovery_metadata.js';
 import { VietQrPayments1791504000001 } from './202610090001_vietqr_payments.js';
 import { CoursePricing1791590400001 } from './202610100001_course_pricing.js';
+import { PaymentPersistence1791676800001 } from './202610110001_payment_persistence.js';
 
 export const migrationHistory = [
   {
@@ -216,6 +217,12 @@ export const migrationHistory = [
     name: 'CoursePricing1791590400001',
     timestamp: 1791590400001,
     migration: CoursePricing1791590400001,
+  },
+  {
+    legacy: null,
+    name: 'PaymentPersistence1791676800001',
+    timestamp: 1791676800001,
+    migration: PaymentPersistence1791676800001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

@@ -1,10 +1,4 @@
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { CourseAccessType } from '../course-access-type.js';
 import { CourseCurrency, MAX_PRICE_MINOR_UNITS } from '../course-currency.js';
 

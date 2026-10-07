@@ -1,82 +1,20 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { randomInt } from 'node:crypto';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.module.js';
-import { Course } from '../../courses/course.entity.js';
-import { CourseStatus } from '../../courses/course-status.js';
-import { Enrollment } from '../../courses/enrollment.entity.js';
-import { CourseAccessType } from '../../courses/course-access-type.js';
-import { CourseCurrency } from '../../courses/course-currency.js';
-import { OrderItem } from './entities/order-item.entity.js';
-import { Order, OrderStatus, PaymentMethod } from './entities/order.entity.js';
+import { Order, OrderStatus } from './entities/order.entity.js';
 import {
-  PaymentTransaction,
+  PaymentProvider,
   PaymentTransactionStatus,
 } from './entities/payment-transaction.entity.js';
+import { extractOrderCode } from './order-snapshot.js';
+import { PaymentTransactionService } from './payment-transaction.service.js';
 import type { VietQrWebhookDto } from './payment.dto.js';
-
-const ORDER_CODE = /SHAN[A-Z0-9]+/i;
 
 @Injectable()
 export class PaymentService {
-  constructor(private readonly database: DatabaseService) {}
-
-  async createOrder(userId: string, courseId: string) {
-    const code = await this.uniqueCode();
-    const order = await this.database.dataSource.transaction(
-      async (manager) => {
-        // FOR SHARE: a concurrent repricing (FOR UPDATE) either finishes
-        // before this read or waits until the order and its snapshot commit.
-        const course = await manager.getRepository(Course).findOne({
-          where: { id: courseId },
-          lock: { mode: 'pessimistic_read' },
-        });
-        if (!course || course.status !== CourseStatus.PUBLISHED)
-          throw new NotFoundException('COURSE_NOT_FOUND');
-        if (course.accessType !== CourseAccessType.PAID)
-          throw new BadRequestException('COURSE_IS_FREE');
-        // VietQR transfers settle in VND only.
-        if (course.currency !== CourseCurrency.VND)
-          throw new BadRequestException('UNSUPPORTED_PAYMENT_CURRENCY');
-        if (
-          await manager.getRepository(Enrollment).existsBy({ userId, courseId })
-        )
-          throw new BadRequestException('ALREADY_ENROLLED');
-
-        const saved = await manager.getRepository(Order).save(
-          manager.getRepository(Order).create({
-            code,
-            userId,
-            courseId,
-            amount: course.price,
-            currency: course.currency,
-            status: OrderStatus.PENDING,
-            paymentMethod: PaymentMethod.VIETQR,
-            expiresAt: new Date(Date.now() + 15 * 60_000),
-          }),
-        );
-        await manager.getRepository(OrderItem).insert({
-          orderId: saved.id,
-          courseId,
-          unitPriceSnapshot: course.price,
-          currency: course.currency,
-        });
-        return saved;
-      },
-    );
-    return {
-      orderId: order.id,
-      code: order.code,
-      amount: order.amount,
-      currency: order.currency,
-      expiresAt: order.expiresAt,
-      qrCodeUrl: this.qrUrl(order),
-    };
-  }
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly transactions: PaymentTransactionService,
+  ) {}
 
   async status(userId: string, id: string) {
     const order = await this.database.dataSource.manager
@@ -95,6 +33,11 @@ export class PaymentService {
     rawPayload: Record<string, unknown>,
   ) {
     return this.database.dataSource.transaction(async (manager) => {
+      const markProcessed = () =>
+        manager.query(
+          'UPDATE bank_webhook_logs SET processed = true WHERE reference_code = $1',
+          [dto.transactionId],
+        );
       const claimed: unknown[] = await manager.query(
         `INSERT INTO bank_webhook_logs(reference_code, processed) VALUES ($1, false)
          ON CONFLICT(reference_code) DO NOTHING RETURNING id`,
@@ -102,12 +45,9 @@ export class PaymentService {
       );
       if (claimed.length === 0) return { status: 'ALREADY_PROCESSED' };
 
-      const code = dto.transferContent.match(ORDER_CODE)?.[0]?.toUpperCase();
+      const code = extractOrderCode(dto.transferContent);
       if (!code) {
-        await manager.query(
-          'UPDATE bank_webhook_logs SET processed = true WHERE reference_code = $1',
-          [dto.transactionId],
-        );
+        await markProcessed();
         return { status: 'IGNORED' };
       }
       const order = await manager
@@ -116,60 +56,58 @@ export class PaymentService {
         .setLock('pessimistic_write')
         .where('orders.code = :code', { code })
         .getOne();
-      if (
-        !order ||
-        order.status !== OrderStatus.PENDING ||
-        order.expiresAt <= new Date()
-      ) {
-        if (
-          order?.status === OrderStatus.PENDING &&
-          order.expiresAt <= new Date()
-        ) {
-          order.status = OrderStatus.EXPIRED;
-          await manager.save(order);
-        }
-        await manager.query(
-          'UPDATE bank_webhook_logs SET processed = true WHERE reference_code = $1',
-          [dto.transactionId],
-        );
+      if (!order) {
+        await markProcessed();
         return { status: 'IGNORED' };
       }
 
-      const transaction = manager.getRepository(PaymentTransaction).create({
-        orderId: order.id,
-        providerTransactionId: dto.transactionId,
-        amount: dto.amount,
-        transferContent: dto.transferContent,
-        rawPayload,
-        status:
-          dto.amount < order.amount
-            ? PaymentTransactionStatus.FAILED
-            : PaymentTransactionStatus.SUCCESS,
-      });
-      await manager.save(transaction);
-      if (dto.amount < order.amount) {
+      const record = (status: PaymentTransactionStatus) =>
+        this.transactions.record(manager, {
+          orderId: order.id,
+          provider: PaymentProvider.VIETQR,
+          providerTransactionId: dto.transactionId,
+          amount: dto.amount,
+          currency: order.currency,
+          status,
+          transferContent: dto.transferContent,
+          rawPayload,
+        });
+
+      if (
+        order.status === OrderStatus.PENDING &&
+        order.expiresAt <= new Date()
+      ) {
+        order.status = OrderStatus.EXPIRED;
+        await manager.save(order);
+      }
+      if (order.status !== OrderStatus.PENDING) {
+        // Money arrived for an order that can no longer be fulfilled
+        // (expired, cancelled, already paid, refunded). Keep the evidence so
+        // finance can reconcile or refund; grant nothing.
+        await record(PaymentTransactionStatus.FAILED);
+        await markProcessed();
+        return { status: 'IGNORED' };
+      }
+
+      if (dto.amount < order.finalTotal) {
+        await record(PaymentTransactionStatus.FAILED);
         order.status = OrderStatus.PROCESSING;
         await manager.save(order);
-        await manager.query(
-          'UPDATE bank_webhook_logs SET processed = true WHERE reference_code = $1',
-          [dto.transactionId],
-        );
+        await markProcessed();
         return { status: 'PARTIAL_AMOUNT' };
       }
 
+      await record(PaymentTransactionStatus.SUCCESS);
       order.status = OrderStatus.COMPLETED;
       await manager.save(order);
-      await manager
-        .getRepository(Enrollment)
-        .createQueryBuilder()
-        .insert()
-        .values({ userId: order.userId, courseId: order.courseId })
-        .orIgnore()
-        .execute();
+      // Access comes from the items frozen at checkout, never from `courses`.
       await manager.query(
-        'UPDATE bank_webhook_logs SET processed = true WHERE reference_code = $1',
-        [dto.transactionId],
+        `INSERT INTO enrollments(user_id, course_id)
+         SELECT $1, course_id FROM order_items WHERE order_id = $2
+         ON CONFLICT DO NOTHING`,
+        [order.userId, order.id],
       );
+      await markProcessed();
       return { status: 'COMPLETED' };
     });
   }
@@ -183,34 +121,5 @@ export class PaymentService {
       .where('status = :status', { status: OrderStatus.PENDING })
       .andWhere('expires_at < now()')
       .execute();
-  }
-
-  private async uniqueCode() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let suffix = '';
-      for (let index = 0; index < 6; index++)
-        suffix += alphabet[randomInt(alphabet.length)];
-      const code = `SHAN${suffix}`;
-      if (
-        !(await this.database.dataSource.manager
-          .getRepository(Order)
-          .existsBy({ code }))
-      )
-        return code;
-    }
-    throw new ConflictException('ORDER_CODE_GENERATION_FAILED');
-  }
-
-  private qrUrl(order: Order) {
-    const bank = process.env.VIETQR_BANK_ID ?? 'MB';
-    const account = process.env.VIETQR_ACCOUNT_NO ?? '';
-    const name = process.env.VIETQR_ACCOUNT_NAME ?? '';
-    const query = new URLSearchParams({
-      amount: String(order.amount),
-      addInfo: order.code,
-      accountName: name,
-    });
-    return `https://img.vietqr.io/image/${encodeURIComponent(bank)}-${encodeURIComponent(account)}-compact2.png?${query}`;
   }
 }

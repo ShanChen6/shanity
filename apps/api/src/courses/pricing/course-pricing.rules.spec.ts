@@ -26,14 +26,36 @@ describe('resolveNextPricing', () => {
   });
 
   it.each([
-    [{ accessType: CourseAccessType.FREE, price: 100 }, 'FREE_COURSE_PRICE_MUST_BE_ZERO'],
-    [{ accessType: CourseAccessType.PAID }, 'PAID_COURSE_PRICE_MUST_BE_POSITIVE'],
-    [{ accessType: CourseAccessType.PAID, price: 0 }, 'PAID_COURSE_PRICE_MUST_BE_POSITIVE'],
-    [{ accessType: CourseAccessType.PAID, price: -5 }, 'PAID_COURSE_PRICE_MUST_BE_POSITIVE'],
-    [{ accessType: CourseAccessType.PAID, price: 19.99 }, 'PAID_COURSE_PRICE_MUST_BE_POSITIVE'],
-    [{ accessType: CourseAccessType.PAID, price: 20_000_000_000 }, 'COURSE_PRICE_TOO_HIGH'],
     [
-      { accessType: CourseAccessType.PAID, price: 100_000_001, currency: CourseCurrency.USD },
+      { accessType: CourseAccessType.FREE, price: 100 },
+      'FREE_COURSE_PRICE_MUST_BE_ZERO',
+    ],
+    [
+      { accessType: CourseAccessType.PAID },
+      'PAID_COURSE_PRICE_MUST_BE_POSITIVE',
+    ],
+    [
+      { accessType: CourseAccessType.PAID, price: 0 },
+      'PAID_COURSE_PRICE_MUST_BE_POSITIVE',
+    ],
+    [
+      { accessType: CourseAccessType.PAID, price: -5 },
+      'PAID_COURSE_PRICE_MUST_BE_POSITIVE',
+    ],
+    [
+      { accessType: CourseAccessType.PAID, price: 19.99 },
+      'PAID_COURSE_PRICE_MUST_BE_POSITIVE',
+    ],
+    [
+      { accessType: CourseAccessType.PAID, price: 20_000_000_000 },
+      'COURSE_PRICE_TOO_HIGH',
+    ],
+    [
+      {
+        accessType: CourseAccessType.PAID,
+        price: 100_000_001,
+        currency: CourseCurrency.USD,
+      },
       'COURSE_PRICE_TOO_HIGH',
     ],
   ])('rejects %j', (input, message) => {
