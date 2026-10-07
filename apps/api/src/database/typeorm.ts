@@ -12,6 +12,9 @@ import { QuizQuestionEntity } from '../modules/quiz/entities/quiz-question.entit
 import { QuizOptionEntity } from '../modules/quiz/entities/quiz-option.entity.js';
 import { QuizAttemptEntity } from '../modules/quiz/entities/quiz-attempt.entity.js';
 import { AttemptAnswerEntity } from '../modules/quiz/entities/attempt-answer.entity.js';
+import { Order } from '../modules/payment/entities/order.entity.js';
+import { PaymentTransaction } from '../modules/payment/entities/payment-transaction.entity.js';
+import { BankWebhookLog } from '../modules/payment/entities/bank-webhook-log.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -43,6 +46,9 @@ export function createAppDataSource(): DataSource {
       QuizOptionEntity,
       QuizAttemptEntity,
       AttemptAnswerEntity,
+      Order,
+      PaymentTransaction,
+      BankWebhookLog,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

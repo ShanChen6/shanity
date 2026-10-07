@@ -27,6 +27,7 @@ import { QuizStandaloneNotRequired1791417600005 } from './202610080005_quiz_stan
 import { QuizPublishedAt1791417600006 } from './202610080006_quiz_published_at.js';
 import { QuizSubmissionGrading1791417600007 } from './202610080007_quiz_submission_grading.js';
 import { QuizDiscoveryMetadata1791417600008 } from './202610080008_quiz_discovery_metadata.js';
+import { VietQrPayments1791504000001 } from './202610090001_vietqr_payments.js';
 
 export const migrationHistory = [
   {
@@ -202,6 +203,12 @@ export const migrationHistory = [
     name: 'QuizDiscoveryMetadata1791417600008',
     timestamp: 1791417600008,
     migration: QuizDiscoveryMetadata1791417600008,
+  },
+  {
+    legacy: null,
+    name: 'VietQrPayments1791504000001',
+    timestamp: 1791504000001,
+    migration: VietQrPayments1791504000001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);
