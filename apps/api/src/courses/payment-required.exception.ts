@@ -9,7 +9,11 @@ export class PaymentRequiredException extends HttpException {
         code: 'PAYMENT_REQUIRED',
         message: 'Paid courses must be purchased through an order',
         courseId,
-        checkout: { method: 'POST', path: '/orders', body: { courseId } },
+        checkout: {
+          method: 'POST',
+          path: '/orders',
+          body: { courseIds: [courseId] },
+        },
       },
       HttpStatus.PAYMENT_REQUIRED,
     );

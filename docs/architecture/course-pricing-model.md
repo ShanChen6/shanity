@@ -9,7 +9,7 @@ Enrollment đã có).
 
 | # | Bất biến | Cơ chế bảo đảm |
 | --- | --- | --- |
-| 1 | **Lock-in price**: giá của Order bị đóng băng lúc tạo Order | `order_items.unit_price_snapshot` + `orders.amount/currency` độc lập với `courses`; khóa dòng course `FOR SHARE` khi tạo Order |
+| 1 | **Lock-in price**: giá của Order bị đóng băng lúc tạo Order | `order_items.unit_price_snapshot` + `orders.subtotal/final_total/currency` độc lập với `courses` (chi tiết ở [payment-persistence.md](payment-persistence.md)); khóa dòng course `FOR SHARE` khi tạo Order |
 | 2 | **FREE fast-path**: khóa FREE không tạo Order/PaymentTransaction | `EnrollmentService.enrollCourse` ghi Enrollment trực tiếp; `createOrder` từ chối `COURSE_IS_FREE` |
 | 3 | **PAID strict-path**: khóa PAID luôn qua Order → Payment → Enrollment | `enrollCourse` ném `402 PAYMENT_REQUIRED`; chỉ webhook ngân hàng đã xác thực mới tạo Enrollment |
 | 4 | **Giá nhất quán với loại**: FREE ⇔ `price = 0`, PAID ⇔ `price > 0` | `CHECK courses_access_type_price_check` ở database + `resolveNextPricing` ở service |
@@ -30,9 +30,11 @@ Enrollment đã có).
 - Khóa PAID: `price > 0`. Khóa FREE: `price = 0`.
 - `currency` là `varchar(3)` với `CHECK (currency IN ('VND','USD'))`. Dùng
   varchar + CHECK thay vì enum để thêm tiền tệ mới không cần `ALTER TYPE`.
-- **Giới hạn thanh toán**: VietQR chỉ thanh toán bằng VND. Khóa PAID có
-  `currency = 'USD'` vẫn được định giá và hiển thị, nhưng `createOrder` trả
-  `400 UNSUPPORTED_PAYMENT_CURRENCY` cho tới khi có payment method hỗ trợ USD.
+- **Giới hạn thanh toán theo cổng**: tiền tệ không bị chặn lúc tạo đơn; mỗi
+  cổng khai báo `supportedCurrencies` và `CheckoutService` trả
+  `400 PAYMENT_CURRENCY_NOT_SUPPORTED` nếu cổng được chọn không thu được tiền
+  tệ của đơn (VietQR chỉ VND; Stripe thu cả VND và USD). Một đơn không trộn
+  nhiều tiền tệ (`400 MIXED_CURRENCY_ORDER`).
 
 ## 3. Mô hình dữ liệu
 
@@ -76,13 +78,13 @@ tác động lên Order.
 
 ### 3.3. `orders` và `order_items`
 
-- `orders.amount`: `integer` → `bigint`; thêm `orders.currency`.
-  `payment_transactions.amount` cũng đổi sang `bigint` để so sánh cùng kiểu.
-- `order_items` (mới): `order_id`, `course_id`, `unit_price_snapshot bigint`,
-  `currency`; unique `(order_id, course_id)`. Order hiện tại luôn có đúng một
-  item; cấu trúc cho phép giỏ hàng nhiều khóa sau này.
-- Order cũ được backfill một `order_item` với `unit_price_snapshot = orders.amount`
-  (giá thật đã đóng băng), **không** lấy từ `courses.price`.
+- PAY2 đổi `orders.amount`/`payment_transactions.amount` sang `bigint` và thêm
+  `orders.currency`; PAY3–5 sau đó đổi `orders.amount` thành `final_total` và
+  thêm `subtotal`, `discount_total` (xem [payment-persistence.md](payment-persistence.md)).
+- `order_items`: `order_id`, `course_id`, giá/tên/giảm giá đã chụp, `currency`;
+  unique `(order_id, course_id)`. Một đơn có thể chứa nhiều khóa.
+- Order cũ được backfill một `order_item` với `unit_price_snapshot` lấy từ số
+  tiền đã đóng băng của đơn, **không** lấy từ `courses.price`.
 - Không bảng nào trong luồng thanh toán join sang `courses.price` để tính tiền.
 
 ## 4. Access type và luồng chuyển trạng thái
@@ -96,16 +98,16 @@ Mã lỗi của các cổng chặn:
 
 | Tình huống | Phản hồi |
 | --- | --- |
-| `enroll` khóa PAID | `402` `{ code: 'PAYMENT_REQUIRED', checkout: { method: 'POST', path: '/orders', body: { courseId } } }` |
+| `enroll` khóa PAID | `402` `{ code: 'PAYMENT_REQUIRED', checkout: { method: 'POST', path: '/orders', body: { courseIds: [courseId] } } }` |
 | `createOrder` khóa FREE | `400 COURSE_IS_FREE` |
-| `createOrder` currency ≠ VND | `400 UNSUPPORTED_PAYMENT_CURRENCY` |
+| `initiateCheckout` cổng không thu được tiền tệ của đơn | `400 PAYMENT_CURRENCY_NOT_SUPPORTED` |
 | Khóa chưa publish | `409 Course is not published` (enroll) / `404 COURSE_NOT_FOUND` (order) |
 | Đã ghi danh | `409 Already enrolled` / `400 ALREADY_ENROLLED` |
 
 ## 5. Hành vi khi Instructor đổi giá
 
 `CoursePricingService.updateCoursePricing(courseId, dto, updatedBy)` thực hiện
-trong **một transaction**: khóa dòng course `FOR UPDATE` → validate và tính
+trong **một transaction**: khóa dòng course `FOR NO KEY UPDATE` → validate và tính
 trạng thái mới → phân loại transition → (nếu cần) hủy Order → cập nhật course
 → ghi `course_price_logs`.
 
@@ -120,8 +122,9 @@ Chi tiết quan trọng:
 
 - **Không có race giữa đổi giá và tạo Order.** `createOrder` đọc course bằng
   `FOR SHARE` trong cùng transaction với việc chèn Order + OrderItem; đổi giá
-  dùng `FOR UPDATE` trên cùng dòng. Một Order luôn chụp giá *trước* hoặc *sau*
-  thay đổi, không bao giờ lẫn.
+  dùng `FOR NO KEY UPDATE` trên cùng dòng (loại trừ `FOR SHARE` nhưng không
+  chặn `FOR KEY SHARE` của khóa ngoại, tránh deadlock với webhook). Một Order
+  luôn chụp giá *trước* hoặc *sau* thay đổi, không bao giờ lẫn.
 - **Không có race giữa hủy Order và webhook.** Webhook khóa dòng Order
   (`pessimistic_write`) và chỉ hoàn tất khi `status = PENDING`; câu `UPDATE`
   hủy chờ khóa rồi đánh giá lại `status`. Order đã `COMPLETED` không bị hủy.
@@ -169,8 +172,8 @@ Quy tắc body `PATCH /pricing`:
 | `courses/pricing/course-pricing.controller.ts` | `PATCH pricing`, `GET pricing-history` |
 | `courses/enrollment.service.ts` | `enrollCourse` (FREE fast-path, PAID → 402) |
 | `courses/payment-required.exception.ts` | `402 PAYMENT_REQUIRED` |
-| `modules/payment/entities/order-item.entity.ts` | `unit_price_snapshot` |
-| `modules/payment/payment.service.ts` | `createOrder` chụp giá trong transaction |
+| `modules/payment/entities/order-item.entity.ts` | snapshot tên/giá/giảm giá |
+| `modules/payment/order-factory.service.ts` | `createOrder` chụp giá trong transaction |
 | `database/migrations/202610100001_course_pricing.ts` | migration |
 
 ## 8. Sơ đồ
@@ -239,7 +242,7 @@ sequenceDiagram
 sequenceDiagram
     actor S as Học viên
     participant C as CoursesController
-    participant O as POST /orders (PaymentService)
+    participant O as POST /orders (OrderFactoryService)
     participant DB as PostgreSQL
     participant B as Ngân hàng/Webhook
 
@@ -248,13 +251,14 @@ sequenceDiagram
     S->>O: Buy (courseId)
     O->>DB: BEGIN; SELECT course FOR SHARE
     DB-->>O: PAID, price, currency
-    O->>DB: INSERT order(PENDING, amount, currency)
-    O->>DB: INSERT order_item(unit_price_snapshot)
+    O->>DB: INSERT order(PENDING, subtotal, final_total, currency)
+    O->>DB: INSERT order_item(tên + giá đã chụp)
     O->>DB: COMMIT
-    O-->>S: orderId, amount, QR (VietQR)
-    S->>B: Chuyển khoản (nội dung = order code)
-    B->>O: Webhook (x-api-key)
-    O->>DB: claim bank_webhook_logs (idempotent)
+    O-->>S: orderId, finalTotal (đóng băng)
+    S->>O: POST /orders/:id/checkout {provider} (xem payment-provider-abstraction.md)
+    O-->>S: QR / paymentUrl
+    S->>B: Thanh toán
+    B->>O: Webhook (đã xác minh bởi provider)
     O->>DB: SELECT order FOR UPDATE
     alt PENDING và đủ tiền
         O->>DB: payment_transaction SUCCESS, order COMPLETED
@@ -275,7 +279,7 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     I->>P: PATCH /courses/:id/pricing
-    P->>DB: BEGIN; SELECT course FOR UPDATE
+    P->>DB: BEGIN; SELECT course FOR NO KEY UPDATE
     P->>P: resolveNextPricing + classifyTransition
     opt PAID → FREE
         P->>DB: UPDATE orders SET status=CANCELLED WHERE status=PENDING
