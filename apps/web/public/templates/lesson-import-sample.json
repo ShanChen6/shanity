@@ -1,0 +1,6 @@
+{
+  "title": "Closure trong JavaScript",
+  "isPreview": false,
+  "isRequired": true,
+  "markdown": "## Closure là gì?\n\nMột **closure** là hàm \"nhớ\" được phạm vi nơi nó được tạo ra.\n\n```js\nconst add = (a) => (b) => a + b;\n```"
+}

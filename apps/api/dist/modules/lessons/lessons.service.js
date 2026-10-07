@@ -148,7 +148,7 @@ let LessonsService = LessonsService_1 = class LessonsService {
         if (existing && existing.id !== exceptId)
             throw new ConflictException('Lesson position is already in use');
     }
-    create(chapterId, dto) {
+    create(chapterId, dto, { draft = false } = {}) {
         return this.dataSource.transaction(async (manager) => {
             const chapter = await this.lockChapter(manager, chapterId);
             const repository = manager.getRepository(Lesson);
@@ -181,7 +181,7 @@ let LessonsService = LessonsService_1 = class LessonsService {
                 position,
                 isPreview: dto.isPreview ?? false,
                 isRequired: dto.isRequired ?? true,
-                isPublished: publishable,
+                isPublished: publishable && !draft,
                 ...columns,
             }));
         });

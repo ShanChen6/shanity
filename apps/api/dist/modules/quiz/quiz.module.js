@@ -60,6 +60,7 @@ QuizModule = __decorate([
             SessionGuard,
         ],
         exports: [
+            QuizAuthoringService,
             QuizCourseResolverService,
             QuizTargetValidationService,
             QuizAuthorizationGuard,

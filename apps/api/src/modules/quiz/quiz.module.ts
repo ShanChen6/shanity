@@ -56,6 +56,7 @@ import { QuizTargetValidationService } from './services/quiz-target-validation.s
     SessionGuard,
   ],
   exports: [
+    QuizAuthoringService,
     QuizCourseResolverService,
     QuizTargetValidationService,
     QuizAuthorizationGuard,
