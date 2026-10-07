@@ -82,7 +82,7 @@ export class CoursesController {
     @Param('id') _id: string,
     @Body() dto: UpdateCourseDto,
   ) {
-    return this.courses.update(req.course, dto);
+    return this.courses.update(req.course, dto, req.principal.id);
   }
 
   @Post(':id/publish')

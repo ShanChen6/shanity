@@ -23,9 +23,8 @@ export interface CourseOwnershipOptions {
   param?: string;
 }
 
-export const RequireCourseOwnership = (
-  options: CourseOwnershipOptions = {},
-) => SetMetadata(COURSE_OWNERSHIP, options);
+export const RequireCourseOwnership = (options: CourseOwnershipOptions = {}) =>
+  SetMetadata(COURSE_OWNERSHIP, options);
 
 type CourseRequest = AuthRequest & { course?: Course };
 
@@ -51,9 +50,10 @@ export class CourseOwnershipGuard implements CanActivate {
 
     let courseId = resourceId;
     if (options.resource === 'chapter') {
-      const chapter = await this.dataSource
-        .getRepository(Chapter)
-        .findOne({ where: { id: resourceId }, select: { id: true, courseId: true } });
+      const chapter = await this.dataSource.getRepository(Chapter).findOne({
+        where: { id: resourceId },
+        select: { id: true, courseId: true },
+      });
       if (!chapter) throw new NotFoundException('Chapter not found');
       courseId = chapter.courseId;
     }
@@ -103,11 +103,13 @@ export class CourseOwnershipGuard implements CanActivate {
         : options.resource === 'lesson'
           ? [options.param && params[options.param], params.id]
           : [
-            options.param && params[options.param],
-            params.id,
-            params.courseId,
-            body?.courseId,
-          ];
-    return candidates.find((value): value is string => typeof value === 'string');
+              options.param && params[options.param],
+              params.id,
+              params.courseId,
+              body?.courseId,
+            ];
+    return candidates.find(
+      (value): value is string => typeof value === 'string',
+    );
   }
 }

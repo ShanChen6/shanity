@@ -4,7 +4,7 @@ import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
 import { CatalogShell } from "./catalog-view";
 import { CatalogThumbnail } from "./catalog-thumbnail";
-import { CourseCta } from "./site-nav";
+import { CourseCta } from "./course-cta";
 
 export type PublicCourseDetail = {
   course: {
@@ -15,6 +15,10 @@ export type PublicCourseDetail = {
     shortDescription: string | null;
     thumbnail: string | null;
     publishedAt: string | null;
+    accessType: "FREE" | "PAID";
+    /** Minor units: VND dong / USD cents. */
+    price: number;
+    currency: string;
   };
   instructor: {
     id: string;
@@ -212,7 +216,7 @@ export function PublicCourseDetailView({
                   </span>
                 </div>
                 <div className="mt-4 border-t border-border pt-4">
-                  <CourseCta courseId={course.id} slug={course.slug} />
+                  <CourseCta course={course} />
                 </div>
               </div>
             </div>

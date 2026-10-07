@@ -14,6 +14,10 @@ import { CourseStatus } from './course-status.js';
 import { Course } from './course.entity.js';
 import { Chapter } from './chapter.entity.js';
 import { Enrollment } from './enrollment.entity.js';
+import { EnrollmentService } from './enrollment.service.js';
+import { CourseAccessType } from './course-access-type.js';
+import type { CourseCurrency } from './course-currency.js';
+import { CoursePricingService } from './pricing/course-pricing.service.js';
 import {
   assertCourseTransition,
   InvalidCourseTransitionError,
@@ -45,6 +49,10 @@ interface PublicCourseDetailRow {
   thumbnail: string | null;
   publishedAt: Date | null;
   isSequential: boolean;
+  accessType: CourseAccessType;
+  // bigint arrives as a string from the raw query.
+  price: string;
+  currency: CourseCurrency;
   instructorId: string | null;
   instructorDisplayName: string | null;
   instructorAvatarKey: string | null;
@@ -56,53 +64,18 @@ interface PublicCourseDetailRow {
 
 const uniqueViolation = (error: unknown) =>
   (error as { code?: string })?.code === '23505';
-const isEnrollmentUniqueViolation = (error: unknown) => {
-  const databaseError = error as { code?: string; constraint?: string };
-  return (
-    databaseError.code === '23505' &&
-    databaseError.constraint === 'enrollments_user_id_course_id_key'
-  );
-};
 
 @Injectable()
 export class CoursesService {
   constructor(
     private readonly database: DatabaseService,
     private readonly publishability: CoursePublishabilityValidator,
+    private readonly enrollments: EnrollmentService,
+    private readonly pricing: CoursePricingService,
   ) {}
 
-  async enroll(userId: string, courseId: string) {
-    const course = await this.database.dataSource
-      .getRepository(Course)
-      .findOneBy({ id: courseId });
-    if (!course) throw new NotFoundException('Course not found');
-    if (course.status !== CourseStatus.PUBLISHED)
-      throw new ConflictException('Course is not published');
-    if (course.price !== 0)
-      throw new BadRequestException('Only free courses can be enrolled in');
-
-    const enrollments = this.database.dataSource.getRepository(Enrollment);
-    const existing = await enrollments.findOneBy({
-      userId,
-      courseId,
-      revokedAt: IsNull(),
-    });
-    if (existing) throw new ConflictException('Already enrolled');
-
-    try {
-      const enrollment = await enrollments.save(
-        enrollments.create({ userId, courseId }),
-      );
-      return {
-        message: 'Enrolled successfully',
-        enrollmentId: enrollment.id,
-        enrolledAt: enrollment.enrolledAt,
-      };
-    } catch (error) {
-      if (isEnrollmentUniqueViolation(error))
-        throw new ConflictException('Already enrolled');
-      throw error;
-    }
+  enroll(userId: string, courseId: string) {
+    return this.enrollments.enrollCourse(userId, courseId);
   }
 
   async enrollmentStatus(userId: string, courseId: string) {
@@ -127,7 +100,8 @@ export class CoursesService {
           category: dto.category,
           level: dto.level,
           language: dto.language,
-          price: dto.price,
+          price: dto.price ?? 0,
+          accessType: dto.price ? CourseAccessType.PAID : CourseAccessType.FREE,
           instructorId: principal.id,
           title: dto.title,
           slug: dto.slug,
@@ -145,12 +119,29 @@ export class CoursesService {
     }
   }
 
-  async update(course: Course, dto: UpdateCourseDto) {
-    const repository = this.database.dataSource.getRepository(Course);
+  async update(course: Course, dto: UpdateCourseDto, updatedBy: string) {
+    const { price, ...fields } = dto;
     try {
-      if (Object.keys(dto).length)
-        await repository.update({ id: course.id }, dto);
-      return await repository.findOneByOrFail({ id: course.id });
+      // Price edits go through the pricing engine (audit log, PENDING order
+      // cancellation) in the same transaction as the other field changes.
+      await this.database.dataSource.transaction(async (manager) => {
+        if (price !== undefined)
+          await this.pricing.applyPricing(
+            manager,
+            course.id,
+            {
+              accessType:
+                price > 0 ? CourseAccessType.PAID : CourseAccessType.FREE,
+              price,
+            },
+            updatedBy,
+          );
+        if (Object.keys(fields).length)
+          await manager.getRepository(Course).update({ id: course.id }, fields);
+      });
+      return await this.database.dataSource
+        .getRepository(Course)
+        .findOneByOrFail({ id: course.id });
     } catch (error) {
       if (uniqueViolation(error))
         throw new ConflictException('Course slug already exists');
@@ -326,6 +317,9 @@ export class CoursesService {
       .addSelect('course.thumbnail', 'thumbnail')
       .addSelect('course.publishedAt', 'publishedAt')
       .addSelect('course.isSequential', 'isSequential')
+      .addSelect('course.accessType', 'accessType')
+      .addSelect('course.price', 'price')
+      .addSelect('course.currency', 'currency')
       .addSelect('instructor.id', 'instructorId')
       .addSelect('instructor.displayName', 'instructorDisplayName')
       .addSelect('instructor.avatarKey', 'instructorAvatarKey')
@@ -353,6 +347,9 @@ export class CoursesService {
         thumbnail: course.thumbnail,
         publishedAt: course.publishedAt,
         isSequential: course.isSequential === true,
+        accessType: course.accessType,
+        price: Number(course.price),
+        currency: course.currency,
       },
       instructor: course.instructorId
         ? {

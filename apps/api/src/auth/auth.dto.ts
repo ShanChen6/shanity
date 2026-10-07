@@ -72,8 +72,8 @@ export class ListUsersQueryDto {
 }
 
 export class ChangeUserRoleDto {
-  @IsIn(['STUDENT', 'INSTRUCTOR', 'ADMIN'])
-  role!: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+  @IsIn(['STUDENT', 'INSTRUCTOR', 'ADMIN', 'FINANCE_OFFICER'])
+  role!: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' | 'FINANCE_OFFICER';
 }
 
 export class ChangeUserStatusDto {
@@ -82,8 +82,8 @@ export class ChangeUserStatusDto {
 }
 
 export class CreateUserDto extends RegisterDto {
-  @IsIn(['STUDENT', 'INSTRUCTOR', 'ADMIN'])
-  role!: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+  @IsIn(['STUDENT', 'INSTRUCTOR', 'ADMIN', 'FINANCE_OFFICER'])
+  role!: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' | 'FINANCE_OFFICER';
 }
 
 export class UpdateUserDto extends ProfileDto {

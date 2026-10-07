@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 type DialogProps = {
   title: string;
@@ -23,6 +23,8 @@ export function Dialog({
   className = "",
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Unique per instance so nested dialogs keep their own accessible names.
+  const id = useId();
   useEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement as HTMLElement | null;
@@ -42,8 +44,8 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      aria-labelledby="dialog-title"
-      aria-describedby={description ? "dialog-description" : undefined}
+      aria-labelledby={`${id}-title`}
+      aria-describedby={description ? `${id}-description` : undefined}
       className={`overflow-y-auto border border-border bg-surface p-6 text-foreground backdrop:bg-black/50 ${position} ${className}`}
       onCancel={(event) => {
         event.preventDefault();
@@ -54,11 +56,11 @@ export function Dialog({
       }}
     >
       <div className="space-y-1 pb-4">
-        <h2 id="dialog-title" className="text-lg font-semibold">
+        <h2 id={`${id}-title`} className="text-lg font-semibold">
           {title}
         </h2>
         {description && (
-          <p id="dialog-description" className="text-sm text-muted">
+          <p id={`${id}-description`} className="text-sm text-muted">
             {description}
           </p>
         )}
