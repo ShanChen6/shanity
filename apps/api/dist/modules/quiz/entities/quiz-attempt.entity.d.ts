@@ -5,6 +5,7 @@ import { AttemptAnswerEntity } from './attempt-answer.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 export declare enum QuizAttemptStatus {
     IN_PROGRESS = "IN_PROGRESS",
+    SUBMITTING = "SUBMITTING",
     SUBMITTED = "SUBMITTED",
     TIMED_OUT = "TIMED_OUT",
     ABANDONED = "ABANDONED"
@@ -23,6 +24,9 @@ export declare class QuizAttemptEntity {
     expiresAt: Date | null;
     submittedAt: Date | null;
     score: number | null;
+    earnedPoints: number | null;
+    totalPoints: number | null;
+    percentage: string | null;
     isPassed: boolean | null;
     answers: Relation<AttemptAnswerEntity[]>;
     createdAt: Date;

@@ -11,7 +11,9 @@ export declare const QUIZ_NOT_FOUND: {
     message: string;
     code: string;
 };
-export declare const quizForbidden: (code: string) => ForbiddenException;
+export declare const quizForbidden: (code: string, extra?: object) => ForbiddenException;
+export declare const QUIZ_FORBIDDEN = "QUIZ_FORBIDDEN";
+export declare const TARGET_COURSE_FORBIDDEN = "TARGET_COURSE_FORBIDDEN";
 export declare class QuizLearnerAccessService {
     private readonly dataSource;
     private readonly resolver;
@@ -19,6 +21,6 @@ export declare class QuizLearnerAccessService {
     private readonly courseAccess;
     constructor(dataSource: DataSource, resolver: QuizCourseResolverService, authorization: QuizAuthorizationGuard, courseAccess: CourseAccessService);
     loadQuiz(quizId: string, manager?: EntityManager): Promise<QuizEntity>;
-    loadPublishedQuiz(quizId: string, manager?: EntityManager): Promise<QuizEntity>;
+    loadPublishedQuiz(quizId: string, manager?: EntityManager, lock?: boolean): Promise<QuizEntity>;
     assertCanTake(principal: Principal, quiz: Pick<QuizEntity, 'id' | 'scope' | 'targetId' | 'status' | 'createdBy'>): Promise<void>;
 }

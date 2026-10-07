@@ -61,6 +61,16 @@ export class QuizAttemptsController {
     return this.attempts.saveAnswer(req.principal, attemptId, body);
   }
 
+  // Score always; answer key and explanations only as the review policy allows.
+  @Get('quiz-attempts/:attemptId/result')
+  @Header('Cache-Control', 'private, no-store')
+  result(
+    @Req() req: AuthRequest,
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+  ) {
+    return this.attempts.result(req.principal, attemptId);
+  }
+
   @Post('quiz-attempts/:attemptId/submit')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')

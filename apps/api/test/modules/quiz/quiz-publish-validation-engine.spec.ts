@@ -294,9 +294,9 @@ describe('Q10 publish quality gate', () => {
       const responses = await Promise.all(
         Array.from({ length: 4 }, () => publish(quizId)),
       );
-      expect(responses.map(({ status: code }) => code).sort()).toEqual([
-        200, 409, 409, 409,
-      ]);
+      expect(
+        responses.map(({ status: code }) => code).sort((a, b) => a - b),
+      ).toEqual([200, 409, 409, 409]);
       for (const response of responses.filter(
         ({ status: code }) => code === 409,
       ))

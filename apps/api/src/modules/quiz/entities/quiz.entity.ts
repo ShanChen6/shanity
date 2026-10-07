@@ -23,10 +23,16 @@ export enum QuizStatus {
 }
 
 export enum ReviewPolicy {
-  ALWAYS = 'ALWAYS',
+  AFTER_SUBMIT = 'AFTER_SUBMIT',
   AFTER_PASS = 'AFTER_PASS',
   AFTER_EXHAUSTED = 'AFTER_EXHAUSTED',
   NEVER = 'NEVER',
+}
+
+export enum QuizDifficulty {
+  BEGINNER = 'BEGINNER',
+  INTERMEDIATE = 'INTERMEDIATE',
+  ADVANCED = 'ADVANCED',
 }
 
 export enum GradingPolicy {
@@ -89,7 +95,7 @@ export class QuizEntity {
     type: 'enum',
     enum: ReviewPolicy,
     enumName: 'ReviewPolicy',
-    default: ReviewPolicy.ALWAYS,
+    default: ReviewPolicy.AFTER_SUBMIT,
   })
   reviewPolicy: ReviewPolicy;
 
@@ -101,6 +107,18 @@ export class QuizEntity {
     default: GradingPolicy.HIGHEST,
   })
   gradingPolicy: GradingPolicy;
+
+  // Discovery metadata only; never part of grading or snapshots.
+  @Column({
+    type: 'enum',
+    enum: QuizDifficulty,
+    enumName: 'QuizDifficulty',
+    nullable: true,
+  })
+  difficulty: QuizDifficulty | null;
+
+  @Column({ type: 'text', array: true, default: () => `'{}'` })
+  tags: string[];
 
   @Column({ name: 'shuffle_questions', type: 'boolean', default: true })
   shuffleQuestions: boolean;

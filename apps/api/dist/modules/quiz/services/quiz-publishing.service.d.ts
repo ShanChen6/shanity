@@ -14,4 +14,11 @@ export declare class QuizPublishingService {
         status: QuizStatus;
         publishedAt: Date | null;
     }>;
+    openNewVersion(quizId: string, courseId: string | null): Promise<{
+        id: string;
+        title: string;
+        version: number;
+        status: QuizStatus;
+        publishedAt: Date | null;
+    }>;
 }

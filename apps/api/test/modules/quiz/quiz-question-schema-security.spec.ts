@@ -324,16 +324,19 @@ describe('Q4 quiz answer key security over HTTP', () => {
     const standalone = await quiz('STANDALONE', null);
 
     await take(outsider.session, lessonQuiz).expect(403);
+    const denied = await take(outsider.session, chapterQuiz).expect(403);
+    expect(denied.body).toMatchObject({
+      code: 'TARGET_COURSE_FORBIDDEN',
+      reason: 'ENROLLMENT_REQUIRED',
+    });
+    // Drafts and unknown ids look the same.
+    const hidden = await take(student.session, draft).expect(403);
+    expect(hidden.body.code).toBe('QUIZ_FORBIDDEN');
     expect(
-      (await take(outsider.session, chapterQuiz).expect(403)).body.code,
-    ).toBe('ENROLLMENT_REQUIRED');
-    expect((await take(student.session, draft).expect(404)).body.code).toBe(
-      'QUIZ_NOT_FOUND',
-    );
-    await take(student.session, randomUUID()).expect(404);
-    expect(
-      (await take(student.session, standalone).expect(403)).body.code,
-    ).toBe('QUIZ_NOT_AVAILABLE');
+      (await take(student.session, randomUUID()).expect(403)).body,
+    ).toEqual(hidden.body);
+    // Published standalone quizzes are open to every signed-in user.
+    await take(outsider.session, standalone).expect(200);
     await t.http().get(`/quizzes/${lessonQuiz}/take`).expect(401);
   });
 

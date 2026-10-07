@@ -172,7 +172,7 @@ describe('Q6 quiz authoring CRUD', () => {
         maxAttempts: null,
         durationMinutes: null,
         isRequired: false,
-        reviewPolicy: 'ALWAYS',
+        reviewPolicy: 'AFTER_SUBMIT',
         gradingPolicy: 'HIGHEST',
         shuffleQuestions: true,
         shuffleOptions: true,
@@ -482,8 +482,10 @@ describe('Q6 quiz authoring CRUD', () => {
       const quiz = await lessonQuiz();
       const [attempt] = await t.db.query(
         `INSERT INTO quiz_attempts(user_id, quiz_id, quiz_version, attempt_number,
-           quiz_snapshot, status, submitted_at, score, is_passed)
-         VALUES ($1, $2, 1, 1, '{"questions": []}', 'SUBMITTED', now(), 90, true)
+           quiz_snapshot, status, submitted_at, score, is_passed,
+           earned_points, total_points, percentage)
+         VALUES ($1, $2, 1, 1, '{"questions": []}', 'SUBMITTED', now(), 90, true,
+           9, 10, 90)
          RETURNING id`,
         [student.id, quiz.id],
       );

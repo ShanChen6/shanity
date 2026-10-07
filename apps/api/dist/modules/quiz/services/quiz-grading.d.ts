@@ -12,6 +12,7 @@ export type AttemptGrade = {
     answers: GradedAnswer[];
     earnedPoints: number;
     totalPoints: number;
+    percentage: number;
     score: number;
     isPassed: boolean;
 };

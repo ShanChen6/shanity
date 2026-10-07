@@ -19,7 +19,12 @@ import {
 import { useCurriculumNavigation } from "@/hooks/useCurriculumNavigation";
 import { CourseCompletedDialog } from "./CourseCompletedDialog";
 import { useLearning } from "./learning-context";
-import { learningPath, type PrerequisiteLesson } from "./learning-model";
+import {
+  learningPath,
+  quizPath,
+  type PrerequisiteLesson,
+} from "./learning-model";
+import { LessonQuizCallout } from "./quiz/LessonQuizCallout";
 import { LessonActionBar, type LessonCompletionState } from "./LessonActionBar";
 import { LessonContentRenderer } from "./renderers/LessonContentRenderer";
 import type { LessonData } from "./renderers/types";
@@ -46,11 +51,11 @@ const HEARTBEAT_MS = 30_000;
 
 function parsePrerequisite(value: unknown): PrerequisiteLesson | null {
   if (!value || typeof value !== "object") return null;
-  const { id, title, slug } = value as Record<string, unknown>;
+  const { id, title, slug, quizId } = value as Record<string, unknown>;
   return typeof id === "string" &&
     typeof title === "string" &&
     typeof slug === "string"
-    ? { id, title, slug }
+    ? { id, title, slug, quizId: typeof quizId === "string" ? quizId : null }
     : null;
 }
 
@@ -71,6 +76,8 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
     isTracking,
     prerequisiteOf,
     statusOf,
+    quizzesOf,
+    isQuizLocked,
   } = useLearning();
   const { user } = useSession();
   const router = useRouter();
@@ -177,6 +184,14 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
         setCelebrate(true);
         return false;
       }
+      // Learn -> quiz -> next: a required quiz not yet passed comes first.
+      const pendingQuiz = quizzesOf("LESSON", target.id).find(
+        (quiz) => quiz.isRequired && !quiz.isPassed,
+      );
+      if (pendingQuiz) {
+        router.push(quizPath(courseSlug, pendingQuiz.id));
+        return false;
+      }
       return true;
     } catch (error) {
       setToast(completionError(error));
@@ -255,6 +270,14 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
             onVideoProgress={onVideoProgress}
           />
         </div>
+        {quizzesOf("LESSON", target.id).map((quiz) => (
+          <LessonQuizCallout
+            key={quiz.id}
+            courseSlug={courseSlug}
+            quiz={quiz}
+            locked={isQuizLocked(quiz)}
+          />
+        ))}
       </article>
     );
   }

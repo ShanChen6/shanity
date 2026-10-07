@@ -17,12 +17,24 @@ import { buildQuizSnapshot, secureShuffle, } from './quiz-attempt-snapshot.js';
 import { QuizCourseResolverService, QuizTargetNotFoundError, } from './quiz-course-resolver.service.js';
 import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import { gradeAttempt } from './quiz-grading.js';
-import { QuizLearnerAccessService, quizForbidden, } from './quiz-learner-access.service.js';
+import { QuizLearnerAccessService } from './quiz-learner-access.service.js';
+import { buildAttemptResult } from '../dto/quiz-attempt-result.dto.js';
+import { isReviewAllowed } from './quiz-review-policy.js';
+export const GRACE_PERIOD_SECONDS = 5;
+export const SUBMISSION_LEASE_SECONDS = 30;
 const ATTEMPT_COLUMNS = `id, user_id AS "userId", quiz_id AS "quizId",
   attempt_number AS "attemptNumber", quiz_snapshot AS "quizSnapshot", status,
   started_at AS "startedAt", expires_at AS "expiresAt",
   submitted_at AS "submittedAt", score, is_passed AS "isPassed",
-  (expires_at IS NOT NULL AND clock_timestamp() >= expires_at) AS expired,
+  earned_points AS "earnedPoints", total_points AS "totalPoints",
+  percentage::float8 AS percentage,
+  (expires_at IS NOT NULL AND clock_timestamp() > expires_at) AS expired,
+  updated_at::text AS "submissionToken",
+  (clock_timestamp() > updated_at
+    + make_interval(secs => ${SUBMISSION_LEASE_SECONDS})) AS "leaseExpired",
+  (expires_at IS NOT NULL AND clock_timestamp()
+    > expires_at + make_interval(secs => ${GRACE_PERIOD_SECONDS}))
+    AS "pastGrace",
   clock_timestamp() AS "serverNow"`;
 const error = (code) => ({ message: code, code });
 const ATTEMPT_NOT_FOUND = { statusCode: 404, ...error('ATTEMPT_NOT_FOUND') };
@@ -53,16 +65,18 @@ let QuizAttemptsService = class QuizAttemptsService {
         await this.access.assertCanTake(principal, await this.access.loadPublishedQuiz(quizId));
         const result = await this.transaction(async (manager) => {
             await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`quiz-attempt:${principal.id}:${quizId}`]);
+            const quiz = await this.access.loadPublishedQuiz(quizId, manager, true);
             const active = await this.lockActive(manager, principal.id, quizId);
-            if (active && !active.expired)
+            if (active?.status === QuizAttemptStatus.SUBMITTING &&
+                !(await this.settleStaleSubmission(manager, active)))
+                return { rejected: 'SUBMISSION_IN_PROGRESS' };
+            if (active?.status === QuizAttemptStatus.IN_PROGRESS &&
+                !(await this.checkAndEnforceTimeout(manager, active)))
                 return { created: false, attempt: await this.view(manager, active) };
-            if (active)
-                await this.close(manager, active, QuizAttemptStatus.TIMED_OUT);
-            const quiz = await this.access.loadPublishedQuiz(quizId, manager);
-            const [{ used }] = await manager.query(`SELECT count(*)::int AS used FROM quiz_attempts
-         WHERE user_id = $1 AND quiz_id = $2`, [principal.id, quizId]);
+            const used = (await manager.query(`SELECT id FROM quiz_attempts
+             WHERE user_id = $1 AND quiz_id = $2 FOR UPDATE`, [principal.id, quizId])).length;
             if (quiz.maxAttempts !== null && used >= quiz.maxAttempts)
-                return { rejected: 'MAX_ATTEMPTS_EXCEEDED' };
+                return { rejected: 'MAX_ATTEMPTS_REACHED' };
             const questions = await manager.getRepository(QuizQuestionEntity).find({
                 where: { quizId },
                 relations: { options: true },
@@ -86,14 +100,11 @@ let QuizAttemptsService = class QuizAttemptsService {
             ]);
             return { created: true, attempt: await this.view(manager, created) };
         });
-        if ('rejected' in result) {
-            if (result.rejected === 'MAX_ATTEMPTS_EXCEEDED')
-                throw quizForbidden(result.rejected);
+        if ('rejected' in result)
             throw new ConflictException({
                 statusCode: 409,
                 ...error(result.rejected),
             });
-        }
         return result;
     }
     async activeAttempt(principal, quizId) {
@@ -102,9 +113,9 @@ let QuizAttemptsService = class QuizAttemptsService {
             const active = await this.lockActive(manager, principal.id, quizId);
             if (!active)
                 return null;
-            if (active.expired)
-                return this.close(manager, active, QuizAttemptStatus.TIMED_OUT);
-            return this.view(manager, active);
+            return ((await this.settleStaleSubmission(manager, active)) ??
+                (await this.checkAndEnforceTimeout(manager, active)) ??
+                this.view(manager, active));
         });
         if (!attempt)
             throw new NotFoundException({
@@ -114,25 +125,32 @@ let QuizAttemptsService = class QuizAttemptsService {
         return attempt;
     }
     async saveAnswer(principal, attemptId, answer) {
+        const selected = selectionOf(answer);
         await this.assertOwnAttempt(principal, attemptId);
         const result = await this.transaction(async (manager) => {
             const attempt = await this.lockAttempt(manager, attemptId);
             if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
                 return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
-            if (attempt.expired) {
-                await this.close(manager, attempt, QuizAttemptStatus.TIMED_OUT);
-                return { rejected: 'ATTEMPT_EXPIRED' };
-            }
-            this.assertAnswerFitsSnapshot(attempt, answer);
+            const timedOut = await this.checkAndEnforceTimeout(manager, attempt);
+            if (timedOut)
+                return { timedOut };
+            assertAnswerFitsSnapshot(attempt, answer.questionId, selected);
             const [saved] = await manager.query(`INSERT INTO attempt_answers(attempt_id, question_id, selected_option_ids, saved_at)
          VALUES ($1, $2, $3::uuid[], clock_timestamp())
          ON CONFLICT (attempt_id, question_id) DO UPDATE
            SET selected_option_ids = EXCLUDED.selected_option_ids,
                saved_at = EXCLUDED.saved_at
          RETURNING question_id AS "questionId",
-           selected_option_ids AS "selectedOptionIds", saved_at AS "savedAt"`, [attemptId, answer.questionId, answer.selectedOptionIds]);
+           selected_option_ids AS "selectedOptionIds", saved_at AS "savedAt"`, [attemptId, answer.questionId, selected]);
             return { saved: saved };
         });
+        if ('timedOut' in result)
+            throw new BadRequestException({
+                statusCode: 400,
+                ...error('ATTEMPT_EXPIRED'),
+                notice: 'ATTEMPT_TIMED_OUT',
+                attempt: result.timedOut,
+            });
         if ('rejected' in result)
             throw new ConflictException({
                 statusCode: 409,
@@ -142,22 +160,94 @@ let QuizAttemptsService = class QuizAttemptsService {
     }
     async submit(principal, attemptId) {
         await this.assertOwnAttempt(principal, attemptId);
-        const result = await this.transaction(async (manager) => {
+        const claim = await this.transaction(async (manager) => {
             const attempt = await this.lockAttempt(manager, attemptId);
-            if (attempt.status === QuizAttemptStatus.ABANDONED)
-                return null;
-            if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
-                return this.view(manager, attempt);
-            return this.close(manager, attempt, attempt.expired
-                ? QuizAttemptStatus.TIMED_OUT
-                : QuizAttemptStatus.SUBMITTED);
+            switch (attempt.status) {
+                case QuizAttemptStatus.SUBMITTED:
+                case QuizAttemptStatus.TIMED_OUT:
+                    return { done: await this.view(manager, attempt) };
+                case QuizAttemptStatus.ABANDONED:
+                    return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
+                case QuizAttemptStatus.SUBMITTING:
+                    if (!attempt.leaseExpired)
+                        return { rejected: 'SUBMISSION_IN_PROGRESS' };
+                    return {
+                        token: await this.claim(manager, attempt.id),
+                        submittedAt: attempt.submissionToken,
+                    };
+                default: {
+                    const timedOut = await this.checkAndEnforceTimeout(manager, attempt, true);
+                    if (timedOut)
+                        return { done: timedOut };
+                    const token = await this.claim(manager, attempt.id);
+                    return { token, submittedAt: token };
+                }
+            }
         });
-        if (!result)
+        if ('rejected' in claim)
             throw new ConflictException({
                 statusCode: 409,
-                ...error('ATTEMPT_NOT_IN_PROGRESS'),
+                ...error(claim.rejected),
             });
-        return result;
+        if ('done' in claim)
+            return claim.done;
+        return this.transaction(async (manager) => {
+            const attempt = await this.lockAttempt(manager, attemptId);
+            if (attempt.status !== QuizAttemptStatus.SUBMITTING ||
+                attempt.submissionToken !== claim.token)
+                return this.view(manager, attempt);
+            return this.gradeAndClose(manager, attempt, QuizAttemptStatus.SUBMITTED, claim.submittedAt);
+        });
+    }
+    async result(principal, attemptId) {
+        await this.assertOwnAttempt(principal, attemptId);
+        const result = await this.transaction(async (manager) => {
+            let attempt = await this.lockAttempt(manager, attemptId);
+            if ((await this.settleStaleSubmission(manager, attempt)) ||
+                (await this.checkAndEnforceTimeout(manager, attempt)))
+                attempt = await this.lockAttempt(manager, attemptId);
+            if (attempt.status === QuizAttemptStatus.SUBMITTING)
+                return { rejected: 'SUBMISSION_IN_PROGRESS' };
+            if (attempt.status !== QuizAttemptStatus.SUBMITTED &&
+                attempt.status !== QuizAttemptStatus.TIMED_OUT)
+                return { rejected: 'ATTEMPT_NOT_SUBMITTED' };
+            const answers = await manager.query(`SELECT question_id AS "questionId",
+           selected_option_ids AS "selectedOptionIds",
+           is_correct AS "isCorrect", points_earned AS "pointsEarned"
+         FROM attempt_answers WHERE attempt_id = $1`, [attempt.id]);
+            const [history] = await manager.query(`SELECT count(*)::int AS "attemptsUsed",
+           coalesce(bool_or(status IN ('IN_PROGRESS', 'SUBMITTING')), false)
+             AS "hasOpenAttempt"
+         FROM quiz_attempts WHERE user_id = $1 AND quiz_id = $2`, [attempt.userId, attempt.quizId]);
+            return {
+                result: buildAttemptResult(attempt, answers, isReviewAllowed(attempt.quizSnapshot.quiz, attempt, history)),
+            };
+        });
+        if ('rejected' in result)
+            throw new ConflictException({
+                statusCode: 409,
+                ...error(result.rejected),
+            });
+        return result.result;
+    }
+    async claim(manager, attemptId) {
+        const [[row]] = await manager.query(`UPDATE quiz_attempts SET status = 'SUBMITTING'
+       WHERE id = $1 RETURNING updated_at::text AS token`, [attemptId]);
+        return row.token;
+    }
+    async settleStaleSubmission(manager, attempt) {
+        if (attempt.status !== QuizAttemptStatus.SUBMITTING)
+            return null;
+        if (!attempt.leaseExpired)
+            return null;
+        return this.gradeAndClose(manager, attempt, QuizAttemptStatus.SUBMITTED, attempt.submissionToken);
+    }
+    async checkAndEnforceTimeout(manager, attempt, grace = false) {
+        if (attempt.status !== QuizAttemptStatus.IN_PROGRESS)
+            return null;
+        if (!(grace ? attempt.pastGrace : attempt.expired))
+            return null;
+        return this.gradeAndClose(manager, attempt, QuizAttemptStatus.TIMED_OUT);
     }
     async assertOwnAttempt(principal, attemptId) {
         const [owner] = await this.dataSource.query('SELECT user_id AS "userId", quiz_id AS "quizId" FROM quiz_attempts WHERE id = $1', [attemptId]);
@@ -165,29 +255,10 @@ let QuizAttemptsService = class QuizAttemptsService {
             throw new NotFoundException(ATTEMPT_NOT_FOUND);
         await this.access.assertCanTake(principal, await this.access.loadQuiz(owner.quizId));
     }
-    assertAnswerFitsSnapshot(attempt, { questionId, selectedOptionIds }) {
-        const question = attempt.quizSnapshot.questions.find(({ id }) => id === questionId);
-        if (!question)
-            throw new BadRequestException({
-                statusCode: 400,
-                ...error('QUESTION_NOT_IN_SNAPSHOT'),
-            });
-        const optionIds = new Set(question.options.map(({ id }) => id));
-        if (!selectedOptionIds.every((id) => optionIds.has(id)))
-            throw new BadRequestException({
-                statusCode: 400,
-                ...error('OPTION_NOT_IN_QUESTION'),
-            });
-        if (question.type === QuizQuestionType.SINGLE_CHOICE &&
-            selectedOptionIds.length > 1)
-            throw new BadRequestException({
-                statusCode: 400,
-                ...error('INVALID_RESPONSE_TYPE'),
-            });
-    }
     async lockActive(manager, userId, quizId) {
         const [attempt] = await manager.query(`SELECT ${ATTEMPT_COLUMNS} FROM quiz_attempts
-       WHERE user_id = $1 AND quiz_id = $2 AND status = 'IN_PROGRESS'
+       WHERE user_id = $1 AND quiz_id = $2
+         AND status IN ('IN_PROGRESS', 'SUBMITTING')
        FOR UPDATE`, [userId, quizId]);
         return attempt ?? null;
     }
@@ -197,7 +268,7 @@ let QuizAttemptsService = class QuizAttemptsService {
             throw new NotFoundException(ATTEMPT_NOT_FOUND);
         return attempt;
     }
-    async close(manager, attempt, status) {
+    async gradeAndClose(manager, attempt, status, submittedAt = null) {
         const saved = await manager.query(`SELECT question_id AS "questionId", selected_option_ids AS "selectedOptionIds"
        FROM attempt_answers WHERE attempt_id = $1`, [attempt.id]);
         const grade = gradeAttempt(attempt.quizSnapshot, saved);
@@ -217,10 +288,21 @@ let QuizAttemptsService = class QuizAttemptsService {
         const [[closed]] = await manager.query(`UPDATE quiz_attempts
        SET status = $2::"QuizAttemptStatus",
          submitted_at = CASE WHEN $2 = 'TIMED_OUT'
-           THEN LEAST(expires_at, clock_timestamp()) ELSE clock_timestamp() END,
-         score = $3, is_passed = $4
+           THEN LEAST(expires_at, clock_timestamp())
+           ELSE coalesce($8::timestamptz, clock_timestamp()) END,
+         score = $3, is_passed = $4, earned_points = $5, total_points = $6,
+         percentage = $7
        WHERE id = $1
-       RETURNING ${ATTEMPT_COLUMNS}`, [attempt.id, status, grade.score, grade.isPassed]);
+       RETURNING ${ATTEMPT_COLUMNS}`, [
+            attempt.id,
+            status,
+            grade.score,
+            grade.isPassed,
+            grade.earnedPoints,
+            grade.totalPoints,
+            grade.percentage.toFixed(2),
+            submittedAt,
+        ]);
         return LearnerAttemptResponseDto.from(closed, null);
     }
     async view(manager, attempt) {
@@ -250,4 +332,20 @@ QuizAttemptsService = __decorate([
         CourseProgressCalculatorService])
 ], QuizAttemptsService);
 export { QuizAttemptsService };
+const invalid = (code) => new BadRequestException({ statusCode: 400, ...error(code) });
+function selectionOf({ selectedOptionId, selectedOptionIds, }) {
+    if (selectedOptionId !== undefined && selectedOptionIds !== undefined)
+        throw invalid('INVALID_RESPONSE_TYPE');
+    return selectedOptionIds ?? [selectedOptionId];
+}
+function assertAnswerFitsSnapshot(attempt, questionId, selected) {
+    const question = attempt.quizSnapshot.questions.find(({ id }) => id === questionId);
+    if (!question)
+        throw invalid('QUESTION_NOT_IN_SNAPSHOT');
+    const optionIds = new Set(question.options.map(({ id }) => id));
+    if (!selected.every((id) => optionIds.has(id)))
+        throw invalid('INVALID_OPTION_FOR_QUESTION');
+    if (question.type === QuizQuestionType.SINGLE_CHOICE && selected.length > 1)
+        throw invalid('INVALID_RESPONSE_TYPE');
+}
 //# sourceMappingURL=quiz-attempts.service.js.map

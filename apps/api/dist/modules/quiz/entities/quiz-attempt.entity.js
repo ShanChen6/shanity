@@ -14,6 +14,7 @@ import { AttemptAnswerEntity } from './attempt-answer.entity.js';
 export var QuizAttemptStatus;
 (function (QuizAttemptStatus) {
     QuizAttemptStatus["IN_PROGRESS"] = "IN_PROGRESS";
+    QuizAttemptStatus["SUBMITTING"] = "SUBMITTING";
     QuizAttemptStatus["SUBMITTED"] = "SUBMITTED";
     QuizAttemptStatus["TIMED_OUT"] = "TIMED_OUT";
     QuizAttemptStatus["ABANDONED"] = "ABANDONED";
@@ -32,6 +33,9 @@ let QuizAttemptEntity = class QuizAttemptEntity {
     expiresAt;
     submittedAt;
     score;
+    earnedPoints;
+    totalPoints;
+    percentage;
     isPassed;
     answers;
     createdAt;
@@ -103,6 +107,18 @@ __decorate([
     __metadata("design:type", Object)
 ], QuizAttemptEntity.prototype, "score", void 0);
 __decorate([
+    Column({ name: 'earned_points', type: 'integer', nullable: true }),
+    __metadata("design:type", Object)
+], QuizAttemptEntity.prototype, "earnedPoints", void 0);
+__decorate([
+    Column({ name: 'total_points', type: 'integer', nullable: true }),
+    __metadata("design:type", Object)
+], QuizAttemptEntity.prototype, "totalPoints", void 0);
+__decorate([
+    Column({ type: 'numeric', precision: 5, scale: 2, nullable: true }),
+    __metadata("design:type", Object)
+], QuizAttemptEntity.prototype, "percentage", void 0);
+__decorate([
     Column({ name: 'is_passed', type: 'boolean', nullable: true }),
     __metadata("design:type", Object)
 ], QuizAttemptEntity.prototype, "isPassed", void 0);
@@ -123,7 +139,7 @@ QuizAttemptEntity = __decorate([
     Index('IDX_quiz_attempts_user_quiz', ['userId', 'quizId', 'status']),
     Index('UQ_quiz_attempts_active', ['userId', 'quizId'], {
         unique: true,
-        where: `status = 'IN_PROGRESS'`,
+        where: `status IN ('IN_PROGRESS', 'SUBMITTING')`,
     }),
     Unique('UQ_quiz_attempts_user_quiz_number', [
         'userId',

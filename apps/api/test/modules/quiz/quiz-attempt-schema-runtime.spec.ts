@@ -109,11 +109,15 @@ describe('Q5 quiz attempt schema', () => {
     const attempt = (attemptNumber: number, status = 'IN_PROGRESS') =>
       db.query<Array<{ id: string }>>(
         `INSERT INTO quiz_attempts(user_id, quiz_id, quiz_version, attempt_number,
-           quiz_snapshot, status, submitted_at, score, is_passed)
+           quiz_snapshot, status, submitted_at, score, is_passed,
+           earned_points, total_points, percentage)
          SELECT $1, $2, 1, $3, '{"questions": []}', $4::"QuizAttemptStatus",
            CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN now() END,
            CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN 50 END,
-           CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN false END
+           CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN false END,
+           CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN 5 END,
+           CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN 10 END,
+           CASE WHEN $4 IN ('SUBMITTED', 'TIMED_OUT') THEN 50 END
          RETURNING id`,
         [user.id, quiz.id, attemptNumber, status],
       );
@@ -227,9 +231,45 @@ describe('Q5 quiz attempt schema', () => {
       db.query(`UPDATE quiz_attempts SET attempt_number = 9 WHERE id=$1`, [id]),
     ).rejects.toEqual(violation('23000', 'TRG_quiz_attempts_immutable'));
 
+    // SUBMITTING: answers frozen except for grading, no way back.
+    await db.query(`UPDATE quiz_attempts SET status='SUBMITTING' WHERE id=$1`, [
+      id,
+    ]);
+    await expect(
+      db.query(
+        `UPDATE attempt_answers SET selected_option_ids = ARRAY[$2::uuid] WHERE attempt_id=$1`,
+        [id, randomUUID()],
+      ),
+    ).rejects.toEqual(violation('23000', 'TRG_attempt_answers_open_attempt'));
+    await db.query(
+      `UPDATE attempt_answers SET is_correct=false, points_earned=0 WHERE attempt_id=$1`,
+      [id],
+    );
+    await expect(
+      db.query(`UPDATE quiz_attempts SET status='IN_PROGRESS' WHERE id=$1`, [
+        id,
+      ]),
+    ).rejects.toEqual(violation('23000', 'TRG_quiz_attempts_submitting'));
+    // Closing requires the whole official result.
+    await expect(
+      db.query(
+        `UPDATE quiz_attempts SET status='SUBMITTED', submitted_at=now(), score=0,
+           is_passed=false WHERE id=$1`,
+        [id],
+      ),
+    ).rejects.toEqual(violation('23514', 'CHK_quiz_attempts_state'));
+    await expect(
+      db.query(
+        `UPDATE quiz_attempts SET status='SUBMITTED', submitted_at=now(), score=0,
+           is_passed=false, earned_points=11, total_points=10, percentage=0
+         WHERE id=$1`,
+        [id],
+      ),
+    ).rejects.toEqual(violation('23514', 'CHK_quiz_attempts_points'));
     await db.query(
       `UPDATE quiz_attempts SET status='SUBMITTED', submitted_at=now(), score=0,
-         is_passed=false WHERE id=$1`,
+         is_passed=false, earned_points=0, total_points=10, percentage=0
+       WHERE id=$1`,
       [id],
     );
     await expect(
@@ -467,11 +507,13 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
       expect.arrayContaining([
         {
           questionId: q.q1,
+          selectedOptionId: q.q1Four,
           selectedOptionIds: [q.q1Four],
           savedAt: changed.body.savedAt,
         },
         {
           questionId: q.q2,
+          selectedOptionId: null,
           selectedOptionIds: [q.q2Two, q.q2Four],
           savedAt: expect.any(String),
         },
@@ -508,9 +550,9 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
     expect(order(resumed.body)).toEqual(order(started.body));
     expect(
       order(started.body)
-        .map(([id]) => id)
-        .sort(),
-    ).toEqual([q.q1, q.q2].sort());
+        .map(([id]) => id as string)
+        .sort((a, b) => a.localeCompare(b)),
+    ).toEqual([q.q1, q.q2].sort((a, b) => a.localeCompare(b)));
   });
 
   it('detects an expired attempt on resume and closes it as TIMED_OUT', async () => {
@@ -569,7 +611,7 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
     expect(
       (
         await save(student.session, started.body.id, q.q1, [q.q1Four]).expect(
-          409,
+          400,
         )
       ).body.code,
     ).toBe('ATTEMPT_EXPIRED');
@@ -589,7 +631,7 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
         .body.code;
 
     expect(await code(randomUUID(), [])).toBe('QUESTION_NOT_IN_SNAPSHOT');
-    expect(await code(q.q1, [q.q2Two])).toBe('OPTION_NOT_IN_QUESTION');
+    expect(await code(q.q1, [q.q2Two])).toBe('INVALID_OPTION_FOR_QUESTION');
     expect(await code(q.q1, [q.q1Four, q.q1Five])).toBe(
       'INVALID_RESPONSE_TYPE',
     );
@@ -630,8 +672,8 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
       score: 33,
       submittedAt: first.body.submittedAt,
     });
-    expect((await start(student.session, q.id).expect(403)).body.code).toBe(
-      'MAX_ATTEMPTS_EXCEEDED',
+    expect((await start(student.session, q.id).expect(409)).body.code).toBe(
+      'MAX_ATTEMPTS_REACHED',
     );
   });
 
@@ -640,9 +682,9 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => start(student.session, q.id)),
     );
-    expect(responses.map(({ status }) => status).sort()).toEqual([
-      200, 200, 200, 200, 201,
-    ]);
+    expect(responses.map(({ status }) => status).sort((a, b) => a - b)).toEqual(
+      [200, 200, 200, 200, 201],
+    );
     expect(new Set(responses.map(({ body }) => body.id)).size).toBe(1);
   });
 

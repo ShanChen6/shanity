@@ -81,7 +81,7 @@ describe('Q2 quiz core migration', () => {
       version: 1,
       passing_score: 80,
       is_required: false,
-      review_policy: 'ALWAYS',
+      review_policy: 'AFTER_SUBMIT',
       grading_policy: 'HIGHEST',
       shuffle_questions: true,
       shuffle_options: true,
