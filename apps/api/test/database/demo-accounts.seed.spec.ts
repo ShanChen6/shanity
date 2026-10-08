@@ -46,7 +46,10 @@ describe('demo accounts seed', () => {
         .get('/api/v1/me')
         .set('Cookie', session)
         .expect(200);
-      expect([...me.body.data.roles].sort()).toEqual([...account.roles].sort());
+      const byName = (a: string, b: string) => a.localeCompare(b);
+      expect([...(me.body.data.roles as string[])].sort(byName)).toEqual(
+        [...account.roles].sort(byName),
+      );
     }
   });
 
