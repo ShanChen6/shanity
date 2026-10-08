@@ -18,6 +18,31 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Optional (`COMPOSE_PROFILES=cache`): the API falls back to an in-process cache
+  # and stays up when Redis is absent or down.
+  redis:
+    profiles: ["cache"]
+    image: redis:7-alpine
+    # A cache, not a store: no persistence, bounded memory, evict least-used keys.
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "128mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   migrate:
     build:
       context: .
@@ -57,6 +82,9 @@ services:
       JWT_ACCESS_SECONDS: ${JWT_ACCESS_SECONDS:-900}
       AUTH_REFRESH_SECONDS: ${AUTH_REFRESH_SECONDS:-2592000}
       WEB_ORIGIN: ${WEB_ORIGIN:?Set WEB_ORIGIN in .env}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      REDIS_URL: ${REDIS_URL:-}
+      CACHE_PUBLIC_CATALOG_SECONDS: ${CACHE_PUBLIC_CATALOG_SECONDS:-60}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
@@ -82,6 +110,14 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_SOCIAL_FACEBOOK: ${NEXT_PUBLIC_SOCIAL_FACEBOOK:-}
+        NEXT_PUBLIC_SOCIAL_YOUTUBE: ${NEXT_PUBLIC_SOCIAL_YOUTUBE:-}
+        NEXT_PUBLIC_SOCIAL_TIKTOK: ${NEXT_PUBLIC_SOCIAL_TIKTOK:-}
+        NEXT_PUBLIC_SOCIAL_LINKEDIN: ${NEXT_PUBLIC_SOCIAL_LINKEDIN:-}
+        NEXT_PUBLIC_SOCIAL_GITHUB: ${NEXT_PUBLIC_SOCIAL_GITHUB:-}
+        NEXT_PUBLIC_LEGAL_ENTITY: ${NEXT_PUBLIC_LEGAL_ENTITY:-}
+        NEXT_PUBLIC_LEGAL_ADDRESS: ${NEXT_PUBLIC_LEGAL_ADDRESS:-}
     environment:
       NODE_ENV: production
       PORT: 3000

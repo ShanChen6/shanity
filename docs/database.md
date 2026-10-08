@@ -34,6 +34,8 @@ curl http://localhost:4000/health/db
 docker compose logs migrate api
 ```
 
+Dữ liệu demo theo vai trò (chỉ dành cho phát triển/kiểm thử, **từ chối chạy khi `NODE_ENV=production`**): `pnpm --filter api seed:demo` (hoặc `node database/cli.mjs seed-demo`). Lệnh tạo `admin@`, `instructor@`, `student@` và `finance@shanity.local`, một khóa học đã xuất bản kèm bài học, một khóa nháp, ghi danh của học viên và một quiz tự luận có bài làm chờ chấm. Mật khẩu lấy từ `SEED_DEMO_PASSWORD`, mặc định `Shanity-Demo-2026!`; chạy lại không đổi mật khẩu của tài khoản đã tồn tại. Chuẩn cột audit của schema (UUID, `created_at`, `updated_at`, các ngoại lệ có lý do) được `test/database/audit-standard.spec.ts` cưỡng chế; xem [báo cáo kiểm toán](architecture/pre-release-system-audit.md) cho các quyết định (ví dụ vì sao không dùng soft delete đồng loạt).
+
 Khi triển khai phiên bản có migration mới, chạy `docker compose run --rm migrate` trước khi cập nhật API. Không chạy nhiều phiên bản ứng dụng không tương thích schema cùng lúc. Seeder admin yêu cầu env trong production; seeder dữ liệu demo tự bỏ qua production. Role `admin` hiện là quyền quản trị tài khoản trong ứng dụng. Seeder chỉ cấp role này cho email cấu hình và không thay đổi mật khẩu nếu tài khoản đã tồn tại. Seed demo tạo một khóa nháp, một chương, một bài văn bản; UUID cố định và ON CONFLICT DO NOTHING nên không ghi đè nội dung đã sửa. Xung đột slug/position với dữ liệu khác sẽ báo lỗi và rollback toàn bộ seed để kiểm tra thủ công.
 
 `docker compose down` giữ dữ liệu; **không dùng `down -v` với dữ liệu cần giữ**. Thay POSTGRES_USER/PASSWORD/DB trong env không sửa database đã khởi tạo trong volume.
