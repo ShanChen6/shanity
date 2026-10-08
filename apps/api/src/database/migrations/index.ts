@@ -34,6 +34,10 @@ import { CheckoutProviders1791763200001 } from './202610120001_checkout_provider
 import { PaymentHardening1791849600001 } from './202610130001_payment_hardening.js';
 import { WebhookLogs1791936000001 } from './202610140001_webhook_logs.js';
 import { OrderAuditLogs1792022400001 } from './202610150001_order_audit_logs.js';
+import { AddEssaySupportToQuestions1792108800001 } from './202610160001_add_essay_support_to_questions.js';
+import { AddEssayAnswerAndGradingToAttemptAnswers1792195200001 } from './202610170001_add_essay_answer_and_grading_to_attempt_answers.js';
+import { AddGradedStatusAndPublishedAt1792281600001 } from './202610180001_add_graded_status_and_published_at.js';
+import { AddQuizGradeAuditLogs1792368000001 } from './202610190001_add_quiz_grade_audit_logs.js';
 
 export const migrationHistory = [
   {
@@ -251,6 +255,30 @@ export const migrationHistory = [
     name: 'OrderAuditLogs1792022400001',
     timestamp: 1792022400001,
     migration: OrderAuditLogs1792022400001,
+  },
+  {
+    legacy: null,
+    name: 'AddEssaySupportToQuestions1792108800001',
+    timestamp: 1792108800001,
+    migration: AddEssaySupportToQuestions1792108800001,
+  },
+  {
+    legacy: null,
+    name: 'AddEssayAnswerAndGradingToAttemptAnswers1792195200001',
+    timestamp: 1792195200001,
+    migration: AddEssayAnswerAndGradingToAttemptAnswers1792195200001,
+  },
+  {
+    legacy: null,
+    name: 'AddGradedStatusAndPublishedAt1792281600001',
+    timestamp: 1792281600001,
+    migration: AddGradedStatusAndPublishedAt1792281600001,
+  },
+  {
+    legacy: null,
+    name: 'AddQuizGradeAuditLogs1792368000001',
+    timestamp: 1792368000001,
+    migration: AddQuizGradeAuditLogs1792368000001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

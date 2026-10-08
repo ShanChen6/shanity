@@ -52,6 +52,7 @@ export class QuizQuestionsService {
           content: true,
           position: true,
           points: true,
+          essayConfig: true,
           options: { id: true, content: true, position: true },
         },
         order: {

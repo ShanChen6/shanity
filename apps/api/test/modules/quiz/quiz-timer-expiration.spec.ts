@@ -278,13 +278,13 @@ describe('Q15 server-authoritative timer and expiration', () => {
 
       const response = await submit(attemptId).expect(200);
       expect(response.body).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         score: 100,
         isPassed: true,
       });
       expect(response.body.notice).toBeUndefined();
       const stored = await row(attemptId);
-      expect(stored.status).toBe('SUBMITTED');
+      expect(stored.status).toBe('COMPLETED');
       expect(Number(stored.lateBy)).toBeGreaterThan(0);
       expect(Number(stored.lateBy)).toBeLessThanOrEqual(GRACE_PERIOD_SECONDS);
     });

@@ -12,6 +12,7 @@ import { QuizQuestionEntity } from '../modules/quiz/entities/quiz-question.entit
 import { QuizOptionEntity } from '../modules/quiz/entities/quiz-option.entity.js';
 import { QuizAttemptEntity } from '../modules/quiz/entities/quiz-attempt.entity.js';
 import { AttemptAnswerEntity } from '../modules/quiz/entities/attempt-answer.entity.js';
+import { QuizGradeAuditLogEntity } from '../modules/quiz/entities/quiz-grade-audit-log.entity.js';
 import { CoursePriceLog } from '../courses/course-price-log.entity.js';
 import { WebhookLog } from '../modules/payment/entities/webhook-log.entity.js';
 import { OrderItem } from '../modules/payment/entities/order-item.entity.js';
@@ -49,6 +50,7 @@ export function createAppDataSource(): DataSource {
       QuizOptionEntity,
       QuizAttemptEntity,
       AttemptAnswerEntity,
+      QuizGradeAuditLogEntity,
       Order,
       OrderItem,
       OrderAuditLog,

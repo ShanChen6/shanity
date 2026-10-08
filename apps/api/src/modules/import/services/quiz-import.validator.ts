@@ -60,6 +60,8 @@ const STRUCTURE_MESSAGES: Record<
     'correct',
     'MULTIPLE_CHOICE needs at least one incorrect option',
   ],
+  ESSAY_CONFIG_REQUIRED: ['type', 'ESSAY requires essayConfig'],
+  ESSAY_OPTIONS_NOT_ALLOWED: ['options', 'ESSAY does not allow options'],
   INVALID_QUESTION_POINTS: ['points', 'Points must be greater than 0'],
 };
 

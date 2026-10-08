@@ -454,7 +454,7 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
     // Graded against the frozen key, not the flipped live one.
     const result = await submit(student.session, started.body.id).expect(200);
     expect(result.body).toMatchObject({
-      status: 'SUBMITTED',
+      status: 'COMPLETED',
       score: 100,
       isPassed: true,
     });
@@ -662,13 +662,13 @@ describe('Q5 quiz attempt runtime over HTTP', () => {
 
     const first = await submit(student.session, attemptId).expect(200);
     expect(first.body).toMatchObject({
-      status: 'SUBMITTED',
+      status: 'COMPLETED',
       score: 33,
       isPassed: false,
     });
     const again = await submit(student.session, attemptId).expect(200);
     expect(again.body).toMatchObject({
-      status: 'SUBMITTED',
+      status: 'COMPLETED',
       score: 33,
       submittedAt: first.body.submittedAt,
     });

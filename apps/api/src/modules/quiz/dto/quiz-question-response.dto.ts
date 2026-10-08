@@ -4,6 +4,7 @@ import type {
   QuizQuestionType,
 } from '../entities/quiz-question.entity.js';
 import type { QuizOptionEntity } from '../entities/quiz-option.entity.js';
+import type { EssayConfig } from '../domain/assessment.types.js';
 
 // Learner DTOs are built field by field from an allow-list, never by spreading
 // an entity, so a new sensitive column cannot leak by default.
@@ -15,7 +16,23 @@ export type LearnerOptionSource = Pick<
 export type LearnerQuestionSource = Pick<
   QuizQuestionEntity,
   'id' | 'type' | 'content' | 'position' | 'points'
-> & { options: LearnerOptionSource[] };
+> & {
+  essayConfig?: EssayConfig | null;
+  options: LearnerOptionSource[];
+};
+
+export type LearnerEssayConfig = Pick<
+  EssayConfig,
+  'allowedSubmissionTypes' | 'maxFileUploads' | 'maxWords'
+>;
+
+function learnerEssayConfig(config: EssayConfig): LearnerEssayConfig {
+  return {
+    allowedSubmissionTypes: config.allowedSubmissionTypes,
+    maxFileUploads: config.maxFileUploads,
+    ...(config.maxWords !== undefined && { maxWords: config.maxWords }),
+  };
+}
 
 export class LearnerOptionResponseDto {
   id: string;
@@ -38,6 +55,7 @@ export class LearnerQuestionResponseDto {
   content: string;
   position: number;
   points: number;
+  essayConfig?: LearnerEssayConfig;
   options: LearnerOptionResponseDto[];
 
   static from(question: LearnerQuestionSource): LearnerQuestionResponseDto {
@@ -47,6 +65,9 @@ export class LearnerQuestionResponseDto {
       content: question.content,
       position: question.position,
       points: question.points,
+      ...(question.essayConfig && {
+        essayConfig: learnerEssayConfig(question.essayConfig),
+      }),
       options: question.options.map((option) =>
         LearnerOptionResponseDto.from(option),
       ),
@@ -110,6 +131,7 @@ export class InstructorQuestionResponseDto {
   content: string;
   position: number;
   points: number;
+  essayConfig: EssayConfig | null;
   explanation: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -123,6 +145,7 @@ export class InstructorQuestionResponseDto {
       content: question.content,
       position: question.position,
       points: question.points,
+      essayConfig: question.essayConfig,
       explanation: question.explanation,
       createdAt: question.createdAt,
       updatedAt: question.updatedAt,

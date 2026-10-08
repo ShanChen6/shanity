@@ -9,8 +9,9 @@ import type {
   QuizQuestionEntity,
   QuizQuestionType,
 } from '../entities/quiz-question.entity.js';
+import type { EssayConfig } from '../domain/assessment.types.js';
 
-export const QUIZ_SNAPSHOT_SCHEMA_VERSION = 1;
+export const QUIZ_SNAPSHOT_SCHEMA_VERSION = 2;
 
 export type SnapshotOption = {
   id: string;
@@ -26,6 +27,8 @@ export type SnapshotQuestion = {
   position: number;
   points: number;
   explanation: string | null;
+  // Absent only on legacy schema-v1 snapshots.
+  essayConfig?: EssayConfig | null;
   // Display order for this attempt.
   options: SnapshotOption[];
 };
@@ -35,7 +38,7 @@ export type SnapshotQuestion = {
  * reading authoring rows again. Contains the answer key: server-side only.
  */
 export type QuizAttemptSnapshot = {
-  schemaVersion: typeof QUIZ_SNAPSHOT_SCHEMA_VERSION;
+  schemaVersion: 1 | typeof QUIZ_SNAPSHOT_SCHEMA_VERSION;
   quiz: {
     id: string;
     version: number;
@@ -95,6 +98,7 @@ export function buildQuizSnapshot(
         position: question.position,
         points: question.points,
         explanation: question.explanation,
+        ...(question.essayConfig && { essayConfig: question.essayConfig }),
         options: quiz.shuffleOptions ? shuffle(options) : options,
       };
     });
