@@ -20,7 +20,8 @@ export function InstructorDashboard() {
   // Same key as the course list, so opening either warms the other.
   const courses = useQuery({
     queryKey: ["instructor", "courses"],
-    queryFn: ({ signal }) => api<Course[]>("/courses", { signal }),
+    queryFn: ({ signal }) =>
+      api<Course[]>("/api/v1/instructor/courses", { signal }),
   });
   const grading = useGradingQueue(PENDING_GRADING);
   const owned = (courses.data ?? []).filter(

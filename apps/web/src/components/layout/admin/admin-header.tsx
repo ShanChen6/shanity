@@ -85,9 +85,12 @@ export function AdminHeader({ homeHref = "/admin" }: { homeHref?: string }) {
           <Icon name={open ? "close" : "menu"} />
         </Button>
         <Breadcrumbs items={trail} alwaysShow className="min-w-0 flex-1" />
-        <CommandMenuTrigger className="hidden sm:inline-flex" />
-        <NotificationBell />
-        <ThemeCycleButton />
+        {/* Wrapper, not a `hidden` class on the trigger: that would fight its own display. */}
+        <div className="hidden items-center gap-1 sm:flex">
+          <CommandMenuTrigger compact />
+          <NotificationBell />
+          <ThemeCycleButton />
+        </div>
         <Link
           href="/profile"
           className="flex min-h-11 max-w-[45%] min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-hover"

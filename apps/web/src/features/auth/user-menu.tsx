@@ -58,7 +58,7 @@ export function UserMenu() {
         aria-label="Mở menu tài khoản"
       >
         <CurrentUserAvatar />
-        <span className="hidden max-w-32 truncate text-sm font-semibold sm:inline">
+        <span className="hidden max-w-32 truncate text-sm font-semibold lg:inline">
           {user.displayName}
         </span>
         <span aria-hidden="true" className="text-muted">

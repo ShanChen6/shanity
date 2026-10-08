@@ -54,6 +54,28 @@ describe("QueryBoundary", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  it("quotes the correlation id of a server failure, but not of a 4xx", () => {
+    const failing = (status: number) =>
+      asQuery<string[]>({
+        isPending: false,
+        isError: true,
+        error: new ApiError(status, ["Lỗi"], {}, "req-abc12345"),
+        isRefetching: false,
+        refetch: vi.fn(),
+      });
+    const { unmount } = render(
+      <QueryBoundary query={failing(500)}>{() => <p>data</p>}</QueryBoundary>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Mã tham chiếu: req-abc12345",
+    );
+    unmount();
+    render(
+      <QueryBoundary query={failing(404)}>{() => <p>data</p>}</QueryBoundary>,
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Mã tham chiếu");
+  });
+
   it("shows the empty state only when the data is empty", () => {
     const empty = { title: "Chưa có gì", description: "Hãy tạo mục đầu tiên" };
     const { rerender } = render(

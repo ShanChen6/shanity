@@ -219,7 +219,8 @@ export const footerNav: readonly FooterGroup[] = [
     ],
   },
   {
-    title: "Tài khoản",
+    // Not "Tài khoản": that is the name of the header's account landmark.
+    title: "Tham gia",
     links: [
       { href: "/login", label: "Đăng nhập" },
       { href: "/register", label: "Tạo tài khoản" },

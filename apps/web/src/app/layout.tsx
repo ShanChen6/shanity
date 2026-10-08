@@ -5,6 +5,7 @@ import "./globals.css";
 import { SessionProvider } from "@/features/auth/session-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { ToastProvider } from "@/providers/toast-provider";
 import { CommandMenuProvider } from "@/features/command-menu/command-menu";
 import { BRAND } from "@/config/brand.config";
 
@@ -50,11 +51,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {`var t=null;try{t=localStorage.getItem("shanity-theme")}catch(e){}var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.dataset.theme=t||"system"`}
         </Script>
         <ThemeProvider>
-          <QueryProvider>
-            <SessionProvider>
-              <CommandMenuProvider>{children}</CommandMenuProvider>
-            </SessionProvider>
-          </QueryProvider>
+          <ToastProvider>
+            <QueryProvider>
+              <SessionProvider>
+                <CommandMenuProvider>{children}</CommandMenuProvider>
+              </SessionProvider>
+            </QueryProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -43,7 +43,7 @@ describe("SiteFooter", () => {
       screen.getByRole("navigation", { name: "Khám phá" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("navigation", { name: "Tài khoản" }),
+      screen.getByRole("navigation", { name: "Tham gia" }),
     ).toBeInTheDocument();
     expect(screen.getByText("status-indicator")).toBeInTheDocument();
     expect(

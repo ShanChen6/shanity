@@ -28,7 +28,7 @@ vi.mock("@/features/auth/user-menu", () => ({
   UserMenu: () => <div>user-menu</div>,
 }));
 vi.mock("@/features/command-menu/command-menu", () => ({
-  CommandMenuTrigger: () => <button type="button">Tìm kiếm nhanh</button>,
+  CommandMenuTrigger: () => <button type="button">Tìm nhanh</button>,
 }));
 vi.mock("@/features/notifications/notification-bell", () => ({
   NotificationBell: () => <div>bell</div>,
@@ -72,7 +72,7 @@ describe("SiteHeader for a visitor", () => {
     expect(screen.queryByText("bell")).toBeNull();
     expect(screen.queryByText("user-menu")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Tìm kiếm nhanh" }),
+      screen.getByRole("button", { name: "Tìm nhanh" }),
     ).toBeInTheDocument();
   });
 

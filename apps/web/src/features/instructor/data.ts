@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useOptimisticMutation } from "@/hooks/useOptimisticMutation";
 import { api, ApiError, API_URL } from "@/lib/api";
 export type Course = {
   id: string;
@@ -106,16 +107,14 @@ export function useSaveCourse(id: string) {
   });
 }
 export function useReorder(id: string, kind: "chapters" | "lessons") {
-  const client = useQueryClient();
   const key = kind === "chapters" ? chaptersKey(id) : lessonsKey(id);
-  return useMutation({
-    mutationFn: ({
-      items,
-      chapterId,
-    }: {
-      items: (Chapter | Lesson)[];
-      chapterId?: string;
-    }) =>
+  return useOptimisticMutation<
+    unknown,
+    { items: (Chapter | Lesson)[]; chapterId?: string },
+    (Chapter | Lesson)[]
+  >({
+    queryKey: key,
+    mutationFn: ({ items, chapterId }) =>
       api(
         `/courses/${id}/${kind === "chapters" ? "chapters/reorder" : `chapters/${chapterId}/lessons/reorder`}`,
         {
@@ -132,26 +131,20 @@ export function useReorder(id: string, kind: "chapters" | "lessons") {
           ),
         },
       ),
-    onMutate: async ({ items, chapterId }) => {
-      await client.cancelQueries({ queryKey: key });
-      const previous = client.getQueryData<(Chapter | Lesson)[]>(key);
+    apply: (previous, { items, chapterId }) => {
       const reordered = items.map((item, position) => ({ ...item, position }));
-      client.setQueryData(
-        key,
-        kind === "chapters"
-          ? reordered
-          : [
-              ...(previous ?? []).filter(
-                (item) => (item as Lesson).chapterId !== chapterId,
-              ),
-              ...reordered,
-            ],
-      );
-      return { previous };
+      return kind === "chapters"
+        ? reordered
+        : [
+            ...(previous ?? []).filter(
+              (item) => (item as Lesson).chapterId !== chapterId,
+            ),
+            ...reordered,
+          ];
     },
-    onError: (_error, _values, context) => {
-      if (context?.previous) client.setQueryData(key, context.previous);
-    },
-    onSettled: () => client.invalidateQueries({ queryKey: key }),
+    failureMessage:
+      kind === "chapters"
+        ? "Không lưu được thứ tự chương, đã khôi phục thứ tự cũ."
+        : "Không lưu được thứ tự bài học, đã khôi phục thứ tự cũ.",
   });
 }

@@ -23,7 +23,7 @@ const PUBLIC_NAV: readonly NavItem[] = [
 ];
 
 const linkClass = (active: boolean) =>
-  `inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold transition-colors hover:bg-surface-hover ${
+  `inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition-colors hover:bg-surface-hover ${
     active ? "text-primary" : "text-foreground-secondary"
   }`;
 
@@ -73,7 +73,18 @@ export function SiteHeader() {
       }}
     >
       <div className="container flex min-h-16 items-center gap-2 sm:gap-3">
-        <BrandLogo width={118} highPriority className="mr-1 shrink-0" />
+        {/* Below 640px the wordmark would push the controls off a 320px screen. */}
+        <BrandLogo
+          variant="icon"
+          width={36}
+          highPriority
+          className="mr-1 shrink-0 sm:hidden"
+        />
+        <BrandLogo
+          width={118}
+          highPriority
+          className="mr-1 hidden shrink-0 sm:inline-flex"
+        />
         <nav
           aria-label="Điều hướng chính"
           className="hidden flex-1 items-center gap-1 xl:flex"
@@ -90,11 +101,16 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <CommandMenuTrigger />
+          <CommandMenuTrigger compact />
           {user && <NotificationBell />}
-          <ThemeCycleButton />
+          {/* Phones get the theme switch inside the menu panel instead. */}
+          <div className="hidden sm:flex">
+            <ThemeCycleButton />
+          </div>
           {user ? (
-            <UserMenu />
+            <nav aria-label="Tài khoản">
+              <UserMenu />
+            </nav>
           ) : status === "loading" ? null : (
             <>
               <Link href="/login" className={linkClass(false)}>
@@ -127,6 +143,10 @@ export function SiteHeader() {
           aria-label="Điều hướng chính (di động)"
           className="container grid gap-1 border-t border-border py-3 xl:hidden"
         >
+          <div className="flex items-center justify-between px-3 pb-1 sm:hidden">
+            <span className="text-sm text-muted">Giao diện</span>
+            <ThemeCycleButton />
+          </div>
           {mobileItems.map((item) => (
             <Link
               key={item.href}

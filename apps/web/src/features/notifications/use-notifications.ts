@@ -8,8 +8,7 @@ import {
 } from "@/features/grading-queue/api";
 import { PENDING_GRADING } from "@/features/grading-queue/model";
 import { paymentKeys, fetchStudentOrders } from "@/features/payments/api";
-import { api } from "@/lib/api";
-import { historyKey, type MyAttemptPage } from "@/features/standalone-quiz/api";
+import { fetchMyAttempts, historyKey } from "@/features/standalone-quiz/api";
 
 export type AppNotification = {
   id: string;
@@ -58,10 +57,7 @@ export function useNotifications(): {
   });
   const attempts = useQuery({
     queryKey: [...historyKey, "all", 1],
-    queryFn: ({ signal }) =>
-      api<MyAttemptPage>("/my-quiz-attempts?scope=all&page=1&limit=20", {
-        signal,
-      }),
+    queryFn: ({ signal }) => fetchMyAttempts("all", 1, signal),
     enabled: isLearner,
     ...live,
   });

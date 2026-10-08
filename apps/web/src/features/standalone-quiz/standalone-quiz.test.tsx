@@ -15,7 +15,7 @@ const replace = vi.fn();
 let search = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace, prefetch: vi.fn() }),
-  usePathname: () => "/my-quiz-attempts",
+  usePathname: () => "/quiz-attempts",
   useSearchParams: () => search,
 }));
 
@@ -382,9 +382,12 @@ describe("history", () => {
   });
 
   it("renders the table and switches tabs", async () => {
-    routes["GET /my-quiz-attempts"] = () => [
+    routes["GET /api/v1/student/quiz-attempts"] = () => [
       {
-        attempts: [
+        success: true,
+        statusCode: 200,
+        message: "OK",
+        data: [
           row({}),
           row({
             attemptId: "a0",
@@ -394,7 +397,7 @@ describe("history", () => {
             courseTitle: "TypeScript",
           }),
         ],
-        pagination: { page: 1, limit: 20, totalItems: 2, totalPages: 1 },
+        meta: { page: 1, limit: 20, total: 2, totalPages: 1 },
       },
     ];
     render(<MyQuizAttempts />, { wrapper: wrapper() });
@@ -407,10 +410,12 @@ describe("history", () => {
     expect(
       within(screen.getByTestId("attempt-row-a0")).getByText(/TypeScript/),
     ).toBeInTheDocument();
-    expect(calls[0]!.path).toBe("/my-quiz-attempts?scope=all&page=1&limit=20");
+    expect(calls[0]!.path).toBe(
+      "/api/v1/student/quiz-attempts?scope=all&page=1&limit=20",
+    );
 
     await userEvent.click(screen.getByRole("tab", { name: "Quiz độc lập" }));
-    expect(replace).toHaveBeenCalledWith("/my-quiz-attempts?scope=standalone", {
+    expect(replace).toHaveBeenCalledWith("/quiz-attempts?scope=standalone", {
       scroll: false,
     });
   });

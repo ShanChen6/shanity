@@ -18,9 +18,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { portalsFor, searchableNavigation } from "@/config/navigation.config";
 import { useSession } from "@/features/auth/session-provider";
-import type { CourseCatalogResponse } from "@/features/courses/catalog-types";
+import type { CatalogCourse } from "@/features/courses/catalog-types";
 import { useDebounce } from "@/hooks/useDebounce";
-import { api } from "@/lib/api";
+import { apiPage } from "@/lib/api";
 import { useTheme } from "@/providers/theme-provider";
 import { rank } from "./search";
 
@@ -75,7 +75,14 @@ const isApplePlatform = () =>
   /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
 /** The header's search field look-alike. */
-export function CommandMenuTrigger({ className = "" }: { className?: string }) {
+export function CommandMenuTrigger({
+  className = "",
+  compact = false,
+}: {
+  className?: string;
+  /** Icon only on tablets, shortcut from xl, and the label only on 2xl. */
+  compact?: boolean;
+}) {
   const { setOpen } = useCommandMenu();
   // Server and first client render agree (Ctrl); a Mac swaps to the glyph after.
   const apple = useSyncExternalStore(
@@ -86,15 +93,21 @@ export function CommandMenuTrigger({ className = "" }: { className?: string }) {
   return (
     <button
       type="button"
-      aria-label="Tìm kiếm nhanh"
+      aria-label="Tìm nhanh"
       aria-haspopup="dialog"
       aria-keyshortcuts="Control+K Meta+K"
       onClick={() => setOpen(true)}
       className={`inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:bg-surface-hover hover:text-foreground ${className}`}
     >
       <Icon name="search" className="size-4" />
-      <span className="hidden sm:inline">Tìm kiếm…</span>
-      <kbd className="hidden rounded border border-border-strong px-1.5 py-0.5 font-mono text-xs md:inline">
+      <span className={compact ? "hidden 2xl:inline" : "hidden sm:inline"}>
+        Tìm nhanh…
+      </span>
+      <kbd
+        className={`hidden rounded border border-border-strong px-1.5 py-0.5 font-mono text-xs ${
+          compact ? "xl:inline" : "md:inline"
+        }`}
+      >
         {apple ? "⌘K" : "Ctrl K"}
       </kbd>
     </button>
@@ -200,8 +213,8 @@ function useCourseResults(query: string): Command[] {
   const courses = useQuery({
     queryKey: ["command-menu", "courses", term],
     queryFn: ({ signal }) =>
-      api<CourseCatalogResponse>(
-        `/public/courses?${new URLSearchParams({ search: term, page: "1", limit: "5" })}`,
+      apiPage<CatalogCourse>(
+        `/api/v1/public/courses?${new URLSearchParams({ search: term, page: "1", limit: "5" })}`,
         { signal },
         false,
       ),
@@ -297,7 +310,7 @@ function CommandMenu({ onClose }: { onClose: () => void }) {
   return (
     <dialog
       ref={dialog}
-      aria-label="Tìm kiếm nhanh"
+      aria-label="Tìm nhanh"
       className="m-0 mx-auto mt-[10vh] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-xl border border-border bg-surface p-0 text-foreground shadow-lg backdrop:bg-black/50"
       onCancel={(event) => {
         event.preventDefault();

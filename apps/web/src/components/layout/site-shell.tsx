@@ -28,7 +28,7 @@ export function SiteShell({
         {breadcrumbs && (
           <Breadcrumbs
             root={{ label: "Trang chủ", href: "/" }}
-            className="container pt-4"
+            className="container pb-1 pt-4"
           />
         )}
         <div

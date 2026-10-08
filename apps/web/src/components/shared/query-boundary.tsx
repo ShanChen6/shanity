@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { errorMessage } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
 import { LoadingState } from "./loading-state";
@@ -21,7 +21,8 @@ type EmptyProps = {
  *
  *   pending -> `loading` (pass a skeleton shaped like the content to avoid
  *              layout shift; defaults to a labelled spinner)
- *   error   -> ErrorState with the API's message and a retry button
+ *   error   -> ErrorState with the API's message and a retry button (a 5xx
+ *              also shows the request's correlation id for support)
  *   empty   -> EmptyState, when `isEmpty` says so
  *   success -> `children(data)`
  *
@@ -49,6 +50,12 @@ export function QueryBoundary<T>({
       <ErrorState
         title={errorTitle}
         description={errorMessage(query.error)}
+        // Only unexpected server failures are worth reporting by id.
+        reference={
+          query.error instanceof ApiError && query.error.status >= 500
+            ? query.error.correlationId
+            : undefined
+        }
         action={
           <Button
             variant="outline"

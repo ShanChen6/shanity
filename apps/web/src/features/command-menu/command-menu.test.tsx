@@ -31,6 +31,9 @@ const courseFetch = vi.fn<(url: string) => Promise<Response>>(
   async () =>
     new Response(
       JSON.stringify({
+        success: true,
+        statusCode: 200,
+        message: "OK",
         data: [
           {
             id: "c1",
@@ -39,10 +42,7 @@ const courseFetch = vi.fn<(url: string) => Promise<Response>>(
             instructor: { displayName: "Lan" },
           },
         ],
-        total: 1,
-        page: 1,
-        limit: 5,
-        totalPages: 1,
+        meta: { total: 1, page: 1, limit: 5, totalPages: 1 },
       }),
       { status: 200 },
     ),
@@ -60,7 +60,7 @@ function renderMenu() {
     </QueryClientProvider>,
   );
 }
-const dialog = () => screen.queryByRole("dialog", { name: "Tìm kiếm nhanh" });
+const dialog = () => screen.queryByRole("dialog", { name: "Tìm nhanh" });
 const input = () => screen.getByRole("combobox");
 const options = () => screen.queryAllByRole("option").map((o) => o.textContent);
 
@@ -78,9 +78,7 @@ describe("opening", () => {
   it("opens from the header trigger and focuses the search field", async () => {
     renderMenu();
     expect(dialog()).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Tìm kiếm nhanh" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Tìm nhanh" }));
     expect(dialog()).toBeInTheDocument();
     expect(input()).toHaveFocus();
   });
@@ -161,7 +159,7 @@ describe("searching", () => {
     });
     expect(courseFetch).toHaveBeenCalledTimes(1);
     expect(String(courseFetch.mock.calls[0]![0])).toContain(
-      "/public/courses?search=ja&page=1&limit=5",
+      "/api/v1/public/courses?search=ja&page=1&limit=5",
     );
     await userEvent.click(result);
     expect(push).toHaveBeenCalledWith("/courses/javascript-co-ban");

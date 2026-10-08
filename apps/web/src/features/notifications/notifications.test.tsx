@@ -39,6 +39,14 @@ function renderBell() {
     </QueryClientProvider>,
   );
 }
+// GET /api/v1/student/quiz-attempts answers with the standard envelope.
+const attemptsPage = (attempts: unknown[]) => ({
+  success: true,
+  statusCode: 200,
+  message: "OK",
+  data: attempts,
+  meta: { page: 1, limit: 20, total: attempts.length, totalPages: 1 },
+});
 const attempt = (over: Record<string, unknown> = {}) => ({
   attemptId: "a1",
   quizTitle: "Quiz JS",
@@ -58,7 +66,7 @@ beforeEach(() => {
       limit: 10,
       totalPages: 0,
     }),
-    "/my-quiz-attempts": () => ({ attempts: [], pagination: {} }),
+    "/api/v1/student/quiz-attempts": () => attemptsPage([]),
     "/instructor/grading-queue": () => ({
       items: [],
       pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
@@ -99,13 +107,11 @@ describe("NotificationBell", () => {
       limit: 10,
       totalPages: 1,
     });
-    routes["/my-quiz-attempts"] = () => ({
-      attempts: [
+    routes["/api/v1/student/quiz-attempts"] = () =>
+      attemptsPage([
         attempt(),
         attempt({ attemptId: "a2", status: "NEEDS_GRADING" }),
-      ],
-      pagination: {},
-    });
+      ]);
     renderBell();
     const bell = await screen.findByLabelText("Thông báo, 2 mục cần xử lý");
     await userEvent.click(bell);
@@ -118,13 +124,11 @@ describe("NotificationBell", () => {
   });
 
   it("ignores expired attempts and attempts that are not in progress", async () => {
-    routes["/my-quiz-attempts"] = () => ({
-      attempts: [
+    routes["/api/v1/student/quiz-attempts"] = () =>
+      attemptsPage([
         attempt({ isExpired: true }),
         attempt({ attemptId: "a3", status: "COMPLETED" }),
-      ],
-      pagination: {},
-    });
+      ]);
     renderBell();
     await waitFor(() => expect(calls).toHaveLength(2));
     await open();
@@ -134,10 +138,11 @@ describe("NotificationBell", () => {
   });
 
   it("pluralises several unfinished quizzes into one entry", async () => {
-    routes["/my-quiz-attempts"] = () => ({
-      attempts: [attempt(), attempt({ attemptId: "a2", quizTitle: "Quiz 2" })],
-      pagination: {},
-    });
+    routes["/api/v1/student/quiz-attempts"] = () =>
+      attemptsPage([
+        attempt(),
+        attempt({ attemptId: "a2", quizTitle: "Quiz 2" }),
+      ]);
     renderBell();
     await userEvent.click(
       await screen.findByLabelText("Thông báo, 1 mục cần xử lý"),

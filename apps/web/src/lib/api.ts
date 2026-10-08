@@ -19,6 +19,8 @@ export class ApiError extends Error {
     // Parsed error body, for structured errors such as
     // { code: "PREREQUISITE_LESSON_NOT_COMPLETED", requiredLesson }.
     public data: Record<string, unknown> = {},
+    // The API's X-Correlation-Id: quote it to support to find the failing request.
+    public correlationId?: string,
   ) {
     super(messages.join(" "));
   }
@@ -26,6 +28,33 @@ export class ApiError extends Error {
     return typeof this.data.code === "string" ? this.data.code : undefined;
   }
 }
+
+/** Pagination of the standard `/api/v1/<domain>` envelope. */
+export type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+export type Page<T> = { data: T[]; meta: PaginationMeta };
+
+/** `{ success, statusCode, message, data, meta?, errors?, correlationId? }` */
+type Envelope = {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: unknown;
+  meta?: PaginationMeta;
+  errors?: string[];
+  correlationId?: string;
+};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isEnvelope = (value: unknown): value is Envelope =>
+  isRecord(value) &&
+  typeof value.success === "boolean" &&
+  typeof value.statusCode === "number" &&
+  "data" in value;
 export const SESSION_LOST = "shanity:session-lost";
 const notifyLost = () => window.dispatchEvent(new Event(SESSION_LOST));
 
@@ -48,21 +77,37 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(0, ["Không thể kết nối máy chủ. Vui lòng thử lại."]);
   }
   if (response.status === 204) return undefined as T;
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw new ApiError(
-      response.status,
-      [
-        ...(Array.isArray(data.message)
-          ? data.message
-          : [data.message ?? "Yêu cầu không thành công."]),
-        ...(Array.isArray(data.errors)
-          ? data.errors.filter((item: unknown) => typeof item === "string")
-          : []),
-      ],
-      data && typeof data === "object" ? data : {},
-    );
+  const data: unknown = await response.json().catch(() => ({}));
+  const correlationId = response.headers.get("x-correlation-id") ?? undefined;
+  if (!response.ok) throw toApiError(response.status, data, correlationId);
   return data as T;
+}
+
+function toApiError(status: number, data: unknown, correlationId?: string) {
+  if (isEnvelope(data))
+    return new ApiError(
+      status,
+      data.errors?.length ? data.errors : [data.message],
+      // Structured details such as { code } travel in `data`.
+      isRecord(data.data) ? data.data : {},
+      correlationId ?? data.correlationId,
+    );
+  const body = isRecord(data) ? data : {};
+  return new ApiError(
+    status,
+    [
+      ...(Array.isArray(body.message)
+        ? (body.message as string[])
+        : [
+            (body.message as string | undefined) ?? "Yêu cầu không thành công.",
+          ]),
+      ...(Array.isArray(body.errors)
+        ? body.errors.filter((item: unknown) => typeof item === "string")
+        : []),
+    ],
+    body,
+    correlationId,
+  );
 }
 
 // Web Locks serialize refresh/login/logout across tabs without storing tokens.
@@ -95,25 +140,50 @@ async function refreshOnce() {
   }
   return refreshFlight;
 }
-export async function api<T>(
+async function authorized(
   path: string,
-  init: RequestInit = {},
-  authenticated = true,
-): Promise<T> {
+  init: RequestInit,
+  authenticated: boolean,
+): Promise<unknown> {
   try {
-    return await send<T>(path, init);
+    return await send<unknown>(path, init);
   } catch (error) {
     if (!authenticated || !(error instanceof ApiError) || error.status !== 401)
       throw error;
     await refreshOnce();
     try {
-      return await send<T>(path, init);
+      return await send<unknown>(path, init);
     } catch (retryError) {
       if (retryError instanceof ApiError && retryError.status === 401)
         notifyLost();
       throw retryError;
     }
   }
+}
+
+/**
+ * Calls the API and returns the payload: the `data` of a `/api/v1/<domain>`
+ * envelope, or the body itself on the legacy routes.
+ */
+export async function api<T>(
+  path: string,
+  init: RequestInit = {},
+  authenticated = true,
+): Promise<T> {
+  const body = await authorized(path, init, authenticated);
+  return (isEnvelope(body) ? body.data : body) as T;
+}
+
+/** A `/api/v1/<domain>` list: its rows plus the pagination the envelope carries. */
+export async function apiPage<T>(
+  path: string,
+  init: RequestInit = {},
+  authenticated = true,
+): Promise<Page<T>> {
+  const body = await authorized(path, init, authenticated);
+  if (!isEnvelope(body) || !Array.isArray(body.data) || !body.meta)
+    throw new ApiError(502, ["Dữ liệu danh sách không hợp lệ."]);
+  return { data: body.data as T[], meta: body.meta };
 }
 export function errorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Có lỗi xảy ra. Vui lòng thử lại.";
