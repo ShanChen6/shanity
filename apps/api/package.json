@@ -28,6 +28,7 @@
     "db:adopt-legacy": "pnpm build && node database/cli.mjs adopt-legacy",
     "db:seed": "pnpm build && node database/cli.mjs seed",
     "seed:course": "pnpm build && node database/cli.mjs seed-course",
+    "seed:demo": "pnpm build && node database/cli.mjs seed-demo",
     "db:verify": "pnpm build && node database/verify.mjs"
   },
   "dependencies": {

@@ -5,19 +5,16 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Course } from './course.entity.js';
 import { Lesson } from '../modules/lessons/entities/lesson.entity.js';
+import { AuditedEntity } from '../database/audited.entity.js';
 
 @Entity('chapters')
 @Index('chapters_course_id_idx', ['courseId'])
 @Index('chapters_course_position_idx', ['courseId', 'position'])
-export class Chapter {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Chapter extends AuditedEntity {
   @Column({ name: 'course_id', type: 'uuid' })
   courseId: string;
 
@@ -42,10 +39,4 @@ export class Chapter {
 
   @Column({ type: 'integer' })
   position: number;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 }

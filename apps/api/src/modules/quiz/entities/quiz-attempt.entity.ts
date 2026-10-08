@@ -5,7 +5,6 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
@@ -13,6 +12,7 @@ import { User } from '../../../users/user.entity.js';
 import { QuizEntity } from './quiz.entity.js';
 import { AttemptAnswerEntity } from './attempt-answer.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 export enum QuizAttemptStatus {
   IN_PROGRESS = 'IN_PROGRESS',
@@ -40,10 +40,7 @@ export enum QuizAttemptStatus {
   'quizId',
   'attemptNumber',
 ])
-export class QuizAttemptEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class QuizAttemptEntity extends AuditedEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
@@ -117,11 +114,4 @@ export class QuizAttemptEntity {
 
   @OneToMany(() => AttemptAnswerEntity, (answer) => answer.attempt)
   answers: Relation<AttemptAnswerEntity[]>;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  // PostgreSQL's trigger updates this for ORM and direct SQL writes.
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 }
