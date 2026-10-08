@@ -5,7 +5,6 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../users/user.entity.js';
 import { Chapter } from './chapter.entity.js';
@@ -14,14 +13,12 @@ import { CourseStatus } from './course-status.js';
 import { CourseAccessType } from './course-access-type.js';
 import { CourseCurrency } from './course-currency.js';
 import { bigintNumberTransformer } from '../database/bigint-number.transformer.js';
+import { AuditedEntity } from '../database/audited.entity.js';
 
 @Entity('courses')
 @Index('courses_instructor_idx', ['instructorId'])
 @Index('courses_status_published_at_idx', ['status', 'publishedAt'])
-export class Course {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Course extends AuditedEntity {
   @Column({ type: 'text' })
   title: string;
 
@@ -98,13 +95,6 @@ export class Course {
 
   @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
   publishedAt: Date | null;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  // PostgreSQL's trigger updates this for ORM and direct SQL writes.
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 
   // Publication stays single-sourced in `status`; this is the derived flag.
   get isPublished(): boolean {

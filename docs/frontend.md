@@ -38,7 +38,7 @@ Tất cả component trong `apps/web/src/components/ui/`, tên file kebab-case v
 | Progress, Skeleton, Separator, Avatar, Spinner | Progress có accessible name/value; Avatar hỗ trợ `AvatarImage`/`AvatarFallback`; Spinner có label/decorative                                  |
 | Icon                                           | SVG nội bộ nhỏ, luôn decorative; control chứa icon phải có tên accessible                                                                     |
 
-Layout exports `AppShell`, `PageContainer`, `PageHeader`, `Section`. Shared exports `Logo`, `ThemeToggle`, `EmptyState`, `ErrorState`, `LoadingState`. Tailwind `sr-only` đáp ứng visually-hidden text; không thêm utility trùng.
+Layout exports `AppShell`, `PageContainer`, `PageHeader`, `Section`. Shared exports `ThemeToggle`, `EmptyState`, `ErrorState`, `LoadingState`, `QueryBoundary` (một máy trạng thái loading/lỗi/rỗng/thành công cho màn hình dữ liệu). Logo dùng `<BrandLogo variant="full|icon|monochrome">` trong `components/brand/`, ảnh ở `public/assets/branding/`; điều hướng của mọi vai trò nằm ở một nơi, `config/navigation.config.ts`. Thông báo dùng `useToast()` từ `ToastProvider`; mutation có cập nhật lạc quan dùng `hooks/useOptimisticMutation`. Xem [báo cáo kiểm toán](architecture/pre-release-system-audit.md). Tailwind `sr-only` đáp ứng visually-hidden text; không thêm utility trùng.
 
 FormField dùng `useId`, nên phần form với render prop nằm trong Client Component. Ví dụ:
 

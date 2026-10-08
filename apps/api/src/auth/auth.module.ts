@@ -6,8 +6,7 @@ import { AvatarService } from '../avatar/avatar.service.js';
 import { AvatarStorage, LocalAvatarStorage } from '../avatar/avatar-storage.js';
 import { OAuthRedirectFilter } from './oauth-redirect.filter.js';
 import { Module, ValidationPipe } from '@nestjs/common';
-import { SafeErrorsFilter } from './safe-errors.filter.js';
-import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { APP_PIPE } from '@nestjs/core';
 import { DatabaseModule } from '../database/database.module.js';
 import { AuthConfig } from './auth.config.js';
 import { AuthService } from './auth.service.js';
@@ -25,7 +24,6 @@ import { GoogleProvider, GoogleService } from './google.service.js';
   providers: [
     AvatarService,
     { provide: AvatarStorage, useClass: LocalAvatarStorage },
-    { provide: APP_FILTER, useClass: SafeErrorsFilter },
     OAuthRedirectFilter,
     AuthConfig,
     AuthService,

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
-import { CatalogShell } from "./catalog-view";
+import { SiteShell } from "@/components/layout/site-shell";
 import { CatalogThumbnail } from "./catalog-thumbnail";
 import { CourseCta } from "./course-cta";
 
@@ -57,7 +57,7 @@ export function PublicCourseDetailView({
   const curriculumLabel = `${curriculum.length} chương học`;
 
   return (
-    <CatalogShell>
+    <SiteShell>
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border bg-surface-secondary">
           <div className="absolute inset-y-0 right-0 hidden w-[38%] border-l border-emerald-900/10 bg-[repeating-linear-gradient(135deg,transparent_0_22px,color-mix(in_oklab,var(--success)_8%,transparent)_22px_23px,transparent_23px_46px)] lg:block" />
@@ -223,6 +223,6 @@ export function PublicCourseDetailView({
           </aside>
         </div>
       </main>
-    </CatalogShell>
+    </SiteShell>
   );
 }

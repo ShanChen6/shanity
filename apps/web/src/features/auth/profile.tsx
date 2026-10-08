@@ -10,7 +10,6 @@ import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EditProfile } from "./edit-profile";
 import { ChangePassword } from "./change-password";
-import { UserHeader } from "./user-header";
 import { useSession } from "./session-provider";
 
 const roles = {
@@ -38,8 +37,7 @@ export function Profile() {
   const user = session.user;
   return (
     <PageContainer className="max-w-5xl py-6 sm:py-10">
-      <UserHeader />
-      <main className="mt-10 space-y-6">
+      <main className="space-y-6">
         <div>
           <h1 className="text-title font-semibold">Hồ sơ của bạn</h1>
           <p className="mt-2 text-muted">

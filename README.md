@@ -149,6 +149,10 @@ docker compose down
 | `pnpm --filter api test:cov` | Coverage test API |
 
 > Database: `pnpm --filter api db:migrate`, `db:seed`, `db:verify`. Xem [schema, giả định và phần chưa triển khai](docs/database.md).
+>
+> Dữ liệu demo cho môi trường phát triển (4 tài khoản `admin@`, `instructor@`, `student@`, `finance@shanity.local`, khóa học và quiz mẫu; từ chối chạy ở production): `pnpm --filter api seed:demo`. Mật khẩu mặc định và biến `SEED_DEMO_PASSWORD` nằm trong [`.env.example`](.env.example).
+>
+> Kiểm toán kiến trúc trước phát hành (miền `/api/v1`, response envelope, cache, logging, điều hướng, branding, các quyết định và việc còn lại): [docs/architecture/pre-release-system-audit.md](docs/architecture/pre-release-system-audit.md).
 
 ---
 

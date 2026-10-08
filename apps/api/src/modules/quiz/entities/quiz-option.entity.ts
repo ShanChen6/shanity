@@ -1,21 +1,12 @@
 import { Exclude } from 'class-transformer';
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { QuizQuestionEntity } from './quiz-question.entity.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 @Entity('quiz_options')
 @Index('IDX_quiz_options_question_position', ['questionId', 'position'])
-export class QuizOptionEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class QuizOptionEntity extends AuditedEntity {
   @Column({ name: 'question_id', type: 'uuid' })
   questionId: string;
 
@@ -40,7 +31,4 @@ export class QuizOptionEntity {
   @Exclude({ toPlainOnly: true })
   @Column({ name: 'is_correct', type: 'boolean', default: false })
   isCorrect: boolean;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
 }

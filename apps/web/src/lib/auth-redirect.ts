@@ -79,7 +79,7 @@ export function loginUrl(destination: string) {
 export function homeForRoles(roles: readonly Role[]): string {
   if (roles.includes("admin")) return "/admin";
   if (roles.includes("finance_officer")) return "/admin/orders";
-  if (roles.includes("instructor")) return "/instructor/courses";
+  if (roles.includes("instructor")) return "/instructor/dashboard";
   return "/my-learning";
 }
 // An explicit, safe ?redirect= wins; otherwise land on the role's home.

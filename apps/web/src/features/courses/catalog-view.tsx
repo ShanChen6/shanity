@@ -1,41 +1,16 @@
 import Link from "next/link";
+import { SiteShell } from "@/components/layout/site-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
 import { CatalogControls } from "./catalog-controls";
 import { CatalogThumbnail } from "./catalog-thumbnail";
 import { catalogHref } from "./catalog-types";
-import { SiteNav } from "./site-nav";
 import type {
   CatalogCourse,
   CatalogFilters,
   CourseCatalogResponse,
 } from "./catalog-types";
-
-export function CatalogShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="page flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="container flex min-h-16 items-center justify-between gap-4">
-          <Link href="/" className="inline-flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Icon name="book" className="size-5" />
-            </span>
-            <span className="font-heading text-base font-bold">Shanity</span>
-          </Link>
-          <SiteNav />
-        </div>
-      </header>
-      {children}
-      <footer className="mt-auto border-t border-border bg-surface">
-        <div className="container flex flex-col gap-1 py-5 text-body-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-          <span>Shanity · Học mỗi ngày</span>
-          <span>© {new Date().getFullYear()} Shanity</span>
-        </div>
-      </footer>
-    </div>
-  );
-}
 
 function avatarSource(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
@@ -199,7 +174,7 @@ export function CourseCatalog({
   filters: CatalogFilters;
 }) {
   return (
-    <CatalogShell>
+    <SiteShell>
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border bg-surface-secondary">
           <div className="absolute inset-y-0 right-0 hidden w-1/3 border-l border-emerald-900/10 bg-[repeating-linear-gradient(135deg,transparent_0_20px,color-mix(in_oklab,var(--success)_8%,transparent)_20px_21px,transparent_21px_42px)] lg:block" />
@@ -247,6 +222,6 @@ export function CourseCatalog({
           )}
         </section>
       </main>
-    </CatalogShell>
+    </SiteShell>
   );
 }

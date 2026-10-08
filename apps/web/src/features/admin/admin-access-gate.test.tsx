@@ -93,7 +93,7 @@ describe("AdminNavigation", () => {
     pathname = "/admin";
     render(<AdminNavigation />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
-      ["Trang quản trị", "Người dùng", "Đơn hàng"],
+      ["Trang quản trị", "Người dùng", "Đơn hàng", "Cài đặt hệ thống"],
     );
   });
 });

@@ -40,7 +40,7 @@ export function EditNav({
   active,
 }: {
   id: string;
-  active: "basic" | "curriculum" | "preview" | "progress";
+  active: "basic" | "curriculum" | "preview" | "progress" | "quizzes";
 }) {
   return (
     <nav className="instructor-tabs" aria-label="Course editor">
@@ -48,6 +48,7 @@ export function EditNav({
         [
           ["basic", "Thông tin cơ bản"],
           ["curriculum", "Đề cương"],
+          ["quizzes", "Bài kiểm tra"],
           ["preview", "Xem trước & xuất bản"],
           ["progress", "Tiến độ học viên"],
         ] as const
@@ -55,7 +56,7 @@ export function EditNav({
         <Link
           key={tab}
           aria-current={active === tab ? "page" : undefined}
-          href={`${coursePath(id)}/${tab === "preview" || tab === "progress" ? tab : `edit/${tab}`}`}
+          href={`${coursePath(id)}/${tab === "basic" || tab === "curriculum" ? `edit/${tab}` : tab}`}
         >
           {label}
         </Link>

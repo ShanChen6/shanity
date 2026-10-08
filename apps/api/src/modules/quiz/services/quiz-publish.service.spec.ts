@@ -281,8 +281,9 @@ describe('E14 result publication and grade visibility', () => {
       publishedCount: 2,
       stillNeedGradingCount: 1,
     });
-    expect([...response.body.attemptIds].sort()).toEqual(
-      [first.attemptId, second.attemptId].sort(),
+    const byId = (a: string, b: string) => a.localeCompare(b);
+    expect([...(response.body.attemptIds as string[])].sort(byId)).toEqual(
+      [first.attemptId, second.attemptId].sort(byId),
     );
     for (const { attemptId } of [first, second])
       expect(await row(attemptId)).toMatchObject({

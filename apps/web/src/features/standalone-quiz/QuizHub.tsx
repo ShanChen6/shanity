@@ -80,7 +80,7 @@ export function QuizHub() {
           </p>
         </div>
         <Link
-          href="/my-quiz-attempts"
+          href="/quiz-attempts"
           className="inline-flex min-h-11 items-center rounded-md border border-border-strong px-4 text-sm font-semibold hover:bg-surface-hover"
         >
           Lịch sử làm bài

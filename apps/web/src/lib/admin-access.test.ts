@@ -6,7 +6,7 @@ import {
   rolesForAdminPath,
 } from "./admin-access";
 import { homeForRoles, postLoginRedirect } from "./auth-redirect";
-import { adminNavigationFor } from "@/features/admin/navigation";
+import { adminNav, navigationFor } from "@/config/navigation.config";
 
 describe("order console access", () => {
   it("admits admins and finance officers to /admin/orders only", () => {
@@ -54,13 +54,11 @@ describe("order console access", () => {
 
   it("shows finance officers only the links they can open", () => {
     expect(
-      adminNavigationFor(["finance_officer"]).map((item) => item.href),
+      navigationFor(adminNav, ["finance_officer"]).map((item) => item.href),
     ).toEqual(["/admin/orders"]);
-    expect(adminNavigationFor(["admin"]).map((item) => item.href)).toEqual([
-      "/admin",
-      "/admin/users",
-      "/admin/orders",
-    ]);
-    expect(adminNavigationFor(["student"])).toEqual([]);
+    expect(
+      navigationFor(adminNav, ["admin"]).map((item) => item.href),
+    ).toEqual(["/admin", "/admin/users", "/admin/orders", "/admin/settings"]);
+    expect(navigationFor(adminNav, ["student"])).toEqual([]);
   });
 });

@@ -1,13 +1,7 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { User } from '../../../users/user.entity.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 export enum QuizScope {
   LESSON = 'LESSON',
@@ -46,10 +40,7 @@ export enum GradingPolicy {
   unique: true,
   where: 'slug IS NOT NULL',
 })
-export class QuizEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class QuizEntity extends AuditedEntity {
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
@@ -142,10 +133,4 @@ export class QuizEntity {
   // Set only by the publish endpoint.
   @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
   publishedAt: Date | null;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 }

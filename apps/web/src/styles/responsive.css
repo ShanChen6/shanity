@@ -45,8 +45,9 @@
   }
 
   .learning-orbit {
+    /* Decoration only: kept faint now that --border-strong is a 3:1 outline. */
     background-image: radial-gradient(
-      var(--border-strong) 1px,
+      color-mix(in oklab, var(--border-strong) 40%, transparent) 1px,
       transparent 1px
     );
     background-size: 20px 20px;

@@ -12,11 +12,14 @@ import { CurriculumEventsModule } from './modules/curriculum/curriculum-events.m
 import { QuizModule } from './modules/quiz/quiz.module.js';
 import { ContentImportModule } from './modules/import/import.module.js';
 import { PaymentModule } from './modules/payment/payment.module.js';
+import { CommonModule } from './common/common.module.js';
+import { CacheModule } from './cache/cache.module.js';
 
 @Module({
   imports: [
     DatabaseModule,
     CurriculumEventsModule,
+    CacheModule,
     AuthModule,
     CoursesModule,
     ChaptersModule,
@@ -26,6 +29,7 @@ import { PaymentModule } from './modules/payment/payment.module.js';
     QuizModule,
     ContentImportModule,
     PaymentModule,
+    CommonModule,
   ],
   controllers: [AppController],
   providers: [AppService],

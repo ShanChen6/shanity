@@ -65,6 +65,9 @@ export class AttemptAnswerEntity {
   })
   pointsEarned: number | null;
 
+  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
+  createdAt: Date;
+
   @Column({ name: 'saved_at', type: 'timestamptz', default: () => 'now()' })
   savedAt: Date;
 }

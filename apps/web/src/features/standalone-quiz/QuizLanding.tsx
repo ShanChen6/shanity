@@ -280,7 +280,7 @@ export function QuizLanding({ slug }: { slug: string }) {
             </p>
           ) : null}
           <Link
-            href="/my-quiz-attempts?scope=standalone"
+            href="/quiz-attempts?scope=standalone"
             className="block text-center text-sm text-muted hover:text-foreground"
           >
             Xem lịch sử làm bài
