@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageContainer } from "./page-container";
 import { Icon } from "../ui/icon";
-import { Logo } from "../shared/logo";
+import { BrandLogo } from "../brand/brand-logo";
 
 function LearningIllustration() {
   return (
@@ -70,7 +70,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       </a>
       <header className="py-5 sm:py-7">
         <PageContainer className="flex flex-wrap items-center justify-between gap-3">
-          <Logo className="tracking-[-0.06em]" />
+          <BrandLogo width={132} highPriority />
           <Link
             href="/"
             className="inline-flex min-h-11 items-center gap-2 text-sm text-muted hover:text-primary"

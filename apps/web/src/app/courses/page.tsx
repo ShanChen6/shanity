@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { API_URL, ApiError, errorMessage } from "@/lib/api";
 import { CatalogError } from "@/features/courses/catalog-error";
-import { CatalogShell, CourseCatalog } from "@/features/courses/catalog-view";
+import { SiteShell } from "@/components/layout/site-shell";
+import { CourseCatalog } from "@/features/courses/catalog-view";
 import type {
   CatalogFilters,
   CourseCatalogResponse,
@@ -109,13 +110,13 @@ export default async function CoursesPage({
 
   if (failure)
     return (
-      <CatalogShell>
+      <SiteShell>
         <main className="flex flex-1 items-center justify-center">
           <div className="container py-10">
             <CatalogError message={failure} />
           </div>
         </main>
-      </CatalogShell>
+      </SiteShell>
     );
 
   return <CourseCatalog catalog={catalog!} filters={filters} />;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { portalsFor } from "@/config/navigation.config";
 import { errorMessage } from "@/lib/api";
 import { CurrentUserAvatar } from "./current-user-avatar";
 import { useSession } from "./session-provider";
@@ -74,11 +75,18 @@ export function UserMenu() {
         <Link href="/profile" className={itemClass} onClick={close}>
           Cài đặt tài khoản
         </Link>
-        {user.roles.includes("instructor") && (
-          <Link href="/instructor/courses" className={itemClass} onClick={close}>
-            Instructor Portal
-          </Link>
-        )}
+        {portalsFor(user.roles)
+          .filter((portal) => portal.id !== "student")
+          .map((portal) => (
+            <Link
+              key={portal.id}
+              href={portal.href}
+              className={itemClass}
+              onClick={close}
+            >
+              {portal.label}
+            </Link>
+          ))}
         <Button
           variant="ghost"
           className="w-full justify-start"

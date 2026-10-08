@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { CatalogShell } from "@/features/courses/catalog-view";
+import { SiteShell } from "@/components/layout/site-shell";
 import { Icon } from "@/components/ui/icon";
 
 export default function CourseNotFound() {
   return (
-    <CatalogShell>
+    <SiteShell>
       <main className="flex flex-1 items-center justify-center">
         <section className="container flex max-w-xl flex-col items-center py-16 text-center sm:py-24">
           <span className="flex size-14 items-center justify-center rounded-full bg-surface-secondary text-muted">
@@ -28,6 +28,6 @@ export default function CourseNotFound() {
           </Link>
         </section>
       </main>
-    </CatalogShell>
+    </SiteShell>
   );
 }

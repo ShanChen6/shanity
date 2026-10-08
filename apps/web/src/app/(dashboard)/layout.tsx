@@ -1,7 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { requireUser } from "@/lib/server-session";
 import { ProtectedSession } from "@/features/auth/protected-session";
-import { CatalogShell } from "@/features/courses/catalog-view";
+import { SiteShell } from "@/components/layout/site-shell";
 import { Spinner } from "@/components/ui/spinner";
 export const metadata = { robots: { index: false, follow: false } };
 
@@ -13,10 +13,10 @@ export default async function DashboardLayout({
 }) {
   await requireUser();
   return (
-    <CatalogShell>
+    <SiteShell>
       <Suspense fallback={<Spinner label="Đang kiểm tra phiên đăng nhập" />}>
         <ProtectedSession>{children}</ProtectedSession>
       </Suspense>
-    </CatalogShell>
+    </SiteShell>
   );
 }

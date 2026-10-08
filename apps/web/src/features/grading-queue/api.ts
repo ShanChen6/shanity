@@ -22,14 +22,19 @@ export const gradingQueueKey = (filters: QueueFilters) => [
   filters,
 ];
 
+export const fetchGradingQueue = (
+  filters: QueueFilters,
+  signal?: AbortSignal,
+) =>
+  api<GradingQueuePage>(`/instructor/grading-queue?${queueQuery(filters)}`, {
+    signal,
+  });
+
 /** A 403 here means the course filter is not one the caller teaches. */
 export function useGradingQueue(filters: QueueFilters) {
   return useQuery({
     queryKey: gradingQueueKey(filters),
-    queryFn: ({ signal }) =>
-      api<GradingQueuePage>(`/instructor/grading-queue?${queueQuery(filters)}`, {
-        signal,
-      }),
+    queryFn: ({ signal }) => fetchGradingQueue(filters, signal),
     placeholderData: keepPreviousData,
     retry: false,
   });

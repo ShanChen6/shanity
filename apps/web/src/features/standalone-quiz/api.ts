@@ -122,6 +122,8 @@ export function useStandaloneDetail(slug: string) {
       api<StandaloneDetail>(`/quizzes/standalone/${encodeURIComponent(slug)}`, {
         signal,
       }),
+    // /quiz-attempts/[id] opens a result without knowing the quiz slug.
+    enabled: slug.length > 0,
     retry: false,
   });
 }

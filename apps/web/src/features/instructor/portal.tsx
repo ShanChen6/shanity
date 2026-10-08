@@ -1,11 +1,22 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProtectedSession } from "@/features/auth/protected-session";
 import { useSession } from "@/features/auth/session-provider";
 import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { ThemeCycleButton } from "@/components/shared/theme-cycle-button";
+import { Icon } from "@/components/ui/icon";
+import {
+  activeNavItem,
+  instructorNav,
+  navigationFor,
+} from "@/config/navigation.config";
+import { CommandMenuTrigger } from "@/features/command-menu/command-menu";
+import { NotificationBell } from "@/features/notifications/notification-bell";
 import { ApiError } from "@/lib/api";
 import "./portal.css";
 export function InstructorPortal({ children }: { children: ReactNode }) {
@@ -18,6 +29,9 @@ export function InstructorPortal({ children }: { children: ReactNode }) {
 }
 function PortalSession({ children }: { children: ReactNode }) {
   const { user, logout } = useSession();
+  const pathname = usePathname();
+  const items = navigationFor(instructorNav, user?.roles ?? []);
+  const current = activeNavItem(pathname, items);
   const [error, setError] = useState("");
   const [client] = useState(
     () =>
@@ -39,15 +53,31 @@ function PortalSession({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <div className="instructor-portal">
         <aside className="instructor-sidebar">
-          <Link href="/instructor/courses" className="instructor-brand">
-            shanity<span>INSTRUCTOR STUDIO</span>
-          </Link>
-          <nav aria-label="Instructor navigation">
-            <Link href="/instructor/courses">← My Courses</Link>
-            <Link href="/instructor/courses/new">＋ New Course</Link>
-            <Link href="/instructor/quizzes">✎ Quizzes</Link>
-            <Link href="/instructor/grading">✓ Chấm bài</Link>
-            <Link href="/courses">Khám phá khóa học ↗</Link>
+          <div className="instructor-brand">
+            {/* The sidebar is dark in both themes, so it needs the white wordmark. */}
+            <BrandLogo
+              href="/instructor/dashboard"
+              surface="dark"
+              width={132}
+              highPriority
+            />
+            <span>KHÔNG GIAN GIẢNG VIÊN</span>
+          </div>
+          <nav aria-label="Điều hướng giảng viên">
+            {items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={item === current ? "page" : undefined}
+              >
+                <Icon name={item.icon} className="size-4" />
+                {item.label}
+              </Link>
+            ))}
+            <Link href="/courses">
+              <Icon name="external" className="size-4" />
+              Khám phá khóa học
+            </Link>
           </nav>
           <p className="instructor-sidebar-note">
             Chia sẻ kiến thức.
@@ -57,9 +87,11 @@ function PortalSession({ children }: { children: ReactNode }) {
         </aside>
         <div className="instructor-workspace">
           <header className="instructor-header">
-            <span>Không gian giảng viên</span>
+            <Breadcrumbs alwaysShow className="min-w-0 flex-1" />
             <div className="instructor-actions">
-              <ThemeToggle />
+              <CommandMenuTrigger />
+              <NotificationBell />
+              <ThemeCycleButton />
               <Link href="/profile" className="instructor-profile">
                 <CurrentUserAvatar className="size-9" />
                 <span>{user?.displayName}</span>

@@ -4,17 +4,19 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
 import { useSession } from "@/features/auth/session-provider";
 import {
-  adminNavigationFor,
-  isAdminNavActive,
-} from "@/features/admin/navigation";
+  adminNav,
+  isNavActive,
+  navigationFor,
+} from "@/config/navigation.config";
 
 export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user } = useSession();
   return (
     <nav aria-label="Điều hướng quản trị" className="space-y-1">
-      {adminNavigationFor(user?.roles ?? []).map(({ href, label, icon }) => {
-        const active = isAdminNavActive(pathname, href);
+      {navigationFor(adminNav, user?.roles ?? []).map((item) => {
+        const { href, label, icon } = item;
+        const active = isNavActive(pathname, item);
         return (
           <Link
             key={href}

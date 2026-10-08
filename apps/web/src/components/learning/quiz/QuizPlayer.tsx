@@ -44,7 +44,7 @@ export function QuizPlayer({
   resultAttemptId,
 }: {
   quizId: string;
-  // From /my-quiz-attempts: open straight on that attempt's result.
+  // From /quiz-attempts: open straight on that attempt's result.
   resultAttemptId?: string;
 }) {
   const learning = useLearning();

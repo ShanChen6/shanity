@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
-import { Logo } from "@/components/shared/logo";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useTheme } from "@/providers/theme-provider";
 
@@ -78,7 +78,15 @@ export function ThemeShowcase() {
       <header className="border-b border-border bg-surface">
         <div className="container flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
-            <Logo />
+            <div className="mb-3 flex flex-wrap items-center gap-6">
+              <BrandLogo width={140} />
+              <BrandLogo variant="icon" width={40} />
+              <BrandLogo
+                variant="monochrome"
+                width={140}
+                className="text-primary"
+              />
+            </div>
             <p className="text-caption font-semibold uppercase text-primary">
               Development showcase
             </p>

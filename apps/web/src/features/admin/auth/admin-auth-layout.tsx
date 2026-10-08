@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 export function AdminAuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,13 +12,12 @@ export function AdminAuthLayout({ children }: { children: ReactNode }) {
       </a>
       <header className="border-b border-border bg-surface px-6 py-4 sm:px-10">
         <div className="mx-auto flex max-w-6xl items-center gap-4">
-          <Link
+          <BrandLogo
             href="/admin/login"
-            aria-label="Shanity Admin"
-            className="inline-flex min-h-11 items-center font-heading text-2xl font-bold"
-          >
-            shanity<span className="text-primary">.</span>
-          </Link>
+            label="Shanity Admin"
+            width={120}
+            highPriority
+          />
           <span className="border-l border-border pl-4 text-sm font-medium text-muted">
             Admin Portal
           </span>
