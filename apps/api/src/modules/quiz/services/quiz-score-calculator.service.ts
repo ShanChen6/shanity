@@ -100,8 +100,11 @@ export function calculateScore(
     const answer = byQuestion.get(question.id);
     if (question.type === QuizQuestionType.ESSAY) {
       essayMaxScore += question.points;
-      const graded = answer?.grading?.status === 'GRADED';
-      const awarded = graded ? Number(answer?.grading?.awardedPoints ?? 0) : 0;
+      const grading = answer?.grading;
+      const graded = grading?.status === 'GRADED';
+      const awarded = graded ? Number(grading?.awardedPoints ?? 0) : 0;
+      const feedback = (grading as { feedback?: unknown } | null | undefined)
+        ?.feedback;
       essays.push({
         questionId: question.id,
         number: index + 1,
@@ -109,12 +112,7 @@ export function calculateScore(
         awardedPoints: Math.min(Math.max(awarded, 0), question.points),
         maxScore: question.points,
         graded,
-        feedback:
-          graded &&
-          typeof (answer?.grading as { feedback?: unknown }).feedback ===
-            'string'
-            ? (answer?.grading as { feedback: string }).feedback
-            : '',
+        feedback: graded && typeof feedback === 'string' ? feedback : '',
       });
       return;
     }

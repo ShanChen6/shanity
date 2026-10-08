@@ -28,9 +28,12 @@ export class SessionGuard implements CanActivate {
   ) {}
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<AuthRequest>();
-    req.principal = await this.auth.authenticate(
-      cookie(req, this.auth.config.cookieName('access')),
-    );
+    // DomainAccessGuard may already have authenticated this request.
+    req.principal =
+      (req as Partial<AuthRequest>).principal ??
+      (await this.auth.authenticate(
+        cookie(req, this.auth.config.cookieName('access')),
+      ));
     const roles = this.reflector.getAllAndOverride<string[]>('roles', [
       context.getHandler(),
       context.getClass(),
