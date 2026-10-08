@@ -146,7 +146,7 @@ describe('Q16 submission and idempotency', () => {
       for (const { body } of results)
         expect(body).toMatchObject({
           id: attemptId,
-          status: 'SUBMITTED',
+          status: 'COMPLETED',
           earnedPoints: 10,
           totalPoints: 40,
           percentage: 25,
@@ -157,7 +157,7 @@ describe('Q16 submission and idempotency', () => {
 
       // One closed attempt, its answers neither duplicated nor regraded.
       expect(await stored(attemptId)).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 10,
         percentage: '25.00',
         answers: 2,
@@ -265,7 +265,7 @@ describe('Q16 submission and idempotency', () => {
 
       const response = await submit(attemptId).expect(200);
       expect(response.body).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 0,
         totalPoints: 40,
       });

@@ -92,7 +92,7 @@ describe('Q20 course-bound quizzes and course progress', () => {
       `/quiz-attempts/${attemptId}/submit`,
     ).expect(200);
     expect(submitted.body).toMatchObject({
-      status: 'SUBMITTED',
+      status: 'COMPLETED',
       isPassed: pass,
     });
     return attemptId;

@@ -13,6 +13,8 @@ import {
   type AttemptSource,
   type SaveAttemptAnswerDto,
   type SavedAnswerRow,
+  type SubmitAnswerDto,
+  type SubmitQuizDto,
 } from '../dto/quiz-attempt.dto.js';
 import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import { QuizQuestionType } from '../entities/quiz-question.entity.js';
@@ -31,6 +33,11 @@ import { gradeAttempt } from './quiz-grading.js';
 import { QuizLearnerAccessService } from './quiz-learner-access.service.js';
 import { buildAttemptResult } from '../dto/quiz-attempt-result.dto.js';
 import { isReviewAllowed } from './quiz-review-policy.js';
+import {
+  EssayGradingStatus,
+  EssaySubmissionType,
+  type EssayAnswer,
+} from '../domain/assessment.types.js';
 
 type LockedAttempt = AttemptSource & {
   userId: string;
@@ -251,7 +258,6 @@ export class QuizAttemptsService {
     attemptId: string,
     answer: SaveAttemptAnswerDto,
   ) {
-    const selected = selectionOf(answer);
     await this.assertOwnAttempt(principal, attemptId);
     const result = await this.transaction(
       async (
@@ -266,18 +272,7 @@ export class QuizAttemptsService {
           return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
         const timedOut = await this.checkAndEnforceTimeout(manager, attempt);
         if (timedOut) return { timedOut };
-        assertAnswerFitsSnapshot(attempt, answer.questionId, selected);
-        const [saved] = await manager.query<SavedAnswerRow[]>(
-          `INSERT INTO attempt_answers(attempt_id, question_id, selected_option_ids, saved_at)
-         VALUES ($1, $2, $3::uuid[], clock_timestamp())
-         ON CONFLICT (attempt_id, question_id) DO UPDATE
-           SET selected_option_ids = EXCLUDED.selected_option_ids,
-               saved_at = EXCLUDED.saved_at
-         RETURNING question_id AS "questionId",
-           selected_option_ids AS "selectedOptionIds", saved_at AS "savedAt"`,
-          [attemptId, answer.questionId, selected],
-        );
-        return { saved: saved! };
+        return { saved: await upsertAnswer(manager, attempt, answer) };
       },
     );
     // Thrown after commit so a detected timeout stays recorded.
@@ -312,7 +307,11 @@ export class QuizAttemptsService {
    * taken over by the next submit; grading is deterministic, so finishing it
    * twice cannot produce a different result.
    */
-  async submit(principal: Principal, attemptId: string) {
+  async submit(
+    principal: Principal,
+    attemptId: string,
+    dto: SubmitQuizDto = {},
+  ) {
     await this.assertOwnAttempt(principal, attemptId);
     const claim = await this.transaction(
       async (
@@ -326,6 +325,8 @@ export class QuizAttemptsService {
         switch (attempt.status) {
           case QuizAttemptStatus.SUBMITTED:
           case QuizAttemptStatus.TIMED_OUT:
+          case QuizAttemptStatus.COMPLETED:
+          case QuizAttemptStatus.NEEDS_GRADING:
             return { done: await this.view(manager, attempt) };
           case QuizAttemptStatus.ABANDONED:
             return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
@@ -344,6 +345,8 @@ export class QuizAttemptsService {
               true,
             );
             if (timedOut) return { done: timedOut };
+            await saveSubmittedAnswers(manager, attempt, dto.answers ?? []);
+            await ensureEssayAnswerRows(manager, attempt);
             const token = await this.claim(manager, attempt.id);
             return { token, submittedAt: token };
           }
@@ -368,7 +371,7 @@ export class QuizAttemptsService {
       return this.gradeAndClose(
         manager,
         attempt,
-        QuizAttemptStatus.SUBMITTED,
+        QuizAttemptStatus.COMPLETED,
         claim.submittedAt,
       );
     });
@@ -392,7 +395,9 @@ export class QuizAttemptsService {
         return { rejected: 'SUBMISSION_IN_PROGRESS' };
       if (
         attempt.status !== QuizAttemptStatus.SUBMITTED &&
-        attempt.status !== QuizAttemptStatus.TIMED_OUT
+        attempt.status !== QuizAttemptStatus.TIMED_OUT &&
+        attempt.status !== QuizAttemptStatus.COMPLETED &&
+        attempt.status !== QuizAttemptStatus.NEEDS_GRADING
       )
         return { rejected: 'ATTEMPT_NOT_SUBMITTED' };
 
@@ -416,7 +421,8 @@ export class QuizAttemptsService {
         result: buildAttemptResult(
           attempt,
           answers,
-          isReviewAllowed(attempt.quizSnapshot.quiz, attempt, history!),
+          attempt.status !== QuizAttemptStatus.NEEDS_GRADING &&
+            isReviewAllowed(attempt.quizSnapshot.quiz, attempt, history!),
         ),
       };
     });
@@ -451,7 +457,7 @@ export class QuizAttemptsService {
     return this.gradeAndClose(
       manager,
       attempt,
-      QuizAttemptStatus.SUBMITTED,
+      QuizAttemptStatus.COMPLETED,
       attempt.submissionToken,
     );
   }
@@ -525,39 +531,76 @@ export class QuizAttemptsService {
   private async gradeAndClose(
     manager: EntityManager,
     attempt: LockedAttempt,
-    status: QuizAttemptStatus.SUBMITTED | QuizAttemptStatus.TIMED_OUT,
+    status: QuizAttemptStatus.COMPLETED | QuizAttemptStatus.TIMED_OUT,
     submittedAt: string | null = null,
   ) {
     const saved = await manager.query<
-      Array<{ questionId: string; selectedOptionIds: string[] }>
+      Array<{
+        questionId: string;
+        selectedOptionIds: string[];
+        essayAnswer: EssayAnswer | null;
+      }>
     >(
-      `SELECT question_id AS "questionId", selected_option_ids AS "selectedOptionIds"
+      `SELECT question_id AS "questionId", selected_option_ids AS "selectedOptionIds",
+         essay_answer AS "essayAnswer"
        FROM attempt_answers WHERE attempt_id = $1`,
       [attempt.id],
     );
     const grade = gradeAttempt(attempt.quizSnapshot, saved);
-    const { courseId } = attempt.quizSnapshot.quiz;
-    if (courseId)
-      this.closedIn.get(manager)?.push({ userId: attempt.userId, courseId });
-    await manager.query(
-      `UPDATE attempt_answers answer
-       SET is_correct = graded.is_correct, points_earned = graded.points
-       FROM unnest($2::uuid[], $3::boolean[], $4::int[])
-         AS graded(question_id, is_correct, points)
-       WHERE answer.attempt_id = $1 AND answer.question_id = graded.question_id`,
-      [
-        attempt.id,
-        grade.answers.map(({ questionId }) => questionId),
-        grade.answers.map(({ isCorrect }) => isCorrect),
-        grade.answers.map(({ pointsEarned }) => pointsEarned),
-      ],
+    const hasEssayQuestions = attempt.quizSnapshot.questions.some(
+      ({ type }) => type === QuizQuestionType.ESSAY,
     );
+    if (attempt.status === QuizAttemptStatus.IN_PROGRESS)
+      await ensureEssayAnswerRows(manager, attempt);
+    const objectiveAnswers = grade.answers.filter(
+      (answer): answer is typeof answer & { isCorrect: boolean } =>
+        answer.isCorrect !== null,
+    );
+    if (objectiveAnswers.length)
+      await manager.query(
+        `UPDATE attempt_answers answer
+         SET is_correct = graded.is_correct, points_earned = graded.points
+         FROM unnest($2::uuid[], $3::boolean[], $4::int[])
+           AS graded(question_id, is_correct, points)
+         WHERE answer.attempt_id = $1
+           AND answer.question_id = graded.question_id`,
+        [
+          attempt.id,
+          objectiveAnswers.map(({ questionId }) => questionId),
+          objectiveAnswers.map(({ isCorrect }) => isCorrect),
+          objectiveAnswers.map(({ pointsEarned }) => pointsEarned),
+        ],
+      );
+    if (hasEssayQuestions)
+      await manager.query(
+        `UPDATE attempt_answers
+         SET is_correct = NULL, points_earned = 0,
+           grading = $2::jsonb
+         WHERE attempt_id = $1
+           AND question_id = ANY($3::uuid[])`,
+        [
+          attempt.id,
+          JSON.stringify({
+            status: EssayGradingStatus.UNGRADED,
+            awardedPoints: null,
+          }),
+          attempt.quizSnapshot.questions
+            .filter(({ type }) => type === QuizQuestionType.ESSAY)
+            .map(({ id }) => id),
+        ],
+      );
+    const finalStatus = hasEssayQuestions
+      ? QuizAttemptStatus.NEEDS_GRADING
+      : status;
+    const { courseId } = attempt.quizSnapshot.quiz;
+    if (courseId && finalStatus !== QuizAttemptStatus.NEEDS_GRADING)
+      this.closedIn.get(manager)?.push({ userId: attempt.userId, courseId });
     // A timed-out attempt is submitted at its deadline, however late we look.
     // TypeORM answers UPDATE ... RETURNING on PostgreSQL with [rows, count].
     const [[closed]] = await manager.query<[LockedAttempt[], number]>(
       `UPDATE quiz_attempts
-       SET status = $2::"QuizAttemptStatus",
-         submitted_at = CASE WHEN $2 = 'TIMED_OUT'
+         SET status = $2::"QuizAttemptStatus",
+          submitted_at = CASE WHEN $9
            THEN LEAST(expires_at, clock_timestamp())
            ELSE coalesce($8::timestamptz, clock_timestamp()) END,
          score = $3, is_passed = $4, earned_points = $5, total_points = $6,
@@ -566,13 +609,14 @@ export class QuizAttemptsService {
        RETURNING ${ATTEMPT_COLUMNS}`,
       [
         attempt.id,
-        status,
+        finalStatus,
         grade.score,
         grade.isPassed,
         grade.earnedPoints,
         grade.totalPoints,
         grade.percentage.toFixed(2),
         submittedAt,
+        status === QuizAttemptStatus.TIMED_OUT,
       ],
     );
     return LearnerAttemptResponseDto.from(closed!, null);
@@ -583,7 +627,8 @@ export class QuizAttemptsService {
       return LearnerAttemptResponseDto.from(attempt, null);
     const answers = await manager.query<SavedAnswerRow[]>(
       `SELECT question_id AS "questionId",
-         selected_option_ids AS "selectedOptionIds", saved_at AS "savedAt"
+          selected_option_ids AS "selectedOptionIds",
+          essay_answer AS "essayAnswer", saved_at AS "savedAt"
        FROM attempt_answers WHERE attempt_id = $1 ORDER BY saved_at, question_id`,
       [attempt.id],
     );
@@ -606,31 +651,136 @@ export class QuizAttemptsService {
 const invalid = (code: string) =>
   new BadRequestException({ statusCode: 400, ...error(code) });
 
-/** `selectedOptionId` for one option, `selectedOptionIds` for a set. */
-function selectionOf({
-  selectedOptionId,
-  selectedOptionIds,
-}: SaveAttemptAnswerDto) {
-  if (selectedOptionId !== undefined && selectedOptionIds !== undefined)
-    throw invalid('INVALID_RESPONSE_TYPE');
-  return selectedOptionIds ?? [selectedOptionId!];
-}
+type AnswerInput = SaveAttemptAnswerDto | SubmitAnswerDto;
 
-/** The answer must address the attempt's own frozen question and options. */
-function assertAnswerFitsSnapshot(
-  attempt: LockedAttempt,
-  questionId: string,
-  selected: string[],
-) {
+function normalizedAnswer(attempt: LockedAttempt, answer: AnswerInput) {
   const question = attempt.quizSnapshot.questions.find(
-    ({ id }) => id === questionId,
+    ({ id }) => id === answer.questionId,
   );
   if (!question) throw invalid('QUESTION_NOT_IN_SNAPSHOT');
+
+  if (question.type === QuizQuestionType.ESSAY) {
+    if (
+      answer.essayAnswer === undefined ||
+      answer.selectedOptionId !== undefined ||
+      answer.selectedOptionIds !== undefined
+    )
+      throw invalid('INVALID_RESPONSE_TYPE');
+    const config = question.essayConfig;
+    if (!config) throw invalid('INVALID_ESSAY_CONFIG');
+    const text = answer.essayAnswer.text;
+    const attachments = answer.essayAnswer.attachments ?? [];
+    if (!text?.trim() && attachments.length === 0)
+      throw invalid('ESSAY_ANSWER_REQUIRED');
+    if (
+      text?.trim() &&
+      !config.allowedSubmissionTypes.includes(
+        EssaySubmissionType.TEXT_WITH_KATEX,
+      )
+    )
+      throw invalid('ESSAY_TEXT_NOT_ALLOWED');
+    if (
+      attachments.length > 0 &&
+      !config.allowedSubmissionTypes.includes(EssaySubmissionType.FILE_UPLOAD)
+    )
+      throw invalid('ESSAY_ATTACHMENTS_NOT_ALLOWED');
+    if (attachments.length > config.maxFileUploads)
+      throw invalid('ESSAY_ATTACHMENT_LIMIT_EXCEEDED');
+    if (
+      config.maxWords !== undefined &&
+      text?.trim() &&
+      text.trim().split(/\s+/u).length > config.maxWords
+    )
+      throw invalid('ESSAY_WORD_LIMIT_EXCEEDED');
+    return {
+      selectedOptionIds: [] as string[],
+      essayAnswer: {
+        ...(text !== undefined && { text }),
+        ...(answer.essayAnswer.attachments !== undefined && { attachments }),
+      } satisfies EssayAnswer,
+    };
+  }
+
+  if (answer.essayAnswer !== undefined) throw invalid('INVALID_RESPONSE_TYPE');
+  if (
+    answer.selectedOptionId !== undefined &&
+    answer.selectedOptionIds !== undefined
+  )
+    throw invalid('INVALID_RESPONSE_TYPE');
+  const selected =
+    answer.selectedOptionIds ??
+    (answer.selectedOptionId === undefined ? [] : [answer.selectedOptionId]);
   const optionIds = new Set(question.options.map(({ id }) => id));
   if (!selected.every((id) => optionIds.has(id)))
     throw invalid('INVALID_OPTION_FOR_QUESTION');
   if (question.type === QuizQuestionType.SINGLE_CHOICE && selected.length > 1)
     throw invalid('INVALID_RESPONSE_TYPE');
+  return { selectedOptionIds: selected, essayAnswer: null };
+}
+
+async function upsertAnswer(
+  manager: EntityManager,
+  attempt: LockedAttempt,
+  answer: AnswerInput,
+) {
+  const normalized = normalizedAnswer(attempt, answer);
+  const [saved] = await manager.query<SavedAnswerRow[]>(
+    `INSERT INTO attempt_answers(
+       attempt_id, question_id, selected_option_ids, essay_answer, grading,
+       saved_at
+     ) VALUES ($1, $2, $3::uuid[], $4::jsonb, NULL, clock_timestamp())
+     ON CONFLICT (attempt_id, question_id) DO UPDATE
+       SET selected_option_ids = EXCLUDED.selected_option_ids,
+           essay_answer = EXCLUDED.essay_answer,
+           grading = NULL,
+           is_correct = NULL,
+           points_earned = 0,
+           saved_at = EXCLUDED.saved_at
+     RETURNING question_id AS "questionId",
+       selected_option_ids AS "selectedOptionIds",
+       essay_answer AS "essayAnswer", saved_at AS "savedAt"`,
+    [
+      attempt.id,
+      answer.questionId,
+      normalized.selectedOptionIds,
+      normalized.essayAnswer === null
+        ? null
+        : JSON.stringify(normalized.essayAnswer),
+    ],
+  );
+  return saved!;
+}
+
+async function saveSubmittedAnswers(
+  manager: EntityManager,
+  attempt: LockedAttempt,
+  answers: SubmitAnswerDto[],
+) {
+  if (
+    new Set(answers.map(({ questionId }) => questionId)).size !== answers.length
+  )
+    throw invalid('DUPLICATE_QUESTION_ANSWER');
+  for (const answer of answers) await upsertAnswer(manager, attempt, answer);
+}
+
+async function ensureEssayAnswerRows(
+  manager: EntityManager,
+  attempt: LockedAttempt,
+) {
+  const questionIds = attempt.quizSnapshot.questions
+    .filter(({ type }) => type === QuizQuestionType.ESSAY)
+    .map(({ id }) => id);
+  if (!questionIds.length) return;
+  await manager.query(
+    `INSERT INTO attempt_answers(
+       attempt_id, question_id, selected_option_ids, essay_answer, grading,
+       saved_at
+     )
+     SELECT $1, question_id, '{}', NULL, NULL, clock_timestamp()
+     FROM unnest($2::uuid[]) AS question_id
+     ON CONFLICT (attempt_id, question_id) DO NOTHING`,
+    [attempt.id, questionIds],
+  );
 }
 
 type GradedAnswerRow = {

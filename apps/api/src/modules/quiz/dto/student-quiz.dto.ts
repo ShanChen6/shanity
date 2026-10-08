@@ -106,7 +106,7 @@ export type StudentQuizRow = {
 export type StudentQuizProgressRow = {
   attemptsUsed: number;
   hasActiveAttempt: boolean;
-  // Any closed (SUBMITTED or TIMED_OUT) attempt.
+  // Any finalized attempt; NEEDS_GRADING is not a result yet.
   hasSubmitted: boolean;
   isPassed: boolean;
   // The learner's most recent closed attempt, for its result page.
@@ -157,7 +157,7 @@ export class StudentQuizDetailDto extends StudentQuizSummaryDto {
   latestResult: {
     attemptId: string;
     status: QuizAttemptStatus;
-    passed: boolean;
+    passed: boolean | null;
     percentage: number;
     submittedAt: Date | null;
   } | null;

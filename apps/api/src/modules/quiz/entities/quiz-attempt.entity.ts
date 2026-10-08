@@ -18,6 +18,9 @@ export enum QuizAttemptStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   // Committed while exactly one request grades the attempt.
   SUBMITTING = 'SUBMITTING',
+  NEEDS_GRADING = 'NEEDS_GRADING',
+  COMPLETED = 'COMPLETED',
+  // Legacy terminal values remain readable during the compatibility window.
   SUBMITTED = 'SUBMITTED',
   TIMED_OUT = 'TIMED_OUT',
   ABANDONED = 'ABANDONED',

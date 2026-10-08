@@ -1,13 +1,164 @@
 import {
+  ArrayMinSize,
   ArrayMaxSize,
   ArrayUnique,
+  Allow,
   IsArray,
+  IsDefined,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
   IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  Validate,
   ValidateIf,
+  ValidateNested,
+  ValidatorConstraint,
+  type ValidationArguments,
+  type ValidatorConstraintInterface,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 import { LearnerQuestionResponseDto } from './quiz-question-response.dto.js';
+import type { EssayAnswer } from '../domain/assessment.types.js';
+
+const present = (_object: object, value: unknown) => value !== undefined;
+
+export class EssayAttachmentDto {
+  @IsUrl(
+    { protocols: ['https'], require_protocol: true },
+    { message: 'attachment url must be a valid HTTPS URL' },
+  )
+  @MaxLength(2048)
+  url!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  filename!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  mimeType!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(50 * 1024 * 1024)
+  size!: number;
+}
+
+@ValidatorConstraint({ name: 'essayAnswerHasContent' })
+class EssayAnswerHasContent implements ValidatorConstraintInterface {
+  validate(_value: unknown, { object }: ValidationArguments) {
+    const answer = object as EssayAnswerDto;
+    return Boolean(
+      answer.text?.trim() ||
+      (Array.isArray(answer.attachments) && answer.attachments.length > 0),
+    );
+  }
+
+  defaultMessage() {
+    return 'essayAnswer must contain non-empty text or at least one attachment';
+  }
+}
+
+export class EssayAnswerDto implements EssayAnswer {
+  @ValidateIf(present)
+  @IsString()
+  @MaxLength(100_000)
+  text?: string;
+
+  @ValidateIf(present)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => EssayAttachmentDto)
+  attachments?: EssayAttachmentDto[];
+
+  @Validate(EssayAnswerHasContent)
+  private readonly content?: never;
+}
+
+@ValidatorConstraint({ name: 'submitAnswerHasOneResponse' })
+class SubmitAnswerHasOneResponse implements ValidatorConstraintInterface {
+  validate(_value: unknown, { object }: ValidationArguments) {
+    const dto = object as SubmitAnswerDto;
+    const hasEssay = dto.essayAnswer !== undefined;
+    const hasSingle = dto.selectedOptionId !== undefined;
+    const hasMany = dto.selectedOptionIds !== undefined;
+    if (hasEssay) return !hasSingle && !hasMany;
+    if (hasSingle === hasMany) return false;
+    return (
+      hasSingle ||
+      (Array.isArray(dto.selectedOptionIds) && dto.selectedOptionIds.length > 0)
+    );
+  }
+
+  defaultMessage() {
+    return 'answer must contain either selected option IDs or essayAnswer, but not both';
+  }
+}
+
+export class SubmitAnswerDto {
+  @IsUUID()
+  questionId!: string;
+
+  @ValidateIf(
+    (dto: SubmitAnswerDto) =>
+      dto.selectedOptionIds === undefined && dto.essayAnswer === undefined,
+  )
+  @IsUUID()
+  selectedOptionId?: string;
+
+  @ValidateIf((dto: SubmitAnswerDto) => dto.selectedOptionIds !== undefined)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  selectedOptionIds?: string[];
+
+  @ValidateIf((dto: SubmitAnswerDto) => dto.essayAnswer !== undefined)
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => EssayAnswerDto)
+  essayAnswer?: EssayAnswerDto;
+
+  @Validate(SubmitAnswerHasOneResponse)
+  private readonly responseShape?: never;
+}
+
+export class SubmitQuizDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @ValidateNested({ each: true })
+  @Type(() => SubmitAnswerDto)
+  answers?: SubmitAnswerDto[];
+
+  // Explicitly accepted and ignored: all scoring remains server-authoritative.
+  @Allow()
+  score?: unknown;
+
+  @Allow()
+  isPassed?: unknown;
+
+  @Allow()
+  earnedPoints?: unknown;
+
+  @Allow()
+  totalPoints?: unknown;
+
+  @Allow()
+  percentage?: unknown;
+}
 
 /**
  * Exactly one of `selectedOptionId` (one option) or `selectedOptionIds` (one
@@ -20,7 +171,9 @@ export class SaveAttemptAnswerDto {
 
   @ValidateIf(
     (dto: SaveAttemptAnswerDto) =>
-      dto.selectedOptionIds === undefined || dto.selectedOptionId !== undefined,
+      dto.essayAnswer === undefined &&
+      (dto.selectedOptionIds === undefined ||
+        dto.selectedOptionId !== undefined),
   )
   @IsUUID()
   selectedOptionId?: string;
@@ -33,11 +186,17 @@ export class SaveAttemptAnswerDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   selectedOptionIds?: string[];
+
+  @ValidateIf((dto: SaveAttemptAnswerDto) => dto.essayAnswer !== undefined)
+  @ValidateNested()
+  @Type(() => EssayAnswerDto)
+  essayAnswer?: EssayAnswerDto;
 }
 
 export type SavedAnswerRow = {
   questionId: string;
   selectedOptionIds: string[];
+  essayAnswer?: EssayAnswer;
   savedAt: Date;
 };
 
@@ -46,6 +205,7 @@ export class LearnerAttemptAnswerResponseDto {
   // The one selected option; null when none or several are selected.
   selectedOptionId: string | null;
   selectedOptionIds: string[];
+  essayAnswer: EssayAnswer | null;
   // Database clock at the save, never the client's.
   savedAt: Date;
 
@@ -57,6 +217,7 @@ export class LearnerAttemptAnswerResponseDto {
           ? answer.selectedOptionIds[0]
           : null,
       selectedOptionIds: answer.selectedOptionIds,
+      ...(answer.essayAnswer && { essayAnswer: answer.essayAnswer }),
       savedAt: answer.savedAt,
     });
   }

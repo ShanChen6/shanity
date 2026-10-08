@@ -122,7 +122,7 @@ describe('Q17 auto-grading engine', () => {
       ]);
       const { body, row } = await take(id, questions, [[0], [0, 1]]);
       expect(body).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 30,
         totalPoints: 30,
         percentage: 100,
@@ -136,7 +136,7 @@ describe('Q17 auto-grading engine', () => {
         percentage: '100.00',
         score: 100,
         isPassed: true,
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         hasSubmittedAt: true,
       });
     });
@@ -211,7 +211,7 @@ describe('Q17 auto-grading engine', () => {
       // Q1 cleared, Q2 only one of its two right options, Q3 never touched.
       const graded = await take(id, questions, [[], [0], undefined]);
       expect(graded.body).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 0,
         totalPoints: 60,
         percentage: 0,

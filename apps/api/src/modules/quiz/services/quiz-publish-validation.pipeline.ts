@@ -54,6 +54,7 @@ export class QuizPublishValidationPipeline {
         type: true,
         points: true,
         position: true,
+        essayConfig: true,
         options: { id: true, isCorrect: true },
       },
       order: { position: 'ASC', id: 'ASC' },

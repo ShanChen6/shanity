@@ -168,7 +168,7 @@ describe('Q21 standalone quiz flow and learner history', () => {
       ).expect(200);
       expect(submitted.body).toMatchObject({
         id: attemptId,
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
       });
       const result = await call(
         'get',
@@ -198,7 +198,7 @@ describe('Q21 standalone quiz flow and learner history', () => {
         highestPercentage: 100,
         latestResult: {
           attemptId,
-          status: 'SUBMITTED',
+          status: 'COMPLETED',
           passed: true,
           percentage: 100,
         },
@@ -306,7 +306,7 @@ describe('Q21 standalone quiz flow and learner history', () => {
         courseSlug: null,
         courseTitle: null,
         attemptNumber: 1,
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         isExpired: false,
         startedAt: expect.any(String),
         submittedAt: expect.any(String),

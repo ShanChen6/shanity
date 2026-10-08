@@ -32,7 +32,10 @@ export interface EssayConfig {
   allowedSubmissionTypes: EssaySubmissionType[];
   maxFileUploads: number;
   maxWords?: number;
-  rubric: EssayRubricCriterion[];
+  gradingGuide?: string;
+  rubric?: EssayRubricCriterion[];
+  /** @deprecated Read compatibility for essay_config rows written by E2. */
+  gradingRubric?: EssayRubricCriterion[];
 }
 
 export interface EssayAttachment {
@@ -46,8 +49,8 @@ export interface EssayAttachment {
 /** Stored in attempt_answers.essay_answer. */
 export interface EssayAnswer {
   /** Plain text/Markdown containing optional KaTeX/LaTeX source. */
-  text: string;
-  attachments: EssayAttachment[];
+  text?: string;
+  attachments?: EssayAttachment[];
 }
 
 export interface EssayRubricScore {
@@ -68,6 +71,7 @@ export enum EssayGradingStatus {
 export type EssayGrading =
   | {
       status: EssayGradingStatus.UNGRADED;
+      awardedPoints: null;
     }
   | {
       status: EssayGradingStatus.GRADED;
@@ -82,6 +86,7 @@ export type EssayGrading =
 export type EssayGradingJson =
   | {
       status: EssayGradingStatus.UNGRADED;
+      awardedPoints: null;
     }
   | {
       status: EssayGradingStatus.GRADED;

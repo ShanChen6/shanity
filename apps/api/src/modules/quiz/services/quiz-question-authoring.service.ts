@@ -17,7 +17,9 @@ import {
   type ReorderDto,
   type UpdateOptionDto,
   type UpdateQuestionDto,
+  rubricTotalMismatchMessage,
 } from '../dto/quiz-question-authoring.dto.js';
+import type { EssayConfigDto } from '../dto/essay-config.dto.js';
 import { QuizEntity, QuizStatus } from '../entities/quiz.entity.js';
 import { QuizOptionEntity } from '../entities/quiz-option.entity.js';
 import {
@@ -40,7 +42,13 @@ const badRequest = (code: string) => new BadRequestException(body(400, code));
 const QUESTION_NOT_FOUND = body(404, 'QUESTION_NOT_FOUND');
 const OPTION_NOT_FOUND = body(404, 'OPTION_NOT_FOUND');
 
-type LockedQuestion = { id: string; quizId: string; type: QuizQuestionType };
+type LockedQuestion = {
+  id: string;
+  quizId: string;
+  type: QuizQuestionType;
+  points: number;
+  essayConfig: QuizQuestionEntity['essayConfig'];
+};
 
 /** Stored HTML is sanitized like lesson bodies; it must not end up blank. */
 function cleanHtml(value: string, code: string) {
@@ -72,10 +80,14 @@ export class QuizQuestionAuthoringService {
       assertDraft(await this.lockQuiz(manager, quizId));
 
       const type = dto.type ?? QuizQuestionType.SINGLE_CHOICE;
+      const points = dto.maxScore ?? dto.points ?? 10;
+      const essayConfig = normalizeEssayConfig(dto.essayConfig);
       const options = (dto.options ?? []).map((option: CreateOptionDto) => ({
         content: cleanHtml(option.content, 'OPTION_CONTENT_REQUIRED'),
         isCorrect: option.isCorrect ?? false,
       }));
+      assertQuestionPayload(type, options.length, essayConfig);
+      assertRubricTotal(type, essayConfig, points);
       assertCorrectCountFits(
         type,
         options.filter((option) => option.isCorrect).length,
@@ -97,7 +109,8 @@ export class QuizQuestionAuthoringService {
           type,
           content: cleanHtml(dto.content, 'QUESTION_CONTENT_REQUIRED'),
           position: next,
-          points: dto.points ?? 10,
+          points,
+          essayConfig: essayConfig ?? null,
           explanation: cleanExplanation(dto.explanation) ?? null,
         }),
       );
@@ -134,8 +147,27 @@ export class QuizQuestionAuthoringService {
       const changes: QueryDeepPartialEntity<QuizQuestionEntity> = {};
       if (dto.content !== undefined)
         changes.content = cleanHtml(dto.content, 'QUESTION_CONTENT_REQUIRED');
+      const targetType = dto.type ?? question.type;
+      const targetPoints = dto.maxScore ?? dto.points ?? question.points;
+      const optionCount = await countOptions(manager, question.id);
+      const suppliedEssayConfig = normalizeEssayConfig(dto.essayConfig);
+      const targetEssayConfig =
+        targetType === QuizQuestionType.ESSAY
+          ? (suppliedEssayConfig ?? question.essayConfig)
+          : suppliedEssayConfig;
+      assertQuestionPayload(targetType, optionCount, targetEssayConfig);
+      assertRubricTotal(targetType, targetEssayConfig, targetPoints);
       if (dto.type !== undefined) changes.type = dto.type;
-      if (dto.points !== undefined) changes.points = dto.points;
+      if (dto.points !== undefined || dto.maxScore !== undefined)
+        changes.points = targetPoints;
+      if (dto.essayConfig !== undefined)
+        changes.essayConfig = suppliedEssayConfig;
+      else if (
+        dto.type !== undefined &&
+        dto.type !== QuizQuestionType.ESSAY &&
+        question.type === QuizQuestionType.ESSAY
+      )
+        changes.essayConfig = null;
       if (dto.explanation !== undefined)
         changes.explanation = cleanExplanation(dto.explanation);
       if (!Object.keys(changes).length) return;
@@ -179,6 +211,8 @@ export class QuizQuestionAuthoringService {
   async createOption(questionId: string, dto: CreateOptionDto) {
     await this.dataSource.transaction(async (manager) => {
       const question = await this.lockQuestionOf(manager, questionId);
+      if (question.type === QuizQuestionType.ESSAY)
+        throw badRequest('ESSAY_OPTIONS_NOT_ALLOWED');
       const [{ count, next }] = await manager.query<
         Array<{ count: number; next: number }>
       >(
@@ -281,6 +315,7 @@ export class QuizQuestionAuthoringService {
           type: true,
           points: true,
           position: true,
+          essayConfig: true,
           options: { id: true, isCorrect: true },
         },
         order: { position: 'ASC', id: 'ASC' },
@@ -344,7 +379,8 @@ async function lockQuestion(
   quizId: string,
 ): Promise<LockedQuestion> {
   const [question] = await manager.query<LockedQuestion[]>(
-    `SELECT id, quiz_id AS "quizId", type FROM quiz_questions
+    `SELECT id, quiz_id AS "quizId", type, points,
+       essay_config AS "essayConfig" FROM quiz_questions
      WHERE id = $1 AND quiz_id = $2 FOR UPDATE`,
     [questionId, quizId],
   );
@@ -368,6 +404,57 @@ async function correctCount(manager: EntityManager, questionId: string) {
     [questionId],
   );
   return correct;
+}
+
+async function countOptions(manager: EntityManager, questionId: string) {
+  const [{ count }] = await manager.query<Array<{ count: number }>>(
+    `SELECT count(*)::int AS count FROM quiz_options WHERE question_id = $1`,
+    [questionId],
+  );
+  return count;
+}
+
+function assertQuestionPayload(
+  type: QuizQuestionType,
+  optionCount: number,
+  essayConfig: QuizQuestionEntity['essayConfig'] | undefined,
+) {
+  if (type === QuizQuestionType.ESSAY) {
+    if (optionCount > 0) throw badRequest('ESSAY_OPTIONS_NOT_ALLOWED');
+    if (!essayConfig) throw badRequest('ESSAY_CONFIG_REQUIRED');
+    return;
+  }
+  if (essayConfig) throw badRequest('ESSAY_CONFIG_NOT_ALLOWED');
+  if (type === QuizQuestionType.MULTIPLE_CHOICE && optionCount < 2)
+    throw badRequest('QUESTION_NEEDS_TWO_OPTIONS');
+}
+
+function normalizeEssayConfig(config: EssayConfigDto | undefined) {
+  if (!config) return undefined;
+  const { gradingRubric, rubric, ...rest } = config;
+  const normalizedRubric = rubric ?? gradingRubric;
+  return {
+    ...rest,
+    ...(normalizedRubric && { rubric: normalizedRubric }),
+  };
+}
+
+function assertRubricTotal(
+  type: QuizQuestionType,
+  config: QuizQuestionEntity['essayConfig'] | undefined,
+  maxScore: number,
+) {
+  if (type !== QuizQuestionType.ESSAY || !config) return;
+  const rubric = config.rubric ?? config.gradingRubric;
+  if (!rubric) return;
+  const total = rubric.reduce((sum, criterion) => sum + criterion.maxPoints, 0);
+  if (Math.abs(total - maxScore) >= 1e-9)
+    throw new BadRequestException(
+      rubricTotalMismatchMessage(
+        { ...config, rubric } as EssayConfigDto,
+        maxScore,
+      ),
+    );
 }
 
 /**

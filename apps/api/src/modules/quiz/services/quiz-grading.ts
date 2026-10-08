@@ -1,9 +1,10 @@
 import type { QuizAttemptSnapshot } from './quiz-attempt-snapshot.js';
+import { QuizQuestionType } from '../entities/quiz-question.entity.js';
 
 export type SavedAnswer = { questionId: string; selectedOptionIds: string[] };
 export type GradedAnswer = {
   questionId: string;
-  isCorrect: boolean;
+  isCorrect: boolean | null;
   pointsEarned: number;
 };
 export type AttemptGrade = {
@@ -16,7 +17,7 @@ export type AttemptGrade = {
   // Whole percentage, floor(percentage): with an integer passingScore,
   // score >= passingScore exactly when isPassed.
   score: number;
-  isPassed: boolean;
+  isPassed: boolean | null;
 };
 
 /**
@@ -38,6 +39,8 @@ export function gradeAttempt(
     ]),
   );
   const answers = snapshot.questions.map((question): GradedAnswer => {
+    if (question.type === QuizQuestionType.ESSAY)
+      return { questionId: question.id, isCorrect: null, pointsEarned: 0 };
     const selected = selections.get(question.id) ?? new Set<string>();
     const correct = question.options.filter((option) => option.isCorrect);
     const isCorrect =
@@ -60,13 +63,18 @@ export function gradeAttempt(
   );
   const hundredths = percentHundredths(earnedPoints, totalPoints);
   const percentage = hundredths / 100;
+  const hasEssayQuestions = snapshot.questions.some(
+    ({ type }) => type === QuizQuestionType.ESSAY,
+  );
   return {
     answers,
     earnedPoints,
     totalPoints,
     percentage,
     score: Math.floor(hundredths / 100),
-    isPassed: hundredths >= snapshot.quiz.passingScore * 100,
+    isPassed: hasEssayQuestions
+      ? null
+      : hundredths >= snapshot.quiz.passingScore * 100,
   };
 }
 

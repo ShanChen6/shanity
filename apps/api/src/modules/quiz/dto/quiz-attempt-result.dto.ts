@@ -43,7 +43,7 @@ export class AttemptResultDto {
     totalPoints: number;
     percentage: number;
     passingScore: number;
-    passed: boolean;
+    passed: boolean | null;
   };
   attemptInfo: {
     currentAttempt: number;

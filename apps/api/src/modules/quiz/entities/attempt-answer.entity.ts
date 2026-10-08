@@ -7,6 +7,10 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
+import type {
+  EssayAnswer,
+  EssayGradingJson,
+} from '../domain/assessment.types.js';
 import { QuizAttemptEntity } from './quiz-attempt.entity.js';
 
 @Entity('attempt_answers')
@@ -42,6 +46,12 @@ export class AttemptAnswerEntity {
     default: () => `'{}'`,
   })
   selectedOptionIds: string[];
+
+  @Column({ name: 'essay_answer', type: 'jsonb', nullable: true })
+  essayAnswer: EssayAnswer | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  grading: EssayGradingJson | null;
 
   // Grading results, populated when the attempt closes.
   @Column({ name: 'is_correct', type: 'boolean', nullable: true })

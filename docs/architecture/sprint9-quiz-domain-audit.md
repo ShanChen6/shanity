@@ -149,7 +149,8 @@ interface EssayConfig {
   allowedSubmissionTypes: Array<"TEXT_WITH_KATEX" | "FILE_UPLOAD">;
   maxFileUploads: number;
   maxWords?: number;
-  rubric: Array<{
+  gradingGuide?: string;
+  rubric?: Array<{
     criterion: string;
     maxPoints: number;
     description?: string;

@@ -155,7 +155,7 @@ describe('Q18 result and review policy engine', () => {
       expect(response.body).toMatchObject({
         attemptId,
         quizTitle: 'Q18 NEVER',
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         score: {
           earnedPoints: 10,
           totalPoints: 20,

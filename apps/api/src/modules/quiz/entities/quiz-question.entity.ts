@@ -9,13 +9,12 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
+import { QuestionType, type EssayConfig } from '../domain/assessment.types.js';
 import { QuizEntity } from './quiz.entity.js';
 import { QuizOptionEntity } from './quiz-option.entity.js';
 
-export enum QuizQuestionType {
-  SINGLE_CHOICE = 'SINGLE_CHOICE',
-  MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
-}
+// Backward-compatible export for the Sprint 7 name used throughout the module.
+export { QuestionType as QuizQuestionType };
 
 @Entity('quiz_questions')
 @Index('IDX_quiz_questions_quiz_position', ['quizId', 'position'])
@@ -35,11 +34,11 @@ export class QuizQuestionEntity {
 
   @Column({
     type: 'enum',
-    enum: QuizQuestionType,
+    enum: QuestionType,
     enumName: 'QuizQuestionType',
-    default: QuizQuestionType.SINGLE_CHOICE,
+    default: QuestionType.SINGLE_CHOICE,
   })
-  type: QuizQuestionType;
+  type: QuestionType;
 
   // Markdown/HTML prompt.
   @Column({ type: 'text' })
@@ -50,6 +49,9 @@ export class QuizQuestionEntity {
 
   @Column({ type: 'smallint', default: 10 })
   points: number;
+
+  @Column({ name: 'essay_config', type: 'jsonb', nullable: true })
+  essayConfig: EssayConfig | null;
 
   // Review data: hidden from serialization unless a DTO copies it explicitly.
   @Exclude({ toPlainOnly: true })

@@ -31,7 +31,8 @@ type SummaryRow = {
 // Per enrollment row: the course's published course-bound quizzes, which of
 // them this learner has passed, and which count as a completed step: a
 // required quiz once passed, an optional one once submitted at all, pass or
-// fail. A pass is any closed (SUBMITTED or TIMED_OUT) attempt with is_passed,
+// fail. A pass is any finalized attempt with is_passed; NEEDS_GRADING never
+// participates until manual grading completes.
 // so achieved completion is monotonic: a later failing attempt never takes it
 // back. STANDALONE quizzes never count.
 const QUIZ_STATS_JOIN = `
@@ -52,14 +53,14 @@ const QUIZ_STATS_JOIN = `
         SELECT 1 FROM quiz_attempts attempt
         WHERE attempt.user_id = enrollment.user_id
           AND attempt.quiz_id = course_quiz.id
-          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+          AND attempt.status IN ('COMPLETED', 'SUBMITTED', 'TIMED_OUT')
           AND attempt.is_passed
       ) AS passed,
       EXISTS (
         SELECT 1 FROM quiz_attempts attempt
         WHERE attempt.user_id = enrollment.user_id
           AND attempt.quiz_id = course_quiz.id
-          AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+          AND attempt.status IN ('COMPLETED', 'SUBMITTED', 'TIMED_OUT')
       ) AS submitted
     ) result
   ) quiz_stats ON true`;

@@ -20,7 +20,10 @@ import {
   SessionGuard,
   type AuthRequest,
 } from '../../../auth/auth.guards.js';
-import { SaveAttemptAnswerDto } from '../dto/quiz-attempt.dto.js';
+import {
+  SaveAttemptAnswerDto,
+  SubmitQuizDto,
+} from '../dto/quiz-attempt.dto.js';
 import { QuizAttemptsService } from '../services/quiz-attempts.service.js';
 
 @Controller()
@@ -77,7 +80,8 @@ export class QuizAttemptsController {
   submit(
     @Req() req: AuthRequest,
     @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Body() body: SubmitQuizDto,
   ) {
-    return this.attempts.submit(req.principal, attemptId);
+    return this.attempts.submit(req.principal, attemptId, body);
   }
 }
