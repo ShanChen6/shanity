@@ -107,6 +107,7 @@ describe("grading model", () => {
 const API = "http://localhost:4000";
 let posts: Array<{ url: string; body: unknown }>;
 let reply: { status: number; body: unknown };
+let current: GradingAttempt;
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -118,12 +119,14 @@ function wrapper({ children }: { children: ReactNode }) {
 describe("GradingWorkspace", () => {
   beforeEach(() => {
     posts = [];
+    current = attempt([essay("e1"), essay("e2")]);
     reply = {
       status: 200,
       body: {
         attemptId: "a1",
         status: "NEEDS_GRADING",
         remainingUngradedCount: 1,
+        adjustedQuestionIds: [],
         result: null,
       },
     };
@@ -140,7 +143,36 @@ describe("GradingWorkspace", () => {
           posts.push({ url, body: JSON.parse(String(init.body)) });
           return json(reply.status, reply.body);
         }
-        return json(200, attempt([essay("e1"), essay("e2")]));
+        if (url.endsWith("/grade-history"))
+          return json(200, {
+            attemptId: "a1",
+            status: current.status,
+            publishedAt: current.publishedAt,
+            questions: [
+              {
+                questionId: "e1",
+                number: 1,
+                content: "Prove",
+                maxScore: 5,
+                currentScore: 4,
+                currentFeedback: null,
+                adjustments: [
+                  {
+                    id: "l1",
+                    oldScore: 2,
+                    newScore: 4,
+                    oldFeedback: null,
+                    newFeedback: null,
+                    adjustedBy: { id: "i1", fullName: "Co Lan" },
+                    adjustedAt: "2026-10-09T03:00:00.000Z",
+                    adjustmentReason: "Appeal upheld",
+                    wasPublished: true,
+                  },
+                ],
+              },
+            ],
+          });
+        return json(200, current);
       }),
     );
   });
@@ -158,7 +190,7 @@ describe("GradingWorkspace", () => {
     expect(
       within(first).getByText("Award for a correct derivation"),
     ).toBeInTheDocument();
-    expect(within(first).getByText("/ 5")).toBeInTheDocument();
+    expect(within(first).getByText("/ 5.0")).toBeInTheDocument();
     expect(document.querySelector(".katex")).not.toBeNull();
   });
 
@@ -209,5 +241,144 @@ describe("GradingWorkspace", () => {
         "Awarded points (3) exceeds maximum allowed score (2)",
       ),
     ).toBeVisible();
+  });
+
+  const graded = (status: string, publishedAt: string | null) => {
+    const question = essay("e1", {
+      grading: {
+        status: "GRADED",
+        awardedPoints: 3,
+        rubricScores: [],
+        feedback: "Thin",
+        gradedAt: "2026-10-08T04:00:00.000Z",
+      },
+    });
+    current = {
+      ...attempt([question]),
+      status,
+      publishedAt,
+      pendingEssaysCount: 0,
+    };
+  };
+
+  it("asks for a reason in a modal only when adjusting a published attempt", async () => {
+    const user = userEvent.setup();
+    graded("COMPLETED", "2026-10-08T05:00:00.000Z");
+    reply = {
+      status: 200,
+      body: {
+        attemptId: "a1",
+        status: "COMPLETED",
+        remainingUngradedCount: 0,
+        adjustedQuestionIds: ["e1"],
+        result: null,
+      },
+    };
+    render(<GradingWorkspace attemptId="a1" />, { wrapper });
+    await screen.findByTestId("grading-header");
+    // Editing is open, but nothing changed yet: nothing to save.
+    expect(screen.getByRole("button", { name: "Save Grade" })).toBeDisabled();
+
+    const score = screen.getByLabelText("Điểm câu 1");
+    await user.clear(score);
+    await user.type(score, "4");
+    expect(screen.getByText(/được ghi lại vĩnh viễn/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Lưu điều chỉnh" }));
+
+    // Published: the modal insists on a reason and sends nothing without one.
+    const modal = await screen.findByRole("dialog", {
+      name: "Lý do điều chỉnh điểm",
+    });
+    const confirm = within(modal).getByRole("button", {
+      name: "Xác nhận điều chỉnh",
+    });
+    expect(confirm).toBeDisabled();
+    expect(within(modal).getByRole("alert")).toHaveTextContent(
+      "Vui lòng nhập lý do điều chỉnh điểm.",
+    );
+    expect(posts).toHaveLength(0);
+
+    await user.type(
+      within(modal).getByLabelText(/Adjustment Reason/),
+      "Appeal upheld",
+    );
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]!.body).toMatchObject({
+      grades: [{ questionId: "e1", awardedPoints: 4, feedback: "Thin" }],
+      adjustmentReason: "Appeal upheld",
+    });
+    expect(await screen.findByText(/Đã lưu điều chỉnh điểm/)).toBeVisible();
+  });
+
+  it("lets an unpublished grade be adjusted with an optional reason", async () => {
+    const user = userEvent.setup();
+    graded("GRADED", null);
+    render(<GradingWorkspace attemptId="a1" />, { wrapper });
+    await screen.findByTestId("grading-header");
+    const score = screen.getByLabelText("Điểm câu 1");
+    await user.clear(score);
+    await user.type(score, "5");
+    await user.click(screen.getByRole("button", { name: "Lưu điều chỉnh" }));
+    const modal = await screen.findByRole("dialog", {
+      name: "Lý do điều chỉnh điểm",
+    });
+    expect(
+      within(modal).getByRole("button", { name: "Xác nhận điều chỉnh" }),
+    ).toBeEnabled();
+    expect(within(modal).queryByRole("alert")).toBeNull();
+    // Graded is not published: the publish action stays available.
+    expect(
+      screen.getByRole("button", { name: "Publish Result" }),
+    ).toBeVisible();
+  });
+
+  it("splits a question into Answer / Grade tabs on small screens", async () => {
+    const user = userEvent.setup();
+    render(<GradingWorkspace attemptId="a1" />, { wrapper });
+    await screen.findByTestId("grading-header");
+    const card = screen.getByRole("article", { name: "Câu tự luận 1" });
+    const tabs = within(card).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      "Bài làm",
+      "Chấm điểm",
+    ]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    // The grading form is hidden below lg until its tab is chosen (and always
+    // shown beside the answer from lg up).
+    const form = within(card).getByRole("group", { name: "Chấm điểm" });
+    expect(form.className).toContain("max-lg:hidden");
+    await user.click(tabs[1]!);
+    expect(tabs[1]).toHaveAttribute("aria-selected", "true");
+    expect(form.className).not.toContain("max-lg:hidden");
+    const answer = within(card).getByText("Đề bài").closest("div")!
+      .parentElement!;
+    expect(answer.className).toContain("max-lg:hidden");
+  });
+
+  it("shows a skeleton, not a spinner, while the attempt loads", () => {
+    render(<GradingWorkspace attemptId="a1" />, { wrapper });
+    expect(screen.getByTestId("workspace-skeleton")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
+  it("opens the score history timeline of a graded question", async () => {
+    const user = userEvent.setup();
+    graded("COMPLETED", "2026-10-08T05:00:00.000Z");
+    render(<GradingWorkspace attemptId="a1" />, { wrapper });
+    await screen.findByTestId("grading-header");
+    await user.click(
+      screen.getByRole("button", { name: "Xem lịch sử sửa điểm câu 1" }),
+    );
+    const timeline = await screen.findByRole("list", {
+      name: "Score History Timeline",
+    });
+    expect(within(timeline).getByText(/2 → 4 \/ 5/)).toBeInTheDocument();
+    expect(within(timeline).getByText(/Co Lan/)).toBeInTheDocument();
+    expect(within(timeline).getByText(/Appeal upheld/)).toBeInTheDocument();
+    expect(within(timeline).getByText("Sau công bố")).toBeInTheDocument();
   });
 });

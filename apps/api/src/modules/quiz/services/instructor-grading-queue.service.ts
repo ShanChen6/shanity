@@ -93,8 +93,9 @@ export class InstructorGradingQueueService {
       filters.push(
         `attempt.status = 'NEEDS_GRADING' AND essays.total - essays.graded > 0`,
       );
-    if (query.status === 'GRADED')
-      filters.push(`attempt.status IN ('GRADED', 'COMPLETED')`);
+    if (query.status === 'GRADED') filters.push(`attempt.status = 'GRADED'`);
+    if (query.status === 'PUBLISHED')
+      filters.push(`attempt.status = 'COMPLETED'`);
     if (query.search) {
       const pattern = bind(likePattern(query.search));
       filters.push(

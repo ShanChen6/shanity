@@ -13,7 +13,13 @@ import {
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-export const GRADING_QUEUE_STATUSES = ['NEEDS_GRADING', 'GRADED'] as const;
+// NEEDS_GRADING: essays await the instructor. GRADED: graded, result still
+// private. PUBLISHED: the learner can see the result.
+export const GRADING_QUEUE_STATUSES = [
+  'NEEDS_GRADING',
+  'GRADED',
+  'PUBLISHED',
+] as const;
 export type GradingQueueStatus = (typeof GRADING_QUEUE_STATUSES)[number];
 
 /** `status` omitted lists both pending and graded attempts. */

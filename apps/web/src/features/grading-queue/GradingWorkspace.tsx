@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Toast } from "@/components/ui/toast";
@@ -12,11 +13,13 @@ import { Failure } from "@/features/instructor/shared";
 import { KatexText } from "@/features/quiz-player/KatexText";
 import { ApiError, errorMessage } from "@/lib/api";
 import {
+  useGradeHistory,
   useGradingAttempt,
   usePublishAttempt,
   useSaveGrades,
 } from "./api";
 import {
+  adjustedQuestions,
   awardedOf,
   essaysOf,
   gradeIssue,
@@ -100,12 +103,14 @@ function EssayCard({
   input,
   disabled,
   onChange,
+  onHistory,
 }: {
   index: number;
   question: EssayQuestionView;
   input: GradeInput;
   disabled: boolean;
   onChange: (input: GradeInput) => void;
+  onHistory: () => void;
 }) {
   const rubric = question.rubric?.length ? question.rubric : null;
   const issue = gradeIssue(question, input);
@@ -113,12 +118,44 @@ function EssayCard({
   const graded = question.grading?.status === "GRADED";
   const text = question.essayAnswer?.text?.trim();
   const files = question.essayAnswer?.attachments ?? [];
+  // Below lg the two columns become tabs: the answer, or the grading form.
+  const [pane, setPane] = useState<"answer" | "grade">("answer");
+  const max = question.points.toFixed(1);
   return (
     <article
       aria-label={`Câu tự luận ${index + 1}`}
       className="grid gap-5 rounded-lg border border-border bg-surface p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_20rem]"
     >
-      <div className="min-w-0 space-y-4">
+      <div
+        role="tablist"
+        aria-label={`Câu ${index + 1}`}
+        className="flex gap-2 lg:hidden"
+      >
+        {(
+          [
+            ["answer", "Bài làm"],
+            ["grade", "Chấm điểm"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            role="tab"
+            type="button"
+            aria-selected={pane === value}
+            onClick={() => setPane(value)}
+            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
+              pane === value
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-strong hover:bg-surface-hover"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div
+        className={`min-w-0 space-y-4 ${pane === "answer" ? "" : "max-lg:hidden"}`}
+      >
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           <span>
             Câu {index + 1} · tối đa {question.points} điểm
@@ -126,6 +163,18 @@ function EssayCard({
           <Badge tone={graded ? "success" : "warning"}>
             {graded ? "Đã chấm" : "Chưa chấm"}
           </Badge>
+          {graded ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={onHistory}
+              aria-label={`Xem lịch sử sửa điểm câu ${index + 1}`}
+            >
+              <History aria-hidden size={14} className="mr-1" /> Xem Lịch sử Sửa
+              điểm
+            </Button>
+          ) : null}
         </div>
         <div>
           <h2 className="text-sm font-semibold">Đề bài</h2>
@@ -177,7 +226,9 @@ function EssayCard({
 
       <fieldset
         disabled={disabled}
-        className="space-y-3 rounded-md border border-border-strong p-3 lg:self-start"
+        className={`space-y-3 rounded-md border border-border-strong p-3 lg:self-start ${
+          pane === "grade" ? "" : "max-lg:hidden"
+        }`}
       >
         <legend className="px-1 text-sm font-semibold">Chấm điểm</legend>
         {rubric ? (
@@ -212,7 +263,7 @@ function EssayCard({
               </label>
             ))}
             <p className="text-sm font-medium tabular-nums">
-              Tổng: {awarded ?? "—"} / {question.points}
+              Tổng: {awarded ?? "—"} / {max}
             </p>
           </div>
         ) : (
@@ -232,7 +283,7 @@ function EssayCard({
                 onChange({ ...input, points: event.target.value })
               }
             />
-            <span className="tabular-nums">/ {question.points}</span>
+            <span className="tabular-nums">/ {max}</span>
           </label>
         )}
         {issue ? (
@@ -257,6 +308,174 @@ function EssayCard({
   );
 }
 
+const when = (iso: string) =>
+  new Intl.DateTimeFormat("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(iso));
+
+/** Every adjustment of one attempt's essay grades, oldest first. */
+function HistoryDialog({
+  attemptId,
+  questionId,
+  onClose,
+}: {
+  attemptId: string;
+  questionId: string;
+  onClose: () => void;
+}) {
+  const history = useGradeHistory(attemptId, true);
+  const question = history.data?.questions.find(
+    (item) => item.questionId === questionId,
+  );
+  return (
+    <Dialog
+      title={
+        question ? `Lịch sử sửa điểm · Câu ${question.number}` : "Lịch sử sửa điểm"
+      }
+      description="Mọi lần thay đổi điểm được ghi lại và không thể xóa."
+      onClose={onClose}
+    >
+      {history.error ? (
+        <Failure error={history.error} retry={() => void history.refetch()} />
+      ) : history.isPending ? (
+        <p className="text-sm text-muted">Đang tải…</p>
+      ) : !question?.adjustments.length ? (
+        <p className="text-sm text-muted" data-testid="no-adjustments">
+          Chưa có lần điều chỉnh nào. Điểm hiện tại: {question?.currentScore ?? "—"}
+          {question ? ` / ${question.maxScore}` : ""}.
+        </p>
+      ) : (
+        <ol className="space-y-3" aria-label="Score History Timeline">
+          {question.adjustments.map((item) => (
+            <li
+              key={item.id}
+              className="rounded-md border border-border p-3 text-sm"
+            >
+              <p className="font-semibold tabular-nums">
+                {item.oldScore} → {item.newScore} / {question.maxScore}
+                {item.wasPublished ? (
+                  <Badge tone="warning" className="ml-2">
+                    Sau công bố
+                  </Badge>
+                ) : null}
+              </p>
+              <p className="text-xs text-muted">
+                {item.adjustedBy.fullName} · {when(item.adjustedAt)}
+              </p>
+              {item.adjustmentReason ? (
+                <p className="mt-1">
+                  <strong>Lý do:</strong> {item.adjustmentReason}
+                </p>
+              ) : null}
+              {(item.oldFeedback ?? "") !== (item.newFeedback ?? "") ? (
+                <p className="mt-1 text-muted">
+                  Nhận xét: “{item.oldFeedback ?? "—"}” → “
+                  {item.newFeedback ?? "—"}”
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </Dialog>
+  );
+}
+
+/**
+ * Asks why already-given grades change. Once the result is published the
+ * reason is mandatory (the server insists too); every adjustment is logged.
+ */
+function ReasonDialog({
+  count,
+  required,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  count: number;
+  required: boolean;
+  busy: boolean;
+  onConfirm: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const missing = required && !reason.trim();
+  return (
+    <Dialog
+      title="Lý do điều chỉnh điểm"
+      description={`Bạn đang sửa ${count} câu đã chấm${
+        required ? " sau khi đã công bố cho học viên" : ""
+      }. Thay đổi được ghi lại vĩnh viễn trong lịch sử sửa điểm.`}
+      busy={busy}
+      onClose={onClose}
+    >
+      <label className="block text-sm font-medium">
+        Adjustment Reason{required ? " *" : " (tùy chọn)"}
+        <Textarea
+          value={reason}
+          maxLength={2000}
+          aria-required={required}
+          aria-invalid={missing ? true : undefined}
+          placeholder="Ví dụ: Phúc khảo — bổ sung ý đúng ở trang 2."
+          className="mt-1 !min-h-24 text-sm"
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      {missing ? (
+        <p role="alert" className="mt-1 text-xs text-danger-foreground">
+          Vui lòng nhập lý do điều chỉnh điểm.
+        </p>
+      ) : null}
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" disabled={busy} onClick={onClose}>
+          Hủy
+        </Button>
+        <Button
+          loading={busy}
+          loadingLabel="Đang lưu…"
+          disabled={missing}
+          onClick={() => onConfirm(reason)}
+        >
+          Xác nhận điều chỉnh
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** The workspace's shape while the attempt loads: no spinner, no layout jump. */
+export function WorkspaceSkeleton() {
+  return (
+    <div
+      className="space-y-5"
+      role="status"
+      aria-busy="true"
+      aria-label="Đang tải bài làm"
+      data-testid="workspace-skeleton"
+    >
+      <Skeleton className="h-4 w-40" />
+      <div className="space-y-2 rounded-lg border border-border bg-surface p-5">
+        <Skeleton className="h-6 w-56" />
+        <Skeleton className="h-4 w-64 max-w-full" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+      <div className="grid gap-5 rounded-lg border border-border bg-surface p-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Workspace({ attempt }: { attempt: GradingAttempt }) {
   const [inputs, setInputs] = useState(() => initialInputs(attempt));
   const [toast, setToast] = useState<{
@@ -264,31 +483,47 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
     message: string;
   } | null>(null);
   const [final, setFinal] = useState<GradeResult | null>(null);
+  const [askingReason, setAskingReason] = useState(false);
+  const [historyOf, setHistoryOf] = useState<string | null>(null);
   const closeToast = useCallback(() => setToast(null), []);
   const save = useSaveGrades(attempt.attemptId);
   const publish = usePublishAttempt();
   const essays = essaysOf(attempt);
   const open = attempt.status === "NEEDS_GRADING";
+  const published = attempt.status === "COMPLETED";
   const payload = gradesPayload(attempt, inputs);
+  // Changing a grade that was already given is an audited adjustment.
+  const adjusting = adjustedQuestions(attempt, inputs);
   const invalid = essays.some((question) => {
     const input = inputs[question.id];
     return input ? gradeIssue(question, input) !== null : false;
   });
 
-  function submit() {
-    save.mutate(payload, {
+  function submit(reason = "") {
+    save.mutate(
+      {
+        grades: payload,
+        ...(reason.trim() && { adjustmentReason: reason.trim() }),
+      },
+      {
       onSuccess: (result) => {
         setFinal(result);
+        setAskingReason(false);
         setToast({
           tone: "info",
-          message: result.result
+          message: result.adjustedQuestionIds.length
+            ? `Đã lưu điều chỉnh điểm (${result.adjustedQuestionIds.length} câu). Lịch sử sửa điểm đã được ghi lại.`
+            : result.result
             ? `Đã lưu điểm. Bài đã chấm xong: ${result.result.earnedPoints}/${result.result.totalPoints} điểm (${result.result.percentage}%).`
             : `Đã lưu điểm. Còn ${result.remainingUngradedCount} câu chưa chấm.`,
         });
       },
-      onError: (error) =>
-        setToast({ tone: "error", message: saveError(error) }),
-    });
+      onError: (error) => {
+        setAskingReason(false);
+        setToast({ tone: "error", message: saveError(error) });
+      },
+      },
+    );
   }
 
   return (
@@ -347,55 +582,80 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
           index={index}
           question={question}
           input={inputs[question.id]!}
-          disabled={!open || save.isPending}
+          disabled={save.isPending}
           onChange={(input) =>
             setInputs((current) => ({ ...current, [question.id]: input }))
           }
+          onHistory={() => setHistoryOf(question.id)}
         />
       ))}
 
-      {open ? (
-        <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface/95 py-3 backdrop-blur">
-          <p className="text-sm text-muted">
-            {payload.length} câu đã nhập điểm
+      {adjusting.length ? (
+        <section
+          aria-label="Điều chỉnh điểm"
+          className="space-y-2 rounded-lg border border-warning/40 bg-warning-background p-4"
+        >
+          <p className="text-sm font-semibold">
+            Bạn đang điều chỉnh {adjusting.length} câu đã chấm
+            {published ? " sau khi đã công bố cho học viên" : ""}. Mọi thay đổi
+            được ghi lại vĩnh viễn.
           </p>
+        </section>
+      ) : null}
+
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t border-border bg-surface/95 py-3 backdrop-blur">
+        <p className="mr-auto text-sm text-muted">
+          {attempt.status === "GRADED"
+            ? "Đã chấm xong. Học viên chưa thấy kết quả cho đến khi bạn công bố."
+            : published
+              ? "Kết quả đã được công bố cho học viên."
+              : `${payload.length} câu đã nhập điểm`}
+        </p>
+        <Button
+          loading={save.isPending}
+          loadingLabel="Đang lưu…"
+          disabled={invalid || (open ? !payload.length : !adjusting.length)}
+          onClick={() => (adjusting.length ? setAskingReason(true) : submit())}
+        >
+          {adjusting.length ? "Lưu điều chỉnh" : "Save Grade"}
+        </Button>
+        {attempt.status === "GRADED" ? (
           <Button
-            loading={save.isPending}
-            loadingLabel="Đang lưu…"
-            disabled={!payload.length || invalid}
-            onClick={submit}
+            variant="outline"
+            loading={publish.isPending}
+            loadingLabel="Đang công bố…"
+            onClick={() =>
+              publish.mutate(attempt.attemptId, {
+                onSuccess: () =>
+                  setToast({
+                    tone: "info",
+                    message: "Đã công bố kết quả cho học viên.",
+                  }),
+                onError: (error) =>
+                  setToast({ tone: "error", message: saveError(error) }),
+              })
+            }
           >
-            Save Grade
+            Publish Result
           </Button>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3">
-          <p className="text-sm text-muted">
-            {attempt.status === "GRADED"
-              ? "Đã chấm xong. Học viên chưa thấy kết quả cho đến khi bạn công bố."
-              : "Kết quả đã được công bố cho học viên."}
-          </p>
-          {attempt.status === "GRADED" ? (
-            <Button
-              loading={publish.isPending}
-              loadingLabel="Đang công bố…"
-              onClick={() =>
-                publish.mutate(attempt.attemptId, {
-                  onSuccess: () =>
-                    setToast({
-                      tone: "info",
-                      message: "Đã công bố kết quả cho học viên.",
-                    }),
-                  onError: (error) =>
-                    setToast({ tone: "error", message: saveError(error) }),
-                })
-              }
-            >
-              Publish Result
-            </Button>
-          ) : null}
-        </div>
-      )}
+        ) : null}
+      </div>
+      {askingReason ? (
+        <ReasonDialog
+          count={adjusting.length}
+          required={published}
+          busy={save.isPending}
+          onConfirm={submit}
+          onClose={() => setAskingReason(false)}
+        />
+      ) : null}
+      {historyOf ? (
+        <HistoryDialog
+          attemptId={attempt.attemptId}
+          questionId={historyOf}
+          onClose={() => setHistoryOf(null)}
+        />
+      ) : null}
       {toast ? (
         <Toast tone={toast.tone} message={toast.message} onClose={closeToast} />
       ) : null}
@@ -407,7 +667,7 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
 export function GradingWorkspace({ attemptId }: { attemptId: string }) {
   const attempt = useGradingAttempt(attemptId);
   if (attempt.isPending)
-    return <p className="text-sm text-muted">Đang tải bài làm…</p>;
+    return <WorkspaceSkeleton />;
   if (attempt.error)
     return (
       <Failure error={attempt.error} retry={() => void attempt.refetch()} />

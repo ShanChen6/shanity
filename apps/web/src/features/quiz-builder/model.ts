@@ -320,7 +320,18 @@ export function publishIssues(draft: QuizDraft, isNew: boolean): Issue[] {
     if (!(integer(question.points) >= 1))
       issues.push({ field, message: `${at}: điểm phải là số nguyên ≥ 1.` });
     if (question.type === "ESSAY") {
-      const rubricSum = rubricTotal(question.essay?.rubric);
+      const criteria = question.essay?.rubric ?? [];
+      if (criteria.some(({ criterion }) => !criterion.trim()))
+        issues.push({
+          field,
+          message: `${at}: có tiêu chí rubric chưa đặt tên.`,
+        });
+      if (criteria.some(({ maxPoints }) => !(maxPoints >= 0.25)))
+        issues.push({
+          field,
+          message: `${at}: điểm mỗi tiêu chí rubric tối thiểu 0.25.`,
+        });
+      const rubricSum = rubricTotalOf(question.essay?.rubric);
       if (rubricSum !== null && rubricSum !== integer(question.points))
         issues.push({
           field,
@@ -388,6 +399,30 @@ export function tagsOf(value: string): string[] {
         .filter(Boolean),
     ),
   ];
+}
+
+/** The rubric's criteria add up to the question's Max Points (exactly). */
+export const rubricTotalOf = (rubric?: RubricCriterion[]) =>
+  rubric?.length
+    ? Math.round(
+        rubric.reduce((total, { maxPoints }) => total + maxPoints, 0) * 100,
+      ) / 100
+    : null;
+
+export const newCriterion = (): RubricCriterion => ({
+  criterion: "",
+  maxPoints: 1,
+});
+
+/** Replaces the rubric of an ESSAY question (an empty list removes it). */
+export function withRubric(
+  question: QuestionDraft,
+  rubric: RubricCriterion[],
+): QuestionDraft {
+  const essay = { ...(question.essay ?? newEssay()) };
+  if (rubric.length) essay.rubric = rubric;
+  else delete essay.rubric;
+  return { ...question, essay };
 }
 
 const rubricTotal = (rubric?: RubricCriterion[]) =>

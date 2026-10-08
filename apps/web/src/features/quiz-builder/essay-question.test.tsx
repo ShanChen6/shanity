@@ -145,4 +145,52 @@ describe("essay question authoring", () => {
     );
     expect(screen.getByLabelText("Nội dung đáp án 1")).toBeInTheDocument();
   });
+
+  it("edits a rubric whose criteria must add up to Max Points", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.selectOptions(screen.getByLabelText("Loại Câu 1"), "ESSAY");
+    const points = screen.getByLabelText("Điểm tối đa Câu 1");
+    await user.clear(points);
+    await user.type(points, "5");
+
+    await user.click(screen.getByRole("button", { name: /Thêm tiêu chí/ }));
+    await user.type(screen.getByLabelText("Tiêu chí 1 (Câu 1)"), "Method");
+    const score = screen.getByLabelText("Điểm tiêu chí 1 (Câu 1)");
+    await user.clear(score);
+    await user.type(score, "3");
+    // 3 of 5: flagged right away, and kept out of the payload.
+    expect(screen.getByTestId("rubric-total")).toHaveTextContent(
+      "Tổng rubric: 3 / 5 điểm — phải bằng điểm tối đa",
+    );
+    expect(screen.getByRole("alert")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /Thêm tiêu chí/ }));
+    await user.type(screen.getByLabelText("Tiêu chí 2 (Câu 1)"), "Result");
+    const second = screen.getByLabelText("Điểm tiêu chí 2 (Câu 1)");
+    await user.clear(second);
+    await user.type(second, "2");
+    expect(screen.getByTestId("rubric-total")).toHaveTextContent(
+      "Tổng rubric: 5 / 5 điểm",
+    );
+    expect(screen.getByTestId("rubric-total")).not.toHaveAttribute("role");
+    expect(screen.getByTestId("payload")).toHaveTextContent(
+      '"rubric":[{"criterion":"Method","maxPoints":3},{"criterion":"Result","maxPoints":2}]',
+    );
+
+    await user.click(screen.getByRole("button", { name: "Xóa tiêu chí 2 (Câu 1)" }));
+    expect(screen.getByTestId("rubric-total")).toHaveTextContent("3 / 5");
+  });
+
+  it("previews LaTeX in the question text as it is typed", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    expect(screen.queryByTestId("question-katex-preview")).toBeNull();
+    await user.type(
+      screen.getByPlaceholderText(/TypeScript là gì/),
+      "Giải $x^2 = 4$",
+    );
+    const preview = await screen.findByTestId("question-katex-preview");
+    expect(preview.querySelector(".katex")).not.toBeNull();
+  });
 });

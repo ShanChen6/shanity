@@ -37,6 +37,16 @@ export class QuizGradingController {
     return this.grading.getAttempt(req.principal, attemptId);
   }
 
+  // Who changed which essay grade, when, from what to what, and why.
+  @Get(':attemptId/grade-history')
+  @Header('Cache-Control', 'private, no-store')
+  history(
+    @Req() req: AuthRequest,
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+  ) {
+    return this.grading.getGradeHistory(req.principal, attemptId);
+  }
+
   @Post(':attemptId/grade')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')

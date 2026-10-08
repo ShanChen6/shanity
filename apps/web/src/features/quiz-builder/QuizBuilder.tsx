@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, GitBranchPlus, Plus, Rocket, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -118,7 +119,18 @@ function ExistingQuiz({ quizId, notify }: { quizId: string; notify: Notify }) {
       />
     );
   if (!data || !initial || initial.key !== stamp)
-    return <p className="text-sm text-muted">Đang tải bài quiz…</p>;
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Đang tải bài quiz"
+        className="space-y-4"
+      >
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
   return (
     <BuilderForm
       key={stamp}

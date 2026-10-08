@@ -67,4 +67,10 @@ export class GradeQuizAttemptDto {
   @ValidateNested({ each: true })
   @Type(() => GradeEssayQuestionDto)
   grades!: GradeEssayQuestionDto[];
+
+  // Why already-given grades change. Required once the result is published.
+  @ValidateIf(present)
+  @IsString()
+  @MaxLength(2000)
+  adjustmentReason?: string;
 }

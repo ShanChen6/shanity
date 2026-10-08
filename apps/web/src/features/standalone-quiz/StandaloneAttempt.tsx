@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Spinner } from "@/components/ui/spinner";
+import { AttemptSkeleton } from "@/features/quiz-player/AttemptSkeleton";
 import { Failure } from "@/features/instructor/shared";
 import { AttemptRunner } from "@/features/quiz-player/AttemptRunner";
 import type { Attempt } from "@/features/quiz-player/api";
@@ -62,11 +62,7 @@ export function StandaloneAttempt({ slug }: { slug: string }) {
       </main>
     );
   if (!active.data || closedAttempt || missing)
-    return (
-      <main className="flex flex-1 items-center justify-center py-16">
-        <Spinner label="Đang mở bài làm…" />
-      </main>
-    );
+    return <AttemptSkeleton />;
 
   return (
     <AttemptRunner

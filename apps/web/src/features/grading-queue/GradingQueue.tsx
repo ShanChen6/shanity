@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useState } from "react";
+import { Coffee, SearchX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Toast } from "@/components/ui/toast";
 import { Failure } from "@/features/instructor/shared";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -52,7 +54,7 @@ function Row({
   const pending = item.status === "NEEDS_GRADING";
   const badge = statusBadge(item);
   return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
       <Avatar
         name={item.student.fullName}
         src={avatarSrc(item.student.avatarUrl)}
@@ -78,11 +80,69 @@ function Row({
       ) : null}
       <Link
         href={gradingHref(item.attemptId)}
-        className="inline-flex min-h-9 items-center rounded-md border border-border-strong px-3 text-sm font-semibold hover:bg-surface-hover"
+        className="inline-flex min-h-9 items-center rounded-md border border-border-strong px-3 text-sm font-semibold hover:bg-surface-hover max-sm:flex-1 max-sm:justify-center"
       >
         {pending ? "Chấm bài" : "Xem lại"}
       </Link>
     </li>
+  );
+}
+
+/** Placeholder rows with the shape of the real groups: no layout jump. */
+export function QueueSkeleton() {
+  return (
+    <div
+      className="space-y-5"
+      role="status"
+      aria-busy="true"
+      aria-label="Đang tải hàng chờ chấm bài"
+      data-testid="grading-skeleton"
+    >
+      {[0, 1].map((group) => (
+        <div
+          key={group}
+          className="overflow-hidden rounded-lg border border-border bg-surface"
+        >
+          <div className="border-b border-border bg-surface-secondary px-4 py-3">
+            <Skeleton className="h-4 w-48" />
+          </div>
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="flex items-center gap-3 px-4 py-3">
+              <Skeleton className="size-9 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-56 max-w-full" />
+              </div>
+              <Skeleton className="h-6 w-28" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyQueue({ allGraded }: { allGraded: boolean }) {
+  const Icon = allGraded ? Coffee : SearchX;
+  return (
+    <div
+      data-testid="grading-empty"
+      className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center"
+    >
+      <span className="flex size-16 items-center justify-center rounded-full bg-surface-secondary text-muted">
+        <Icon aria-hidden size={30} />
+      </span>
+      <p className="text-base font-semibold">
+        {allGraded
+          ? "All essays graded! Take a break ☕"
+          : "Không có bài nộp nào khớp bộ lọc."}
+      </p>
+      <p className="max-w-sm text-sm text-muted">
+        {allGraded
+          ? "Không còn bài tự luận nào đang chờ chấm. Bài mới sẽ xuất hiện ở đây khi học viên nộp."
+          : "Thử đổi khóa học, bài quiz, trạng thái hoặc từ khóa tìm kiếm."}
+      </p>
+    </div>
   );
 }
 
@@ -211,11 +271,16 @@ export function GradingQueue() {
       {queue.error ? (
         <Failure error={queue.error} retry={() => void queue.refetch()} />
       ) : queue.isPending ? (
-        <p className="text-sm text-muted">Đang tải…</p>
+        <QueueSkeleton />
       ) : !groups.length ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
-          Không có bài nộp nào khớp bộ lọc.
-        </div>
+        <EmptyQueue
+          allGraded={
+            status === "NEEDS_GRADING" &&
+            !courseId &&
+            !quizId &&
+            !debouncedSearch.trim()
+          }
+        />
       ) : (
         <div className="space-y-5" data-testid="grading-groups">
           {groups.map((group) => (

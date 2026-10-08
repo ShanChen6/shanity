@@ -1,6 +1,6 @@
 // Pure helpers of the instructor grading queue. No React, no fetch.
 
-export type QueueStatus = "ALL" | "NEEDS_GRADING" | "GRADED";
+export type QueueStatus = "ALL" | "NEEDS_GRADING" | "GRADED" | "PUBLISHED";
 
 // GET /instructor/grading-queue
 export type GradingQueueItem = {
@@ -34,7 +34,8 @@ export const STATUS_TABS: ReadonlyArray<{ value: QueueStatus; label: string }> =
   [
     { value: "ALL", label: "Tất cả" },
     { value: "NEEDS_GRADING", label: "Cần chấm" },
-    { value: "GRADED", label: "Đã chấm" },
+    { value: "GRADED", label: "Đã chấm (chưa công bố)" },
+    { value: "PUBLISHED", label: "Đã công bố" },
   ];
 
 export type QueueFilters = {
@@ -169,8 +170,9 @@ export type GradingAttempt = {
 // POST /instructor/quiz-attempts/:attemptId/grade
 export type GradeResult = {
   attemptId: string;
-  status: "NEEDS_GRADING" | "GRADED";
+  status: "NEEDS_GRADING" | "GRADED" | "COMPLETED";
   remainingUngradedCount: number;
+  adjustedQuestionIds: string[];
   result: {
     earnedPoints: number;
     totalPoints: number;
@@ -275,3 +277,57 @@ export function gradesPayload(
 }
 
 export type GradesPayload = ReturnType<typeof gradesPayload>;
+
+// ---- Grade adjustment audit trail (E15) ----
+
+/** Saved grade of a question, if it has one. */
+const savedGrade = (question: EssayQuestionView) =>
+  question.grading?.status === "GRADED" ? question.grading : null;
+
+/**
+ * Questions that already had a grade and whose points or feedback the grader
+ * has changed: saving them is an audited adjustment.
+ */
+export function adjustedQuestions(
+  attempt: GradingAttempt,
+  inputs: Record<string, GradeInput>,
+): EssayQuestionView[] {
+  return essaysOf(attempt).filter((question) => {
+    const saved = savedGrade(question);
+    const input = inputs[question.id];
+    if (!saved || !input) return false;
+    const awarded = awardedOf(question, input);
+    if (awarded === null) return false;
+    return (
+      awarded !== saved.awardedPoints ||
+      input.feedback.trim() !== (saved.feedback ?? "").trim()
+    );
+  });
+}
+
+export type GradeAdjustment = {
+  id: string;
+  oldScore: number;
+  newScore: number;
+  oldFeedback: string | null;
+  newFeedback: string | null;
+  adjustedBy: { id: string; fullName: string };
+  adjustedAt: string;
+  adjustmentReason: string | null;
+  wasPublished: boolean;
+};
+// GET /instructor/quiz-attempts/:attemptId/grade-history
+export type GradeHistory = {
+  attemptId: string;
+  status: string;
+  publishedAt: string | null;
+  questions: Array<{
+    questionId: string;
+    number: number;
+    content: string;
+    maxScore: number;
+    currentScore: number | null;
+    currentFeedback: string | null;
+    adjustments: GradeAdjustment[];
+  }>;
+};

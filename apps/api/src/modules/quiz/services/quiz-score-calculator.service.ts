@@ -202,7 +202,7 @@ export type FinalizedAttempt = ScoreBreakdown & {
   attemptId: string;
   userId: string;
   courseId: string | null;
-  status: QuizAttemptStatus.GRADED;
+  status: QuizAttemptStatus.GRADED | QuizAttemptStatus.COMPLETED;
 };
 
 type LockedAttempt = {
@@ -294,6 +294,66 @@ export class QuizScoreCalculatorService {
       userId: attempt.userId,
       courseId: attempt.quizSnapshot.quiz.courseId,
       status: QuizAttemptStatus.GRADED,
+    };
+  }
+
+  /**
+   * Re-scores an already GRADED or published attempt after a grade
+   * adjustment: the same recomputation from the stored answers, written back
+   * without touching status or publication. The caller's transaction (and the
+   * audit record it writes) decides whether this happens at all.
+   */
+  async recalculateAttempt(
+    attemptId: string,
+    manager: EntityManager,
+  ): Promise<FinalizedAttempt> {
+    const [attempt] = await manager.query<LockedAttempt[]>(
+      `SELECT id, user_id AS "userId", status, quiz_snapshot AS "quizSnapshot"
+       FROM quiz_attempts WHERE id = $1 FOR UPDATE`,
+      [attemptId],
+    );
+    if (!attempt)
+      throw new NotFoundException({
+        statusCode: 404,
+        message: 'ATTEMPT_NOT_FOUND',
+        code: 'ATTEMPT_NOT_FOUND',
+      });
+    if (
+      attempt.status !== QuizAttemptStatus.GRADED &&
+      attempt.status !== QuizAttemptStatus.COMPLETED
+    )
+      throw new ConflictException({
+        statusCode: 409,
+        message: 'ATTEMPT_NOT_SCORED',
+        code: 'ATTEMPT_NOT_SCORED',
+      });
+    const stored = await manager.query<StoredAnswer[]>(
+      `SELECT question_id AS "questionId",
+         selected_option_ids AS "selectedOptionIds", grading
+       FROM attempt_answers WHERE attempt_id = $1`,
+      [attempt.id],
+    );
+    const breakdown = calculateFinalScore(attempt.quizSnapshot, stored);
+    await manager.query(
+      `UPDATE quiz_attempts
+       SET earned_points = $2, total_points = $3, score = $4,
+         percentage = $5, is_passed = $6
+       WHERE id = $1`,
+      [
+        attempt.id,
+        breakdown.totalScore,
+        breakdown.totalMaxScore,
+        breakdown.score,
+        breakdown.percentage.toFixed(2),
+        breakdown.isPassed,
+      ],
+    );
+    return {
+      ...breakdown,
+      attemptId: attempt.id,
+      userId: attempt.userId,
+      courseId: attempt.quizSnapshot.quiz.courseId,
+      status: attempt.status,
     };
   }
 }

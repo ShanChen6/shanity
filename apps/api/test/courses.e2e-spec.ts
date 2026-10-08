@@ -567,6 +567,10 @@ describe('Courses with PostgreSQL', () => {
         'thumbnail',
         'publishedAt',
         'isSequential',
+        // Public pricing (payment sprint): safe to show before purchase.
+        'accessType',
+        'price',
+        'currency',
       ].sort(),
     );
     expect(detail.body.instructor).toEqual({

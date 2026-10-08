@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import type { EntityManager } from 'typeorm';
 import type { Principal } from '../../../auth/auth.service.js';
 import {
@@ -40,6 +41,22 @@ type AttemptRow = {
   publishedAt?: Date | null;
 };
 
+type GradedJson = Extract<
+  EssayGradingJson,
+  { status: EssayGradingStatus.GRADED }
+>;
+type Planned = {
+  grade: {
+    questionId: string;
+    awardedPoints: number;
+    rubricScores: Array<{ criterionIndex: number; score: number }>;
+    feedback: string;
+  };
+  row: { id: string; questionId: string; grading: EssayGradingJson | null };
+  // The grade being replaced; null for a first grading.
+  old: GradedJson | null;
+};
+
 const bad = (message: string, code: string) =>
   new BadRequestException({ statusCode: 400, message, code });
 
@@ -61,6 +78,7 @@ export class QuizGradingService {
     private readonly dataSource: DataSource,
     private readonly queue: InstructorGradingQueueService,
     private readonly calculator: QuizScoreCalculatorService,
+    private readonly progress: CourseProgressCalculatorService,
   ) {}
 
   /**
@@ -152,10 +170,21 @@ export class QuizGradingService {
   }
 
   /**
-   * Saves grades for one or several essay questions of an attempt awaiting
-   * grading. When the last UNGRADED essay is graded, the attempt closes as
-   * GRADED with its final score (MCQ points + essay points), still private
-   * until QuizPublishService publishes it.
+   * Saves grades for essay questions, for the first time or as an
+   * adjustment.
+   *
+   * - First grading (NEEDS_GRADING): when the last UNGRADED essay is graded
+   *   the attempt becomes GRADED with its final score, still private until
+   *   QuizPublishService publishes it.
+   * - Adjustment (a question that already has a grade, in any state): never
+   *   a silent overwrite. Each changed grade writes an immutable
+   *   quiz_grade_audit_logs row (who, when, old/new points, feedback, rubric,
+   *   reason), and a GRADED or published attempt is re-scored in place by the
+   *   score calculator. Once the result is published the reason is mandatory.
+   * - A grade identical to the stored one changes nothing and logs nothing.
+   *
+   * The whole request is one transaction holding the attempt and its answer
+   * rows FOR UPDATE; any rejection saves nothing.
    */
   async grade(
     principal: Principal,
@@ -163,18 +192,87 @@ export class QuizGradingService {
     dto: GradeQuizAttemptDto,
   ) {
     await this.authorized(principal, attemptId);
-    const closed = await this.dataSource.transaction(async (manager) => {
+    const outcome = await this.dataSource.transaction(async (manager) => {
       const attempt = await this.lock(manager, attemptId);
-      if (attempt.status !== QuizAttemptStatus.NEEDS_GRADING)
+      const gradable = [
+        QuizAttemptStatus.NEEDS_GRADING,
+        QuizAttemptStatus.GRADED,
+        QuizAttemptStatus.COMPLETED,
+      ];
+      if (!gradable.includes(attempt.status))
         throw new ConflictException({
           statusCode: 409,
           message: 'ATTEMPT_NOT_AWAITING_GRADING',
           code: 'ATTEMPT_NOT_AWAITING_GRADING',
         });
+      const published = attempt.status === QuizAttemptStatus.COMPLETED;
 
       const validated = this.validate(attempt.quizSnapshot, dto.grades);
+      const reason = dto.adjustmentReason?.trim() || null;
+
+      // What is stored now, locked so no other grader changes it meanwhile.
+      const current = await manager.query<
+        Array<{
+          id: string;
+          questionId: string;
+          grading: EssayGradingJson | null;
+        }>
+      >(
+        `SELECT id, question_id AS "questionId", grading
+         FROM attempt_answers
+         WHERE attempt_id = $1 AND question_id = ANY($2::uuid[]) FOR UPDATE`,
+        [attempt.id, validated.map(({ questionId }) => questionId)],
+      );
+      const byQuestion = new Map(current.map((row) => [row.questionId, row]));
+
+      const plan = validated.flatMap((grade): Planned[] => {
+        const row = byQuestion.get(grade.questionId);
+        if (!row) throw bad('Essay answer not found', 'ESSAY_ANSWER_NOT_FOUND');
+        const old =
+          row.grading?.status === EssayGradingStatus.GRADED
+            ? row.grading
+            : null;
+        if (!old) return [{ grade, row, old: null }];
+        const changed =
+          old.awardedPoints !== grade.awardedPoints ||
+          (old.feedback ?? '').trim() !== grade.feedback ||
+          JSON.stringify(sortedRubric(old.rubricScores)) !==
+            JSON.stringify(sortedRubric(grade.rubricScores));
+        return changed ? [{ grade, row, old }] : [];
+      });
+      const adjustments = plan.filter(({ old }) => old !== null);
+      if (published && adjustments.length && !reason)
+        throw bad(
+          'A reason must be provided when adjusting scores for published attempts.',
+          'ADJUSTMENT_REASON_REQUIRED',
+        );
+
       const gradedAt = new Date().toISOString();
-      for (const grade of validated) {
+      for (const { grade, row, old } of plan) {
+        if (old)
+          await manager.query(
+            `INSERT INTO quiz_grade_audit_logs(
+               quiz_answer_id, attempt_id, question_id, adjusted_by,
+               old_score, new_score, old_feedback, new_feedback,
+               old_rubric_scores, new_rubric_scores, adjustment_reason,
+               was_published
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb,
+               $11, $12)`,
+            [
+              row.id,
+              attempt.id,
+              grade.questionId,
+              principal.id,
+              old.awardedPoints,
+              grade.awardedPoints,
+              old.feedback?.trim() || null,
+              grade.feedback || null,
+              JSON.stringify(old.rubricScores ?? []),
+              JSON.stringify(grade.rubricScores),
+              reason,
+              published,
+            ],
+          );
         const grading: EssayGradingJson = {
           status: EssayGradingStatus.GRADED,
           awardedPoints: grade.awardedPoints,
@@ -183,21 +281,23 @@ export class QuizGradingService {
           gradedBy: principal.id,
           gradedAt,
         };
-        // The answer row exists since submission; the DB triggers only let
-        // grading, never the student's answer, change on a closed attempt.
-        const [, updated] = await manager.query<[unknown, number]>(
+        // The DB triggers only let grading, never the student's answer,
+        // change once the attempt is closed.
+        await manager.query(
           `UPDATE attempt_answers
-           SET grading = $3::jsonb, points_earned = $4, is_correct = NULL
-           WHERE attempt_id = $1 AND question_id = $2`,
-          [
-            attempt.id,
-            grade.questionId,
-            JSON.stringify(grading),
-            grade.awardedPoints,
-          ],
+           SET grading = $2::jsonb, points_earned = $3, is_correct = NULL
+           WHERE id = $1`,
+          [row.id, JSON.stringify(grading), grade.awardedPoints],
         );
-        if (!updated)
-          throw bad('Essay answer not found', 'ESSAY_ANSWER_NOT_FOUND');
+      }
+
+      const adjusted = adjustments.map(({ grade }) => grade.questionId);
+      if (attempt.status !== QuizAttemptStatus.NEEDS_GRADING) {
+        // Already scored: re-score in place, only if something changed.
+        const result = adjusted.length
+          ? await this.calculator.recalculateAttempt(attempt.id, manager)
+          : null;
+        return { status: attempt.status, remaining: 0, result, adjusted };
       }
 
       const essayIds = attempt.quizSnapshot.questions
@@ -210,7 +310,13 @@ export class QuizGradingService {
         [attempt.id, essayIds],
       );
       const remaining = essayIds.length - graded!;
-      if (remaining > 0) return { remaining, result: null, attempt };
+      if (remaining > 0)
+        return {
+          status: QuizAttemptStatus.NEEDS_GRADING,
+          remaining,
+          result: null,
+          adjusted,
+        };
 
       // The last essay is graded: the domain service recomputes everything
       // from the stored answers and closes the attempt. Nothing is computed
@@ -219,26 +325,122 @@ export class QuizGradingService {
         attempt.id,
         manager,
       );
-      return { remaining: 0, attempt, result: final };
+      return {
+        status: QuizAttemptStatus.GRADED,
+        remaining: 0,
+        result: final,
+        adjusted,
+      };
     });
 
-    // The score stays private (GRADED) until the instructor publishes it, so
-    // course progress is not touched here: publication does that.
+    // A published pass/fail may have flipped: course progress must follow.
+    // (A merely GRADED score is private, so progress is not touched.)
+    if (
+      outcome.status === QuizAttemptStatus.COMPLETED &&
+      outcome.result?.courseId
+    )
+      await this.progress.invalidateStudentProgress(
+        outcome.result.userId,
+        outcome.result.courseId,
+      );
     return {
       attemptId,
-      status: closed.result
-        ? QuizAttemptStatus.GRADED
-        : QuizAttemptStatus.NEEDS_GRADING,
-      remainingUngradedCount: closed.remaining,
+      status: outcome.status,
+      remainingUngradedCount: outcome.remaining,
       gradedQuestionIds: dto.grades.map(({ questionId }) => questionId),
-      result: closed.result && {
-        earnedPoints: closed.result.totalScore,
-        totalPoints: closed.result.totalMaxScore,
-        percentage: closed.result.percentage,
-        score: closed.result.score,
-        isPassed: closed.result.isPassed,
-        breakdown: toBreakdownDto(closed.result),
+      adjustedQuestionIds: outcome.adjusted,
+      result: outcome.result && {
+        earnedPoints: outcome.result.totalScore,
+        totalPoints: outcome.result.totalMaxScore,
+        percentage: outcome.result.percentage,
+        score: outcome.result.score,
+        isPassed: outcome.result.isPassed,
+        breakdown: toBreakdownDto(outcome.result),
       },
+    };
+  }
+
+  /**
+   * The score history timeline of every essay question: each adjustment with
+   * who changed what, when and why. Instructors of the course and admins only.
+   */
+  async getGradeHistory(principal: Principal, attemptId: string) {
+    const attempt = await this.authorized(principal, attemptId);
+    const logs = await this.dataSource.query<
+      Array<{
+        id: string;
+        questionId: string;
+        oldScore: string;
+        newScore: string;
+        oldFeedback: string | null;
+        newFeedback: string | null;
+        oldRubricScores: unknown;
+        newRubricScores: unknown;
+        adjustmentReason: string | null;
+        wasPublished: boolean;
+        adjustedAt: Date;
+        adjustedById: string;
+        adjustedByName: string;
+      }>
+    >(
+      `SELECT log.id, log.question_id AS "questionId",
+         log.old_score AS "oldScore", log.new_score AS "newScore",
+         log.old_feedback AS "oldFeedback", log.new_feedback AS "newFeedback",
+         log.old_rubric_scores AS "oldRubricScores",
+         log.new_rubric_scores AS "newRubricScores",
+         log.adjustment_reason AS "adjustmentReason",
+         log.was_published AS "wasPublished", log.created_at AS "adjustedAt",
+         adjuster.id AS "adjustedById", adjuster.display_name AS "adjustedByName"
+       FROM quiz_grade_audit_logs log
+       INNER JOIN users adjuster ON adjuster.id = log.adjusted_by
+       WHERE log.attempt_id = $1 ORDER BY log.created_at, log.id`,
+      [attempt.id],
+    );
+    const answers = await this.dataSource.query<
+      Array<{ questionId: string; grading: EssayGradingJson | null }>
+    >(
+      `SELECT question_id AS "questionId", grading
+       FROM attempt_answers WHERE attempt_id = $1`,
+      [attempt.id],
+    );
+    const grading = new Map(answers.map((a) => [a.questionId, a.grading]));
+    return {
+      attemptId: attempt.id,
+      status: attempt.status,
+      publishedAt: attempt.publishedAt ?? null,
+      questions: attempt.quizSnapshot.questions.flatMap((question, index) => {
+        if (question.type !== QuizQuestionType.ESSAY) return [];
+        const now = grading.get(question.id);
+        const current = now?.status === EssayGradingStatus.GRADED ? now : null;
+        return [
+          {
+            questionId: question.id,
+            number: index + 1,
+            content: question.content,
+            maxScore: question.points,
+            currentScore: current?.awardedPoints ?? null,
+            currentFeedback: current?.feedback ?? null,
+            adjustments: logs
+              .filter(({ questionId }) => questionId === question.id)
+              .map((log) => ({
+                id: log.id,
+                oldScore: Number(log.oldScore),
+                newScore: Number(log.newScore),
+                oldFeedback: log.oldFeedback,
+                newFeedback: log.newFeedback,
+                oldRubricScores: log.oldRubricScores,
+                newRubricScores: log.newRubricScores,
+                adjustedBy: {
+                  id: log.adjustedById,
+                  fullName: log.adjustedByName,
+                },
+                adjustedAt: log.adjustedAt,
+                adjustmentReason: log.adjustmentReason,
+                wasPublished: log.wasPublished,
+              })),
+          },
+        ];
+      }),
     };
   }
 
@@ -359,6 +561,10 @@ export class QuizGradingService {
     return attempt!;
   }
 }
+
+const sortedRubric = (
+  scores?: Array<{ criterionIndex: number; score: number }>,
+) => [...(scores ?? [])].sort((a, b) => a.criterionIndex - b.criterionIndex);
 
 function pick<T extends object, K extends keyof T>(
   value: T | undefined,

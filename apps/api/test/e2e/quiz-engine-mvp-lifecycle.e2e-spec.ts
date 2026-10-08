@@ -147,7 +147,7 @@ describe('Quiz engine MVP lifecycle', () => {
         `/quiz-attempts/${attemptId}/submit`,
       ).expect(200);
       expect(submitted.body).toMatchObject({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 10,
         totalPoints: 30,
         percentage: 33.33,

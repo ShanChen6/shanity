@@ -172,14 +172,76 @@ describe("GradingQueue screen", () => {
     render(<GradingQueue />, { wrapper });
     await screen.findByRole("region", { name: "Midterm" });
 
-    await user.click(screen.getByRole("tab", { name: "Đã chấm" }));
+    await user.click(
+      screen.getByRole("tab", { name: "Đã chấm (chưa công bố)" }),
+    );
     await waitFor(() =>
       expect(urls.at(-1)).toContain("status=GRADED"),
     );
     await user.selectOptions(screen.getByLabelText("Khóa học"), "c1");
     await waitFor(() => expect(urls.at(-1)).toContain("courseId=c1"));
     expect(screen.getByLabelText("Bài quiz")).toBeEnabled();
+    await user.click(screen.getByRole("tab", { name: "Đã công bố" }));
+    await waitFor(() => expect(urls.at(-1)).toContain("status=PUBLISHED"));
     await user.click(screen.getByRole("tab", { name: "Tất cả" }));
     await waitFor(() => expect(urls.at(-1)).not.toContain("status="));
+  });
+
+  it("shows skeleton rows while loading, then the groups", async () => {
+    render(<GradingQueue />, { wrapper });
+    expect(screen.getByTestId("grading-skeleton")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    await screen.findByRole("region", { name: "Midterm" });
+    expect(screen.queryByTestId("grading-skeleton")).toBeNull();
+  });
+
+  it("celebrates an empty queue, and explains an empty filter", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input).replace(API, "");
+        const body = url.startsWith("/instructor/grading-queue?")
+          ? {
+              items: [],
+              pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+            }
+          : url.startsWith("/instructor/grading-queue/courses")
+            ? [{ id: "c1", title: "Course A", slug: "course-a" }]
+            : {};
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    render(<GradingQueue />, { wrapper });
+    expect(
+      await screen.findByText("All essays graded! Take a break ☕"),
+    ).toBeVisible();
+
+    // With a filter applied, the same emptiness is a "nothing matches" hint.
+    await user.type(screen.getByLabelText("Tìm học viên"), "zzz");
+    expect(
+      await screen.findByText("Không có bài nộp nào khớp bộ lọc."),
+    ).toBeVisible();
+  });
+
+  it("keeps the retry button when the server fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ statusCode: 500 }), {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    render(<GradingQueue />, { wrapper });
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("button", { name: /thử lại/i })).toBeVisible();
   });
 });

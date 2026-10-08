@@ -43,7 +43,10 @@ import {
 } from './cloudinary-upload.js';
 import { assertTransition, isScoreConcealed } from './quiz-attempt-state.js';
 import { QuizLearnerAccessService } from './quiz-learner-access.service.js';
-import { buildAttemptResult } from '../dto/quiz-attempt-result.dto.js';
+import {
+  buildAttemptResult,
+  SHOW_ADJUSTMENT_REASON_TO_LEARNER,
+} from '../dto/quiz-attempt-result.dto.js';
 import { isReviewAllowed } from './quiz-review-policy.js';
 import {
   EssayGradingStatus,
@@ -513,6 +516,9 @@ export class QuizAttemptsService {
           attempt.status === QuizAttemptStatus.COMPLETED
             ? toBreakdownDto(calculateScore(attempt.quizSnapshot, answers))
             : undefined,
+          attempt.status === QuizAttemptStatus.COMPLETED
+            ? await this.publishedAdjustments(manager, attempt.id)
+            : undefined,
         ),
       };
     });
@@ -522,6 +528,34 @@ export class QuizAttemptsService {
         ...error(result.rejected!),
       });
     return result.result;
+  }
+
+  /**
+   * Grade changes made after the result was published, for the learner's
+   * "score updated" notice. Only dates and (by policy) the reasons: never who
+   * changed what.
+   */
+  private async publishedAdjustments(
+    manager: EntityManager,
+    attemptId: string,
+  ) {
+    const rows = await manager.query<
+      Array<{ adjustedAt: Date; reason: string | null }>
+    >(
+      `SELECT created_at AS "adjustedAt", adjustment_reason AS reason
+       FROM quiz_grade_audit_logs
+       WHERE attempt_id = $1 AND was_published ORDER BY created_at, id`,
+      [attemptId],
+    );
+    if (!rows.length) return undefined;
+    return {
+      count: rows.length,
+      lastAdjustedAt: rows[rows.length - 1]!.adjustedAt,
+      adjustments: rows.map(({ adjustedAt, reason }) => ({
+        adjustedAt,
+        reason: SHOW_ADJUSTMENT_REASON_TO_LEARNER ? reason : null,
+      })),
+    };
   }
 
   /** IN_PROGRESS/SUBMITTING -> SUBMITTING; returns the claim's token. */

@@ -306,10 +306,16 @@ describe('E12 manual essay grading and server-side score integrity', () => {
     });
     expect(result.body).not.toHaveProperty('breakdown');
 
-    // Closed attempts cannot be graded again.
+    // A graded attempt is not frozen: changing a grade is an audited
+    // adjustment (see quiz-grade-audit.service.spec.ts), never a silent edit.
     await grade(attemptId, [{ questionId: essay1, awardedPoints: 1 }]).expect(
-      409,
+      200,
     );
+    const [{ count }] = await t.db.query(
+      'SELECT count(*)::int AS count FROM quiz_grade_audit_logs WHERE attempt_id = $1',
+      [attemptId],
+    );
+    expect(count).toBe(1);
   });
 
   it('fails the attempt below the passing score', async () => {

@@ -77,6 +77,31 @@ describe("QuizResultSummary", () => {
     expect(within(summary).getByText("PASS")).toBeInTheDocument();
   });
 
+  it("flags a score changed after publication, with the reasons", () => {
+    const { rerender } = render(<QuizResultSummary result={result()} />);
+    expect(screen.queryByTestId("adjustment-notice")).toBeNull();
+
+    rerender(
+      <QuizResultSummary
+        result={result({
+          adjustment: {
+            count: 1,
+            lastAdjustedAt: "2026-10-09T03:00:00.000Z",
+            adjustments: [
+              { adjustedAt: "2026-10-09T03:00:00.000Z", reason: "Appeal upheld" },
+            ],
+          },
+        })}
+      />,
+    );
+    const notice = screen.getByTestId("adjustment-notice");
+    expect(within(notice).getByText("Đã điều chỉnh điểm")).toBeInTheDocument();
+    expect(notice).toHaveTextContent(
+      "Điểm số đã được cập nhật bởi Giảng viên vào",
+    );
+    expect(notice).toHaveTextContent("Appeal upheld");
+  });
+
   it("shows FAIL, and omits the essay block for an all-MCQ quiz", () => {
     const base = result();
     render(

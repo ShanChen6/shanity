@@ -37,6 +37,18 @@ export class ResultQuestionDto {
   options: ResultOptionDto[];
 }
 
+/**
+ * Whether a learner is told why a published grade was adjusted. The score
+ * history itself (who, old and new points) stays instructor-side.
+ */
+export const SHOW_ADJUSTMENT_REASON_TO_LEARNER = true;
+
+export type AttemptAdjustment = {
+  count: number;
+  lastAdjustedAt: Date;
+  adjustments: Array<{ adjustedAt: Date; reason: string | null }>;
+};
+
 export class AttemptResultDto {
   attemptId: string;
   quizId: string;
@@ -48,6 +60,8 @@ export class AttemptResultDto {
   scoreVisible: boolean;
   // Set while essays await grading.
   message?: string;
+  // Set when a grade was changed after the result had been published.
+  adjustment?: AttemptAdjustment;
   // Only for COMPLETED attempts: where every point came from.
   breakdown?: ReturnType<typeof toBreakdownDto>;
   score: {
@@ -81,6 +95,7 @@ export function buildAttemptResult(
   answers: AnswerSource[],
   reviewAllowed: boolean,
   breakdown?: ReturnType<typeof toBreakdownDto>,
+  adjustment?: AttemptAdjustment,
 ): AttemptResultDto {
   const { quiz, questions } = attempt.quizSnapshot;
   const concealed = isScoreConcealed(attempt.status);
@@ -98,6 +113,7 @@ export function buildAttemptResult(
     scoreVisible: !concealed,
     ...(concealed && { message: concealedMessage(attempt.status) }),
     ...(!concealed && breakdown && { breakdown }),
+    ...(!concealed && adjustment && { adjustment }),
     // The stored MCQ part is internal until the instructor finishes grading.
     score: concealed
       ? null

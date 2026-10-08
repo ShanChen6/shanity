@@ -37,6 +37,7 @@ import { OrderAuditLogs1792022400001 } from './202610150001_order_audit_logs.js'
 import { AddEssaySupportToQuestions1792108800001 } from './202610160001_add_essay_support_to_questions.js';
 import { AddEssayAnswerAndGradingToAttemptAnswers1792195200001 } from './202610170001_add_essay_answer_and_grading_to_attempt_answers.js';
 import { AddGradedStatusAndPublishedAt1792281600001 } from './202610180001_add_graded_status_and_published_at.js';
+import { AddQuizGradeAuditLogs1792368000001 } from './202610190001_add_quiz_grade_audit_logs.js';
 
 export const migrationHistory = [
   {
@@ -272,6 +273,12 @@ export const migrationHistory = [
     name: 'AddGradedStatusAndPublishedAt1792281600001',
     timestamp: 1792281600001,
     migration: AddGradedStatusAndPublishedAt1792281600001,
+  },
+  {
+    legacy: null,
+    name: 'AddQuizGradeAuditLogs1792368000001',
+    timestamp: 1792368000001,
+    migration: AddQuizGradeAuditLogs1792368000001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

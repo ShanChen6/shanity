@@ -102,6 +102,12 @@ export type AttemptResult = {
   // Null (and `message` set) while essays await the instructor's grading.
   scoreVisible: boolean;
   message?: string;
+  // Set when a grade was changed after the result had been published.
+  adjustment?: {
+    count: number;
+    lastAdjustedAt: string;
+    adjustments: Array<{ adjustedAt: string; reason: string | null }>;
+  };
   // COMPLETED attempts only: where every point came from (server-computed).
   breakdown?: {
     mcq: { score: number; maxScore: number };
@@ -224,6 +230,47 @@ export const saveDraft = (
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
+type CloudinaryResult = {
+  secure_url?: string;
+  bytes?: number;
+  error?: { message?: string };
+};
+
+/** POST multipart with upload progress (fetch cannot report it). */
+function postWithProgress(
+  url: string,
+  form: FormData,
+  onProgress?: (percent: number) => void,
+): Promise<CloudinaryResult> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", url);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () =>
+      reject(
+        new Error(
+          "Không kết nối được tới Cloudinary (mạng hoặc trình duyệt chặn).",
+        ),
+      );
+    request.onload = () => {
+      let body: CloudinaryResult = {};
+      try {
+        body = JSON.parse(request.responseText) as CloudinaryResult;
+      } catch {
+        // Not JSON: reported below as a failed upload.
+      }
+      if (request.status >= 200 && request.status < 300 && body.secure_url) {
+        onProgress?.(100);
+        resolve(body);
+      } else reject(new Error(body.error?.message ?? "Tải lên thất bại."));
+    };
+    request.send(form);
+  });
+}
+
 /**
  * Uploads a draft photo/PDF straight to Cloudinary with parameters signed by
  * the API, and returns the attachment to store in the essay answer.
@@ -231,6 +278,7 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 export async function uploadEssayAttachment(
   attemptId: string,
   file: File,
+  onProgress?: (percent: number) => void,
 ): Promise<EssayAttachment> {
   if (file.size > MAX_ATTACHMENT_BYTES)
     throw new Error("Tệp tối đa 10 MB.");
@@ -247,23 +295,9 @@ export async function uploadEssayAttachment(
   form.set("timestamp", String(signed.timestamp));
   form.set("folder", signed.folder);
   form.set("signature", signed.signature);
-  const response = await fetch(signed.uploadUrl, {
-    method: "POST",
-    body: form,
-  }).catch(() => {
-    throw new Error(
-      "Không kết nối được tới Cloudinary (mạng hoặc trình duyệt chặn).",
-    );
-  });
-  const result = (await response.json().catch(() => ({}))) as {
-    secure_url?: string;
-    bytes?: number;
-    error?: { message?: string };
-  };
-  if (!response.ok || !result.secure_url)
-    throw new Error(result.error?.message ?? "Tải lên thất bại.");
+  const result = await postWithProgress(signed.uploadUrl, form, onProgress);
   return {
-    url: result.secure_url,
+    url: result.secure_url!,
     filename: file.name.slice(0, 255),
     mimeType: file.type || "application/octet-stream",
     size: Math.max(1, result.bytes ?? file.size),

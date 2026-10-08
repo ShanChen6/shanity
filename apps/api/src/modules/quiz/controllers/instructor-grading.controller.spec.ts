@@ -183,9 +183,9 @@ describe('E11 instructor grading queue and course authorization', () => {
 
   it('never leaks another instructor course, with or without a filter', async () => {
     const own = await queue(instructorB.session).expect(200);
-    expect(own.body.items.map((i: { attemptId: string }) => i.attemptId)).toEqual(
-      [foreignAttempt],
-    );
+    expect(
+      own.body.items.map((i: { attemptId: string }) => i.attemptId),
+    ).toEqual([foreignAttempt]);
     // Without any filter, A still only sees A.
     const unfiltered = await queue(instructorA.session).expect(200);
     expect(JSON.stringify(unfiltered.body)).not.toContain(foreignAttempt);
@@ -240,9 +240,9 @@ describe('E11 instructor grading queue and course authorization', () => {
     const graded = await queue(instructorA.session, '?status=GRADED').expect(
       200,
     );
-    expect(graded.body.items.map((i: { attemptId: string }) => i.attemptId)).toEqual(
-      [gradedAttempt],
-    );
+    expect(
+      graded.body.items.map((i: { attemptId: string }) => i.attemptId),
+    ).toEqual([gradedAttempt]);
 
     const byQuiz = await queue(
       instructorA.session,
@@ -271,5 +271,24 @@ describe('E11 instructor grading queue and course authorization', () => {
       totalPages: 2,
     });
     await queue(instructorA.session, '?status=bogus').expect(400);
+  });
+
+  // Keep last: it publishes `gradedAttempt`.
+  it('separates graded-but-private from published in the status filter', async () => {
+    const ids = async (status: string) =>
+      (
+        (await queue(instructorA.session, `?status=${status}`).expect(200)).body
+          .items as Array<{ attemptId: string }>
+      ).map((item) => item.attemptId);
+    expect(await ids('PUBLISHED')).toEqual([]);
+    await t
+      .http()
+      .post(`/instructor/quiz-attempts/${gradedAttempt}/publish`)
+      .set('Origin', origin)
+      .set('Cookie', instructorA.session)
+      .expect(200);
+    expect(await ids('PUBLISHED')).toEqual([gradedAttempt]);
+    expect(await ids('GRADED')).toEqual([]);
+    expect(await ids('NEEDS_GRADING')).toEqual([pendingAttempt]);
   });
 });

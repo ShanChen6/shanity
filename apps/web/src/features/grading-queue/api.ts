@@ -8,6 +8,7 @@ import {
 import { api } from "@/lib/api";
 import {
   queueQuery,
+  type GradeHistory,
   type GradeResult,
   type GradingAttempt,
   type GradingQueuePage,
@@ -65,6 +66,21 @@ export const gradingAttemptKey = (attemptId: string) => [
   "grading-attempt",
   attemptId,
 ];
+
+/** The score history timeline; loaded only when someone opens it. */
+export function useGradeHistory(attemptId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["instructor", "grade-history", attemptId],
+    queryFn: ({ signal }) =>
+      api<GradeHistory>(`/instructor/quiz-attempts/${attemptId}/grade-history`, {
+        signal,
+      }),
+    enabled,
+    retry: false,
+    // An adjustment just saved must show up when the timeline reopens.
+    staleTime: 0,
+  });
+}
 
 export function useGradingAttempt(attemptId: string) {
   return useQuery({
@@ -128,14 +144,26 @@ export function usePublishQuizResults() {
 export function useSaveGrades(attemptId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (grades: GradesPayload) =>
+    mutationFn: ({
+      grades,
+      adjustmentReason,
+    }: {
+      grades: GradesPayload;
+      adjustmentReason?: string;
+    }) =>
       api<GradeResult>(`/instructor/quiz-attempts/${attemptId}/grade`, {
         method: "POST",
-        body: JSON.stringify({ grades }),
+        body: JSON.stringify({
+          grades,
+          ...(adjustmentReason && { adjustmentReason }),
+        }),
       }),
     onSuccess: async () => {
       await client.invalidateQueries({
         queryKey: gradingAttemptKey(attemptId),
+      });
+      await client.invalidateQueries({
+        queryKey: ["instructor", "grade-history", attemptId],
       });
       await client.invalidateQueries({
         queryKey: ["instructor", "grading-queue"],

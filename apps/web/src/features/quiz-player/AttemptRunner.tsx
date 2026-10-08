@@ -18,6 +18,8 @@ import {
   uploadEssayAttachment,
 } from "./api";
 import { EssayAnswerInput, hasEssayContent } from "./EssayAnswerInput";
+import { EssayErrorBoundary } from "./EssayErrorBoundary";
+import { localDraftKey } from "./local-draft";
 import { AutosaveQueue, formatRemaining, type SaveState } from "./autosave";
 
 const timeOf = (iso: string) =>
@@ -278,6 +280,7 @@ export function AttemptRunner({
               </h2>
               {question.type === "ESSAY" ? (
                 <div className="mt-5">
+                  <EssayErrorBoundary>
                   <EssayAnswerInput
                     key={question.id}
                     config={question.essayConfig}
@@ -289,12 +292,16 @@ export function AttemptRunner({
                     }
                     disabled={submitting || Boolean(timedOut)}
                     flushRef={essayFlush}
-                    onUpload={(file) => uploadEssayAttachment(attempt.id, file)}
+                    draftKey={localDraftKey(attempt.id, question.id)}
+                    onUpload={(file, onProgress) =>
+                      uploadEssayAttachment(attempt.id, file, onProgress)
+                    }
                     onSave={(answer) => saveEssay(question.id, answer)}
                     onChange={(answer) =>
                       setEssays((map) => new Map(map).set(question.id, answer))
                     }
                   />
+                  </EssayErrorBoundary>
                 </div>
               ) : (
                 <fieldset

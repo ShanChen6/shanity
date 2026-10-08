@@ -8,16 +8,136 @@ import { Input } from "@/components/ui/input";
 import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { KatexText } from "@/features/quiz-player/KatexText";
 import {
   markCorrect,
   newEssay,
+  newCriterion,
   newOption,
+  rubricTotalOf,
+  withRubric,
   withType,
   type QuestionDraft,
   type QuestionType,
 } from "./model";
 
 const MAX_OPTIONS = 50;
+
+/**
+ * Criteria that must add up to the question's Max Points. The running total
+ * turns red the moment it stops matching, before the server would refuse it.
+ */
+function RubricEditor({
+  label,
+  question,
+  readOnly,
+  onChange,
+}: {
+  label: string;
+  question: QuestionDraft;
+  readOnly: boolean;
+  onChange: (question: QuestionDraft) => void;
+}) {
+  const rubric = question.essay?.rubric ?? [];
+  const total = rubricTotalOf(rubric);
+  const max = Number(question.points);
+  const mismatch = total !== null && total !== max;
+  const update = (index: number, patch: Partial<(typeof rubric)[number]>) =>
+    onChange(
+      withRubric(
+        question,
+        rubric.map((item, at) => (at === index ? { ...item, ...patch } : item)),
+      ),
+    );
+  return (
+    <div className="mt-2 space-y-2">
+      {rubric.map((item, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-start gap-2"
+        >
+          <div className="space-y-1">
+            <Input
+              aria-label={`Tiêu chí ${index + 1} (${label})`}
+              value={item.criterion}
+              disabled={readOnly}
+              maxLength={500}
+              placeholder="Tên tiêu chí, ví dụ: Lập luận"
+              className="py-1.5 text-sm"
+              onChange={(event) =>
+                update(index, { criterion: event.target.value })
+              }
+            />
+            <Input
+              aria-label={`Mô tả tiêu chí ${index + 1} (${label})`}
+              value={item.description ?? ""}
+              disabled={readOnly}
+              maxLength={2000}
+              placeholder="Mô tả (tùy chọn)"
+              className="py-1.5 text-xs"
+              onChange={(event) =>
+                update(index, {
+                  description: event.target.value || undefined,
+                })
+              }
+            />
+          </div>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0.25}
+            step={0.25}
+            aria-label={`Điểm tiêu chí ${index + 1} (${label})`}
+            value={item.maxPoints}
+            disabled={readOnly}
+            className="py-1.5 text-sm"
+            onChange={(event) =>
+              update(index, { maxPoints: Number(event.target.value) || 0 })
+            }
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={readOnly}
+            aria-label={`Xóa tiêu chí ${index + 1} (${label})`}
+            onClick={() =>
+              onChange(
+                withRubric(
+                  question,
+                  rubric.filter((_, at) => at !== index),
+                ),
+              )
+            }
+          >
+            <X aria-hidden size={15} />
+          </Button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={readOnly || rubric.length >= 20}
+          onClick={() => onChange(withRubric(question, [...rubric, newCriterion()]))}
+        >
+          <Plus aria-hidden size={14} /> Thêm tiêu chí
+        </Button>
+        {total !== null ? (
+          <p
+            role={mismatch ? "alert" : undefined}
+            data-testid="rubric-total"
+            className={`text-sm tabular-nums ${
+              mismatch ? "text-danger-foreground" : "text-muted"
+            }`}
+          >
+            Tổng rubric: {total} / {Number.isFinite(max) ? max : "—"} điểm
+            {mismatch ? " — phải bằng điểm tối đa" : ""}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function QuestionCard({
   question,
@@ -129,40 +249,77 @@ export function QuestionCard({
         </div>
       </div>
 
-      <label className="mt-4 block text-sm font-medium">
-        Nội dung câu hỏi
-        <Textarea
-          value={question.content}
-          disabled={readOnly}
-          maxLength={20000}
-          placeholder="Ví dụ: TypeScript là gì?"
-          className="mt-2 !min-h-20"
-          aria-invalid={
-            issues.length > 0 && !question.content.trim() ? true : undefined
-          }
-          onChange={(event) => set({ content: event.target.value })}
-        />
-      </label>
-
-      {essay ? (
-        <label className="mt-4 block text-sm font-medium">
-          Hướng dẫn chấm / Rubric{" "}
-          <span className="font-normal text-muted">
-            (chỉ giảng viên thấy, không hiển thị cho học viên)
-          </span>
+      <div
+        className={`mt-4 grid gap-3 ${
+          question.content.includes("$") ? "md:grid-cols-2" : ""
+        }`}
+      >
+        <label className="block text-sm font-medium">
+          Nội dung câu hỏi
           <Textarea
-            value={essayConfig.gradingGuide}
+            value={question.content}
             disabled={readOnly}
             maxLength={20000}
-            placeholder="Ví dụ: Đầy đủ 3 ý chính (4đ), lập luận mạch lạc (4đ), trình bày (2đ)."
-            className="mt-2 !min-h-28 text-sm"
-            onChange={(event) =>
-              set({
-                essay: { ...essayConfig, gradingGuide: event.target.value },
-              })
+            placeholder="Ví dụ: TypeScript là gì? Dùng $...$ cho công thức."
+            className="mt-2 !min-h-20"
+            aria-invalid={
+              issues.length > 0 && !question.content.trim() ? true : undefined
             }
+            onChange={(event) => set({ content: event.target.value })}
           />
         </label>
+        {question.content.includes("$") ? (
+          <div className="text-sm font-medium">
+            Xem trước công thức
+            <div
+              data-testid="question-katex-preview"
+              className="mt-2 min-h-20 rounded-md border border-border bg-surface-secondary p-3 font-normal"
+            >
+              <KatexText text={question.content} />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {essay ? (
+        <div className="mt-4 space-y-3">
+          {/* Collapsible sections: on a phone they fold away instead of
+              stacking into one very long form. */}
+          <details open className="rounded-md border border-border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Hướng dẫn chấm{" "}
+              <span className="font-normal text-muted">
+                (chỉ giảng viên thấy, không hiển thị cho học viên)
+              </span>
+            </summary>
+            <Textarea
+              aria-label={`Hướng dẫn chấm ${label}`}
+              value={essayConfig.gradingGuide}
+              disabled={readOnly}
+              maxLength={20000}
+              placeholder="Ví dụ: Đầy đủ 3 ý chính (4đ), lập luận mạch lạc (4đ), trình bày (2đ)."
+              className="mt-2 !min-h-28 text-sm"
+              onChange={(event) =>
+                set({
+                  essay: { ...essayConfig, gradingGuide: event.target.value },
+                })
+              }
+            />
+          </details>
+
+          <details open className="rounded-md border border-border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Rubric thang điểm{" "}
+              <span className="font-normal text-muted">(tùy chọn)</span>
+            </summary>
+            <RubricEditor
+              label={label}
+              question={question}
+              readOnly={readOnly}
+              onChange={onChange}
+            />
+          </details>
+        </div>
       ) : (
         <fieldset className="mt-4">
           <legend className="text-sm font-medium">
