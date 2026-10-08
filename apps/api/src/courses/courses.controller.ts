@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Inject,
   ParseUUIDPipe,
   Param,
   Patch,
@@ -12,6 +13,9 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { CACHE_CONFIG, PUBLIC_CATALOG_GROUP } from '../cache/cache.module.js';
+import type { CacheConfig } from '../cache/cache.config.js';
+import { CacheService } from '../cache/cache.service.js';
 import { CurriculumChangedInterceptor } from '../modules/curriculum/curriculum-changed.interceptor.js';
 import { OriginGuard, Roles, SessionGuard } from '../auth/auth.guards.js';
 import type { AuthRequest } from '../auth/auth.guards.js';
@@ -118,23 +122,47 @@ export class CoursesController {
 
 @Controller('public/courses')
 export class PublicCoursesController {
-  constructor(private readonly courses: CoursesService) {}
+  constructor(
+    private readonly courses: CoursesService,
+    private readonly cache: CacheService,
+    @Inject(CACHE_CONFIG) private readonly config: CacheConfig,
+  ) {}
+
+  private cached<T>(key: string, load: () => Promise<T>) {
+    return this.cache.remember(
+      PUBLIC_CATALOG_GROUP,
+      key,
+      this.config.publicCatalogTtlSeconds,
+      load,
+    );
+  }
 
   @Get()
   @Header('Cache-Control', 'public, max-age=60')
   list(@Query() query: PublicCourseQueryDto) {
-    return this.courses.listPublic(query);
+    // Free-text searches are unbounded in variety, so only the browse views
+    // (which the whole audience shares) are cached.
+    if (query.search) return this.courses.listPublic(query);
+    const { page, limit, instructorId, sortBy, sortOrder } = query;
+    return this.cached(
+      `list:${page}:${limit}:${instructorId ?? ''}:${sortBy}:${sortOrder}`,
+      () => this.courses.listPublic(query),
+    );
   }
 
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=60')
   detail(@Param('slug') slug: string) {
-    return this.courses.getPublicBySlug(slug);
+    return this.cached(`detail:${slug}`, () =>
+      this.courses.getPublicBySlug(slug),
+    );
   }
 
   @Get(':slug/syllabus')
   @Header('Cache-Control', 'public, max-age=60')
   syllabus(@Param('slug') slug: string) {
-    return this.courses.getPublicSyllabus(slug);
+    return this.cached(`syllabus:${slug}`, () =>
+      this.courses.getPublicSyllabus(slug),
+    );
   }
 }

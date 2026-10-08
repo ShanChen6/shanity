@@ -76,6 +76,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const extra = Array.isArray(errors)
       ? errors.filter((item): item is string => typeof item === 'string')
       : [];
+    const all = [...messages, ...extra];
     return errorEnvelope(
       status,
       messages.length === 1
@@ -86,7 +87,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
             ? error
             : 'Request failed',
       {
-        errors: messages.length > 1 ? [...messages, ...extra] : extra,
+        // A lone message already travels as `message`; anything more is listed.
+        errors: messages.length === 1 && extra.length === 0 ? [] : all,
         // Structured fields such as `code` stay available to clients.
         details: Object.keys(details).length ? details : undefined,
         correlationId,
@@ -117,8 +119,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
 /** Diagnostic fields that cannot leak query text, bound values or secrets. */
 function describe(exception: unknown): Record<string, unknown> {
-  if (!(exception instanceof Error))
-    return { error: typeof exception };
+  if (!(exception instanceof Error)) return { error: typeof exception };
   const out: Record<string, unknown> = { error: exception.name };
   // TypeORM wraps the pg error; only its identifying codes are safe to keep.
   const driver = (exception as { driverError?: unknown }).driverError;

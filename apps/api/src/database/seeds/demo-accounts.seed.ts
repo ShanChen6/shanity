@@ -1,5 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 import { hashPassword } from '../../auth/password.js';
+import { seedDemoContent } from './demo-content.seed.js';
 import { SAMPLE_COURSE_SLUG } from './sample-course.seed.js';
 
 /**
@@ -101,9 +102,9 @@ async function ensureEnrollment(manager: EntityManager) {
   if (!course) return;
   await manager.query(
     `INSERT INTO enrollments(user_id, course_id)
-     SELECT id, $2 FROM users WHERE email = 'student@shanity.local'
+     SELECT id, $1 FROM users WHERE email = $2
      ON CONFLICT (user_id, course_id) DO NOTHING`,
-    [DEMO_ACCOUNTS[2].id, course.id],
+    [course.id, DEMO_ACCOUNTS[2].email],
   );
 }
 
@@ -146,5 +147,9 @@ export async function seedDemoAccounts(db: DataSource): Promise<void> {
     await ensureAccounts(manager);
     await ensureEnrollment(manager);
     await ensureQuiz(manager);
+    await seedDemoContent(manager, {
+      instructor: DEMO_ACCOUNTS[1].email,
+      student: DEMO_ACCOUNTS[2].email,
+    });
   });
 }

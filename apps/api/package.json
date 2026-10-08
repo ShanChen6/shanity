@@ -41,6 +41,7 @@
     "exceljs": "^4.4.0",
     "file-type": "^22.1.1",
     "google-auth-library": "^11.1.0",
+    "ioredis": "^5.11.1",
     "jose": "^6.2.12",
     "marked": "^18.1.0",
     "pg": "^8.23.0",

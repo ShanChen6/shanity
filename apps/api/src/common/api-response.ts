@@ -42,7 +42,11 @@ export function successEnvelope<T>(
 export function errorEnvelope(
   statusCode: number,
   message: string,
-  options: { errors?: string[]; details?: unknown; correlationId?: string } = {},
+  options: {
+    errors?: string[];
+    details?: unknown;
+    correlationId?: string;
+  } = {},
 ): ApiResponse<unknown> {
   return {
     success: false,
@@ -58,13 +62,39 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Existing list services return `{ items|data: T[], page, limit, total }`.
- * The envelope lifts that into `data: T[]` + `meta` so clients read one shape.
+ * Existing list services return one of two shapes; the envelope lifts both
+ * into `data: T[]` + `meta` so clients read a single shape:
+ *
+ *  - `{ items | data: T[], page, limit, total, totalPages? }`
+ *  - `{ <list>: T[], pagination: { page, limit, totalItems | total, totalPages? } }`
+ *    (the list is the only other key, so nothing is dropped)
  */
 function splitPage(
   value: unknown,
 ): { data: unknown[]; meta: PaginationMeta } | undefined {
   if (!isRecord(value)) return undefined;
+  const flat = splitFlatPage(value);
+  return flat ?? splitNestedPage(value);
+}
+
+const withTotalPages = (
+  page: number,
+  limit: number,
+  total: number,
+  totalPages: unknown,
+): PaginationMeta => ({
+  page,
+  limit,
+  total,
+  totalPages:
+    typeof totalPages === 'number'
+      ? totalPages
+      : limit > 0
+        ? Math.ceil(total / limit)
+        : 0,
+});
+
+function splitFlatPage(value: Record<string, unknown>) {
   const rows = Array.isArray(value.items)
     ? value.items
     : Array.isArray(value.data)
@@ -78,11 +108,33 @@ function splitPage(
     typeof total !== 'number'
   )
     return undefined;
-  const totalPages =
-    typeof value.totalPages === 'number'
-      ? value.totalPages
-      : limit > 0
-        ? Math.ceil(total / limit)
-        : 0;
-  return { data: rows, meta: { page, limit, total, totalPages } };
+  return {
+    data: rows,
+    meta: withTotalPages(page, limit, total, value.totalPages),
+  };
+}
+
+function splitNestedPage(value: Record<string, unknown>) {
+  const keys = Object.keys(value);
+  const { pagination } = value;
+  if (keys.length !== 2 || !isRecord(pagination)) return undefined;
+  const listKey = keys.find((key) => key !== 'pagination');
+  const rows = listKey ? value[listKey] : undefined;
+  const total = pagination.totalItems ?? pagination.total;
+  if (
+    !Array.isArray(rows) ||
+    typeof pagination.page !== 'number' ||
+    typeof pagination.limit !== 'number' ||
+    typeof total !== 'number'
+  )
+    return undefined;
+  return {
+    data: rows,
+    meta: withTotalPages(
+      pagination.page,
+      pagination.limit,
+      total,
+      pagination.totalPages,
+    ),
+  };
 }
