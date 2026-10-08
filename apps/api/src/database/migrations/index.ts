@@ -38,6 +38,7 @@ import { AddEssaySupportToQuestions1792108800001 } from './202610160001_add_essa
 import { AddEssayAnswerAndGradingToAttemptAnswers1792195200001 } from './202610170001_add_essay_answer_and_grading_to_attempt_answers.js';
 import { AddGradedStatusAndPublishedAt1792281600001 } from './202610180001_add_graded_status_and_published_at.js';
 import { AddQuizGradeAuditLogs1792368000001 } from './202610190001_add_quiz_grade_audit_logs.js';
+import { PreReleaseSchemaAlignment1792454400001 } from './202610200001_pre_release_schema_alignment.js';
 
 export const migrationHistory = [
   {
@@ -279,6 +280,12 @@ export const migrationHistory = [
     name: 'AddQuizGradeAuditLogs1792368000001',
     timestamp: 1792368000001,
     migration: AddQuizGradeAuditLogs1792368000001,
+  },
+  {
+    legacy: null,
+    name: 'PreReleaseSchemaAlignment1792454400001',
+    timestamp: 1792454400001,
+    migration: PreReleaseSchemaAlignment1792454400001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { SiteShell } from "@/components/layout/site-shell";
 
 export default function Home() {
   return (
-    <div className="page flex flex-1 flex-col">
+    <SiteShell breadcrumbs={false}>
       <main className="container flex flex-1 flex-col items-center justify-center py-16 text-center">
         <p className="text-caption font-semibold uppercase text-primary">
           Shanity · Học mỗi ngày
@@ -34,6 +35,6 @@ export default function Home() {
           </Link>
         )}
       </main>
-    </div>
+    </SiteShell>
   );
 }

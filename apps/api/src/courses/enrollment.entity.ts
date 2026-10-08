@@ -50,6 +50,10 @@ export class Enrollment {
   @Column({ name: 'enrolled_at', type: 'timestamptz', default: () => 'now()' })
   enrolledAt: Date;
 
+  // PostgreSQL's trigger advances this on every write.
+  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
+  updatedAt: Date;
+
   @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
   revokedAt: Date | null;
 

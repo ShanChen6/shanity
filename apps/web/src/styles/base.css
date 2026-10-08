@@ -77,6 +77,19 @@
     border-collapse: collapse;
   }
 
+  /* One-colour brand logo: the PNG's alpha channel is the stencil. */
+  .brand-mask {
+    background-color: currentColor;
+    -webkit-mask-image: var(--brand-mask-image);
+    mask-image: var(--brand-mask-image);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
   svg {
     flex-shrink: 0;
   }

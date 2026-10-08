@@ -6,22 +6,19 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { QuestionType, type EssayConfig } from '../domain/assessment.types.js';
 import { QuizEntity } from './quiz.entity.js';
 import { QuizOptionEntity } from './quiz-option.entity.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 // Backward-compatible export for the Sprint 7 name used throughout the module.
 export { QuestionType as QuizQuestionType };
 
 @Entity('quiz_questions')
 @Index('IDX_quiz_questions_quiz_position', ['quizId', 'position'])
-export class QuizQuestionEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class QuizQuestionEntity extends AuditedEntity {
   @Column({ name: 'quiz_id', type: 'uuid' })
   quizId: string;
 
@@ -60,11 +57,4 @@ export class QuizQuestionEntity {
 
   @OneToMany(() => QuizOptionEntity, (option) => option.question)
   options: Relation<QuizOptionEntity[]>;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  // PostgreSQL's trigger updates this for ORM and direct SQL writes.
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 }

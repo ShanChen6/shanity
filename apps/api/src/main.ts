@@ -6,6 +6,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     // Payment gateways sign the exact bytes of a webhook body.
     rawBody: true,
+    // Hold boot logs until configureApp installs the structured logger.
+    bufferLogs: true,
   });
   configureApp(app);
   await app.listen(process.env.PORT ?? 4000);

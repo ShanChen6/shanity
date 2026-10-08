@@ -21,18 +21,22 @@ import { attemptHref, detailKey, useStandaloneDetail } from "./api";
 const linkClass =
   "inline-flex min-h-11 items-center rounded-md border border-border-strong px-4 text-sm font-semibold hover:bg-surface-hover";
 
-/** /quizzes/[slug]/results/[attemptId] */
+/**
+ * /quiz-attempts/[id] and /quizzes/[slug]/results/[attemptId]. The slug is
+ * only known on the second route; without it the result still renders but
+ * "retry" (which needs the quiz detail) is not offered.
+ */
 export function StandaloneResult({
   slug,
   attemptId,
 }: {
-  slug: string;
+  slug?: string;
   attemptId: string;
 }) {
   const router = useRouter();
   const client = useQueryClient();
   const result = useAttemptResult(attemptId);
-  const detail = useStandaloneDetail(slug);
+  const detail = useStandaloneDetail(slug ?? "");
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -60,14 +64,14 @@ export function StandaloneResult({
       </main>
     );
 
-  const quiz = detail.data;
+  const quiz = slug ? detail.data : undefined;
   const canRetry =
     quiz &&
     !quiz.hasActiveAttempt &&
     (quiz.attemptsRemaining === null || quiz.attemptsRemaining > 0);
 
   async function retry() {
-    if (!quiz) return;
+    if (!quiz || !slug) return;
     setRetrying(true);
     setError(null);
     try {
@@ -87,7 +91,7 @@ export function StandaloneResult({
           <Button loading={retrying} onClick={() => void retry()}>
             <RotateCcw aria-hidden size={16} /> Làm lại Bài thi
           </Button>
-        ) : quiz?.hasActiveAttempt ? (
+        ) : quiz?.hasActiveAttempt && slug ? (
           <Link href={attemptHref(slug)} className={linkClass}>
             Tiếp tục lượt đang làm
           </Link>
@@ -99,7 +103,7 @@ export function StandaloneResult({
         <Link href="/quizzes" className={linkClass}>
           Trở về Danh sách Quiz
         </Link>
-        <Link href="/my-quiz-attempts" className={linkClass}>
+        <Link href="/quiz-attempts" className={linkClass}>
           Xem Lịch sử Làm bài
         </Link>
       </ResultBanner>

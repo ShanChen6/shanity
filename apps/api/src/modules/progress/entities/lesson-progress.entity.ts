@@ -1,16 +1,9 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Course } from '../../../courses/course.entity.js';
 import { User } from '../../../users/user.entity.js';
 import { Lesson } from '../../lessons/entities/lesson.entity.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 export enum LessonProgressStatus {
   IN_PROGRESS = 'IN_PROGRESS',
@@ -22,10 +15,7 @@ export enum LessonProgressStatus {
 @Index('idx_lesson_progress_user_course', ['userId', 'courseId'])
 @Index('idx_lesson_progress_user_lesson', ['userId', 'lessonId'])
 @Index('idx_lesson_progress_completed', ['userId', 'courseId', 'status'])
-export class LessonProgress {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class LessonProgress extends AuditedEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
@@ -88,18 +78,4 @@ export class LessonProgress {
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
-
-  @Column({
-    name: 'created_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
-  })
-  createdAt: Date;
-
-  @Column({
-    name: 'updated_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
-  })
-  updatedAt: Date;
 }

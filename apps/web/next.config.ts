@@ -23,5 +23,21 @@ if (
   apiUrl.pathname !== "/"
 )
   throw new Error("NEXT_PUBLIC_API_URL must be an HTTP(S) origin");
-const nextConfig: NextConfig = { env: { NEXT_PUBLIC_API_URL: apiUrl.origin } };
+const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_API_URL: apiUrl.origin },
+  // Renamed pages keep working for bookmarks and old links (query is kept).
+  async redirects() {
+    return [
+      {
+        source: "/my-quiz-attempts",
+        destination: "/quiz-attempts",
+        permanent: true,
+      },
+    ];
+  },
+  images: {
+    // AVIF first (smallest), WebP as fallback; the source PNG only as a last resort.
+    formats: ["image/avif", "image/webp"],
+  },
+};
 export default nextConfig;

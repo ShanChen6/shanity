@@ -77,8 +77,11 @@ export function useQuizList(params: {
   page: number;
   search: string;
   status: string;
+  /** Only quizzes attached to this course (its lessons, chapters, itself). */
+  courseId?: string;
 }) {
   const query = new URLSearchParams({ page: String(params.page), limit: "20" });
+  if (params.courseId) query.set("courseId", params.courseId);
   if (params.search.trim()) query.set("search", params.search.trim());
   if (params.status) query.set("status", params.status);
   return useQuery({

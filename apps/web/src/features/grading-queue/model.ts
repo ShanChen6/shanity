@@ -46,6 +46,15 @@ export type QueueFilters = {
   page: number;
 };
 
+/** Attempts waiting on an instructor: shared by the dashboard and the bell. */
+export const PENDING_GRADING: QueueFilters = {
+  courseId: "",
+  quizId: "",
+  status: "NEEDS_GRADING",
+  search: "",
+  page: 1,
+};
+
 /** Query string for the API; `ALL` and empty filters are omitted. */
 export function queueQuery(filters: QueueFilters, limit = 20): string {
   const query = new URLSearchParams({

@@ -150,7 +150,9 @@ describe("LearningCourseCard", () => {
 describe("post-login redirect", () => {
   it("lands each role on its home when no redirect is given", () => {
     expect(homeForRoles(["student"])).toBe("/my-learning");
-    expect(homeForRoles(["student", "instructor"])).toBe("/instructor/courses");
+    expect(homeForRoles(["student", "instructor"])).toBe(
+      "/instructor/dashboard",
+    );
     expect(homeForRoles(["student", "admin"])).toBe("/admin");
     expect(postLoginRedirect(null, ["student"])).toBe("/my-learning");
   });

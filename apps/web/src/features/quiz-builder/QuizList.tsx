@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ImportQuizDialog } from "@/features/content-import/ImportQuizDialog";
-import { Failure } from "@/features/instructor/shared";
+import { EditNav, Failure } from "@/features/instructor/shared";
 import { quizKey, quizzesKey, useQuizList } from "./api";
 import { SCOPES } from "./model";
 
@@ -23,23 +23,30 @@ const SCOPE_LABEL = Object.fromEntries(
   SCOPES.map(({ value, label }) => [value, label]),
 );
 
-export function QuizList() {
+export function QuizList({ courseId }: { courseId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [importing, setImporting] = useState(false);
-  const list = useQuizList({ page, search, status });
+  const list = useQuizList({ page, search, status, courseId });
   const router = useRouter();
   const client = useQueryClient();
   const pagination = list.data?.pagination;
 
   return (
     <>
+      {courseId ? <EditNav id={courseId} active="quizzes" /> : null}
       <div className="instructor-page-heading">
         <div>
-          <p className="instructor-eyebrow">ASSESSMENT</p>
-          <h1>Quizzes</h1>
-          <p>Tạo bài kiểm tra cho bài học, chương, khóa học hoặc độc lập.</p>
+          <p className="instructor-eyebrow">
+            {courseId ? "COURSE ASSESSMENT" : "ASSESSMENT"}
+          </p>
+          <h1>{courseId ? "Bài kiểm tra của khóa học" : "Quizzes"}</h1>
+          <p>
+            {courseId
+              ? "Các bài kiểm tra gắn với bài học, chương hoặc toàn bộ khóa học này."
+              : "Tạo bài kiểm tra cho bài học, chương, khóa học hoặc độc lập."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setImporting(true)}>

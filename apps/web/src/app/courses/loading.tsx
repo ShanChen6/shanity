@@ -1,9 +1,9 @@
-import { CatalogShell } from "@/features/courses/catalog-view";
+import { SiteShell } from "@/components/layout/site-shell";
 import { CatalogSkeleton } from "@/features/courses/catalog-loading";
 
 export default function CoursesLoading() {
   return (
-    <CatalogShell>
+    <SiteShell>
       <main className="flex-1">
         <section className="border-b border-border bg-surface-secondary">
           <div className="container py-9 sm:py-12">
@@ -17,6 +17,6 @@ export default function CoursesLoading() {
           <CatalogSkeleton />
         </section>
       </main>
-    </CatalogShell>
+    </SiteShell>
   );
 }

@@ -1157,9 +1157,12 @@ test('C2 legacy upgrade: data/constraints, real repositories, Down/Up', async ()
     assert.ok(indexes.some((i) => /UNIQUE.*\(slug\)/.test(i.indexdef)));
     assert.ok(indexes.some((i) => /\(instructor_id\)/.test(i.indexdef)));
     assert.ok(indexes.some((i) => /\(status, published_at\)/.test(i.indexdef)));
-    const instructor = await db
-      .getRepository(User)
-      .findOneByOrFail({ id: user.id });
+    // This era still spells the audit column `update_at`; the entity maps the
+    // later `updated_at`, so select only the columns this era has.
+    const instructor = await db.getRepository(User).findOneOrFail({
+      where: { id: user.id },
+      select: { id: true, email: true, displayName: true, status: true },
+    });
     assert.equal(instructor.passwordHash, undefined);
     // Raw SQL: the entities map later columns this era's schema does not have.
     const [created] = await db.query(

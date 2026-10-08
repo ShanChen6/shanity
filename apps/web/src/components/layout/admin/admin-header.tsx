@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { CurrentUserAvatar } from "@/features/auth/current-user-avatar";
 import { useSession } from "@/features/auth/session-provider";
-import { getAdminSection } from "@/features/admin/navigation";
+import { ThemeCycleButton } from "@/components/shared/theme-cycle-button";
+import { breadcrumbsFor } from "@/config/breadcrumbs";
+import { CommandMenuTrigger } from "@/features/command-menu/command-menu";
+import { NotificationBell } from "@/features/notifications/notification-bell";
+import { Breadcrumbs } from "../breadcrumbs";
 import { AdminMobileNavigation } from "./admin-mobile-navigation";
 
 export function AdminHeader({ homeHref = "/admin" }: { homeHref?: string }) {
@@ -43,14 +47,20 @@ export function AdminHeader({ homeHref = "/admin" }: { homeHref?: string }) {
     };
   }, []);
   const toggle = useRef<HTMLButtonElement>(null);
-  const section = getAdminSection(pathname);
-  const isDetail =
-    section?.href === "/admin/users" && pathname !== section.href;
   const usersQuery = new URLSearchParams();
   for (const name of ["page", "search", "role", "status"]) {
     const value = search.get(name);
     if (value) usersQuery.set(name, value);
   }
+  // Same trail as everywhere else, with the two admin-specific links: the
+  // first crumb follows the role's home, and "Người dùng" keeps the list's
+  // filters so Back returns to the same page of results.
+  const trail = breadcrumbsFor(pathname).map((crumb) => {
+    if (crumb.href === "/admin") return { ...crumb, href: homeHref };
+    if (crumb.href === "/admin/users" && usersQuery.size > 0)
+      return { ...crumb, href: `/admin/users?${usersQuery}` };
+    return crumb;
+  });
   return (
     <header
       className="border-b border-border bg-surface"
@@ -74,53 +84,13 @@ export function AdminHeader({ homeHref = "/admin" }: { homeHref?: string }) {
         >
           <Icon name={open ? "close" : "menu"} />
         </Button>
-        <nav aria-label="Breadcrumb" className="min-w-0 flex-1 text-sm">
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <li>
-              {section?.href !== "/admin" && section ? (
-                <Link href={homeHref} className="text-muted hover:text-primary">
-                  Quản trị
-                </Link>
-              ) : (
-                <span aria-current="page" className="font-medium">
-                  Quản trị
-                </span>
-              )}
-            </li>
-            {section?.href !== "/admin" && section && (
-              <>
-                <li aria-hidden="true" className="text-muted">
-                  /
-                </li>
-                <li
-                  aria-current={isDetail ? undefined : "page"}
-                  className="font-medium"
-                >
-                  {isDetail ? (
-                    <Link
-                      href={`${section.href}?${usersQuery}`}
-                      className="text-muted hover:text-primary"
-                    >
-                      {section.label}
-                    </Link>
-                  ) : (
-                    section.label
-                  )}
-                </li>
-                {isDetail && (
-                  <>
-                    <li aria-hidden="true" className="text-muted">
-                      /
-                    </li>
-                    <li aria-current="page" className="font-medium">
-                      Chi tiết người dùng
-                    </li>
-                  </>
-                )}
-              </>
-            )}
-          </ol>
-        </nav>
+        <Breadcrumbs items={trail} alwaysShow className="min-w-0 flex-1" />
+        {/* Wrapper, not a `hidden` class on the trigger: that would fight its own display. */}
+        <div className="hidden items-center gap-1 sm:flex">
+          <CommandMenuTrigger compact />
+          <NotificationBell />
+          <ThemeCycleButton />
+        </div>
         <Link
           href="/profile"
           className="flex min-h-11 max-w-[45%] min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-hover"

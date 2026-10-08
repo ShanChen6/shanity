@@ -1,14 +1,7 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Chapter } from '../../../courses/chapter.entity.js';
+import { AuditedEntity } from '../../../database/audited.entity.js';
 
 export enum LessonType {
   TEXT = 'TEXT',
@@ -41,10 +34,7 @@ export enum DocumentFileType {
 @Unique('UQ_lessons_chapter_slug', ['chapterId', 'slug'])
 @Index('lessons_chapter_idx', ['chapterId'])
 @Index('lessons_chapter_position_idx', ['chapterId', 'position'])
-export class Lesson {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Lesson extends AuditedEntity {
   // Retained to preserve the existing lesson_progress composite integrity.
   @Column({ name: 'course_id', type: 'uuid' })
   courseId: string;
@@ -144,10 +134,4 @@ export class Lesson {
     nullable: true,
   })
   documentDownloadAllowed: boolean | null;
-
-  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
-  createdAt: Date;
-
-  @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
-  updatedAt: Date;
 }

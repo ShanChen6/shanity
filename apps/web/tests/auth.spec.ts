@@ -30,6 +30,9 @@ test.afterAll(async () => {
   await db.end();
 });
 const password = "Browser-test-password-42";
+// The header also carries the brand logo; the avatar is every other image.
+const AVATAR_IMG = 'header img:not([src*="branding"])';
+const AVATAR_IMG_VISIBLE = `${AVATAR_IMG}:visible`;
 async function register(page: Page) {
   const email = `${randomUUID()}@example.invalid`;
   await page.goto("/register");
@@ -2165,11 +2168,11 @@ for (const width of [375, 768, 1024, 1440]) {
       "src",
       `${API}${first.avatarUrl}`,
     );
-    await expect(page.locator("header img:visible")).toHaveAttribute(
+    await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
       "src",
       `${API}${first.avatarUrl}`,
     );
-    await expect(sibling.locator("header img:visible")).toHaveAttribute(
+    await expect(sibling.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
       "src",
       `${API}${first.avatarUrl}`,
     );
@@ -2217,7 +2220,7 @@ for (const width of [375, 768, 1024, 1440]) {
     await expect(
       page.getByRole("heading", { name: "Avatar Owner", exact: true }),
     ).toBeVisible();
-    await expect(page.locator("header img:visible")).toHaveAttribute(
+    await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
       "src",
       `${API}${next.avatarUrl}`,
     );
@@ -2237,12 +2240,12 @@ for (const width of [375, 768, 1024, 1440]) {
       .click();
     await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator("header img:visible")).toHaveCount(0);
+    await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveCount(0);
     await expect(page.locator("main img:visible")).toHaveCount(0);
     await expect(
       page.getByRole("navigation", { name: "Tài khoản" }),
     ).toContainText("AO");
-    await expect(sibling.locator("header img:visible")).toHaveCount(0);
+    await expect(sibling.locator(AVATAR_IMG_VISIBLE)).toHaveCount(0);
     expect(
       (await db.query("SELECT avatar_key FROM users WHERE email=$1", [email]))
         .rows[0].avatar_key,
@@ -2279,7 +2282,7 @@ for (const failure of [400, 413, 415, 500, "network"] as const) {
     await page.unroute(`${API}/users/me/avatar`);
     await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator("header img:visible")).toBeVisible();
+    await expect(page.locator(AVATAR_IMG_VISIBLE)).toBeVisible();
   });
 }
 
@@ -2369,7 +2372,7 @@ test("avatar removal failure keeps current image and expired upload returns to l
   );
   await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
   await expect(dialog.getByRole("alert")).toBeVisible();
-  await expect(page.locator("header img")).toHaveAttribute(
+  await expect(page.locator(AVATAR_IMG)).toHaveAttribute(
     "src",
     `${API}${avatarUrl}`,
   );
@@ -2425,7 +2428,7 @@ test("unavailable avatar falls back and canceled preview revokes its object URL"
   await expect(
     page.getByRole("button", { name: "Đổi ảnh đại diện", exact: true }),
   ).toBeVisible();
-  await expect(page.locator("header img")).toHaveCount(0);
+  await expect(page.locator(AVATAR_IMG)).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "Tài khoản" }),
   ).toContainText("BS");
@@ -2504,17 +2507,17 @@ test("concurrent avatar responses across tabs converge on the committed current 
   );
   await sibling.getByRole("button", { name: "Tải ảnh lên" }).click();
   const latest = await (await saved).json();
-  await expect(page.locator("header img:visible")).toHaveAttribute(
+  await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
     "src",
     `${API}${latest.avatarUrl}`,
   );
   release();
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("header img:visible")).toHaveAttribute(
+  await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
     "src",
     `${API}${latest.avatarUrl}`,
   );
-  await expect(sibling.locator("header img:visible")).toHaveAttribute(
+  await expect(sibling.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
     "src",
     `${API}${latest.avatarUrl}`,
   );

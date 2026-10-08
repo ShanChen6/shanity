@@ -28,6 +28,7 @@
     "db:adopt-legacy": "pnpm build && node database/cli.mjs adopt-legacy",
     "db:seed": "pnpm build && node database/cli.mjs seed",
     "seed:course": "pnpm build && node database/cli.mjs seed-course",
+    "seed:demo": "pnpm build && node database/cli.mjs seed-demo",
     "db:verify": "pnpm build && node database/verify.mjs"
   },
   "dependencies": {
@@ -40,9 +41,11 @@
     "exceljs": "^4.4.0",
     "file-type": "^22.1.1",
     "google-auth-library": "^11.1.0",
+    "ioredis": "^5.11.1",
     "jose": "^6.2.12",
     "marked": "^18.1.0",
     "pg": "^8.23.0",
+    "pino": "^10.4.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.18.0",
