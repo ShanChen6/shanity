@@ -1,4 +1,5 @@
 import { QuizQuestionType } from '../entities/quiz-question.entity.js';
+import type { EssayConfig } from '../domain/assessment.types.js';
 
 export type QuizStructureIssueCode =
   | 'QUIZ_HAS_NO_QUESTIONS'
@@ -6,6 +7,8 @@ export type QuizStructureIssueCode =
   | 'QUESTION_MISSING_CORRECT_OPTION'
   | 'SINGLE_CHOICE_HAS_MULTIPLE_CORRECT'
   | 'MULTIPLE_CHOICE_NEEDS_INCORRECT_OPTION'
+  | 'ESSAY_CONFIG_REQUIRED'
+  | 'ESSAY_OPTIONS_NOT_ALLOWED'
   | 'INVALID_QUESTION_POINTS';
 
 export type QuizStructureIssue = {
@@ -17,6 +20,7 @@ export type QuizStructureQuestion = {
   id: string;
   type: QuizQuestionType;
   points: number;
+  essayConfig?: EssayConfig | null;
   options: Array<{ isCorrect: boolean }>;
 };
 
@@ -38,16 +42,24 @@ export function validateQuizStructure(questions: QuizStructureQuestion[]) {
     const issue = (code: QuizStructureIssueCode) =>
       issues.push({ code, questionId: question.id });
     const correct = question.options.filter((option) => option.isCorrect);
-    if (question.options.length < 2) issue('QUESTION_NEEDS_TWO_OPTIONS');
-    if (!correct.length) issue('QUESTION_MISSING_CORRECT_OPTION');
-    if (question.type === QuizQuestionType.SINGLE_CHOICE && correct.length > 1)
-      issue('SINGLE_CHOICE_HAS_MULTIPLE_CORRECT');
-    if (
-      question.type === QuizQuestionType.MULTIPLE_CHOICE &&
-      correct.length === question.options.length &&
-      question.options.length > 0
-    )
-      issue('MULTIPLE_CHOICE_NEEDS_INCORRECT_OPTION');
+    if (question.type === QuizQuestionType.ESSAY) {
+      if (!question.essayConfig) issue('ESSAY_CONFIG_REQUIRED');
+      if (question.options.length > 0) issue('ESSAY_OPTIONS_NOT_ALLOWED');
+    } else {
+      if (question.options.length < 2) issue('QUESTION_NEEDS_TWO_OPTIONS');
+      if (!correct.length) issue('QUESTION_MISSING_CORRECT_OPTION');
+      if (
+        question.type === QuizQuestionType.SINGLE_CHOICE &&
+        correct.length > 1
+      )
+        issue('SINGLE_CHOICE_HAS_MULTIPLE_CORRECT');
+      if (
+        question.type === QuizQuestionType.MULTIPLE_CHOICE &&
+        correct.length === question.options.length &&
+        question.options.length > 0
+      )
+        issue('MULTIPLE_CHOICE_NEEDS_INCORRECT_OPTION');
+    }
     if (!Number.isInteger(question.points) || question.points <= 0)
       issue('INVALID_QUESTION_POINTS');
   }

@@ -39,6 +39,8 @@ export function attemptBadge(attempt: MyAttempt): Badged {
       : { tone: "info", label: "Đang làm" };
   if (attempt.status === "SUBMITTING")
     return { tone: "info", label: "Đang chấm" };
+  if (attempt.status === "NEEDS_GRADING")
+    return { tone: "warning", label: "Chờ chấm" };
   if (attempt.status === "TIMED_OUT")
     return attempt.isPassed
       ? { tone: "success", label: "Timed Out · Passed" }

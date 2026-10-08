@@ -5,7 +5,7 @@ export type QuizScope = "LESSON" | "CHAPTER" | "COURSE" | "STANDALONE";
 export type QuizStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ReviewPolicy =
   "NEVER" | "AFTER_SUBMIT" | "AFTER_PASS" | "AFTER_EXHAUSTED";
-export type QuestionType = "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+export type QuestionType = "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "ESSAY";
 export type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
 
 export const SCOPES: ReadonlyArray<{
@@ -35,6 +35,19 @@ export type ApiOption = {
   position: number;
   isCorrect: boolean;
 };
+export type EssaySubmissionType = "TEXT_WITH_KATEX" | "FILE_UPLOAD";
+export type RubricCriterion = {
+  criterion: string;
+  maxPoints: number;
+  description?: string;
+};
+export type ApiEssayConfig = {
+  allowedSubmissionTypes: EssaySubmissionType[];
+  maxFileUploads: number;
+  maxWords?: number;
+  gradingGuide?: string;
+  rubric?: RubricCriterion[];
+};
 export type ApiQuestion = {
   id: string;
   type: QuestionType;
@@ -42,6 +55,7 @@ export type ApiQuestion = {
   position: number;
   points: number;
   explanation: string | null;
+  essayConfig?: ApiEssayConfig | null;
   options: ApiOption[];
 };
 export type ApiQuiz = {
@@ -76,6 +90,15 @@ export type OptionDraft = {
   content: string;
   isCorrect: boolean;
 };
+// Essay settings. `points` is the essay's Max Points; only the grading guide
+// is edited here, the rest is carried through unchanged.
+export type EssayDraft = {
+  gradingGuide: string;
+  allowedSubmissionTypes: EssaySubmissionType[];
+  maxFileUploads: number;
+  maxWords?: number;
+  rubric?: RubricCriterion[];
+};
 export type QuestionDraft = {
   key: string;
   id?: string;
@@ -83,6 +106,7 @@ export type QuestionDraft = {
   content: string;
   points: string;
   explanation: string;
+  essay?: EssayDraft;
   options: OptionDraft[];
 };
 export type QuizDraft = {
@@ -116,6 +140,11 @@ export const newOption = (isCorrect = false): OptionDraft => ({
   key: newKey(),
   content: "",
   isCorrect,
+});
+export const newEssay = (): EssayDraft => ({
+  gradingGuide: "",
+  allowedSubmissionTypes: ["TEXT_WITH_KATEX", "FILE_UPLOAD"],
+  maxFileUploads: 3,
 });
 export const newQuestion = (): QuestionDraft => ({
   key: newKey(),
@@ -199,11 +228,16 @@ export function markCorrect(
   };
 }
 
-/** Switching to SINGLE_CHOICE keeps only the first correct option. */
+/**
+ * Switching to ESSAY hides the options (they are kept, so switching back
+ * loses nothing); switching to SINGLE_CHOICE keeps only the first correct one.
+ */
 export function withType(
   question: QuestionDraft,
   type: QuestionType,
 ): QuestionDraft {
+  if (type === "ESSAY")
+    return { ...question, type, essay: question.essay ?? newEssay() };
   if (type === "MULTIPLE_CHOICE") return { ...question, type };
   const first = question.options.findIndex((option) => option.isCorrect);
   return {
@@ -285,6 +319,26 @@ export function publishIssues(draft: QuizDraft, isNew: boolean): Issue[] {
       issues.push({ field, message: `${at}: nhập nội dung câu hỏi.` });
     if (!(integer(question.points) >= 1))
       issues.push({ field, message: `${at}: điểm phải là số nguyên ≥ 1.` });
+    if (question.type === "ESSAY") {
+      const criteria = question.essay?.rubric ?? [];
+      if (criteria.some(({ criterion }) => !criterion.trim()))
+        issues.push({
+          field,
+          message: `${at}: có tiêu chí rubric chưa đặt tên.`,
+        });
+      if (criteria.some(({ maxPoints }) => !(maxPoints >= 0.25)))
+        issues.push({
+          field,
+          message: `${at}: điểm mỗi tiêu chí rubric tối thiểu 0.25.`,
+        });
+      const rubricSum = rubricTotalOf(question.essay?.rubric);
+      if (rubricSum !== null && rubricSum !== integer(question.points))
+        issues.push({
+          field,
+          message: `${at}: tổng điểm rubric (${rubricSum}) phải bằng điểm tối đa.`,
+        });
+      return;
+    }
     if (question.options.length < 2)
       issues.push({ field, message: `${at}: cần ít nhất 2 đáp án.` });
     if (question.options.some((option) => !option.content.trim()))
@@ -347,16 +401,98 @@ export function tagsOf(value: string): string[] {
   ];
 }
 
-export function questionPayload(question: QuestionDraft) {
+/** The rubric's criteria add up to the question's Max Points (exactly). */
+export const rubricTotalOf = (rubric?: RubricCriterion[]) =>
+  rubric?.length
+    ? Math.round(
+        rubric.reduce((total, { maxPoints }) => total + maxPoints, 0) * 100,
+      ) / 100
+    : null;
+
+export const newCriterion = (): RubricCriterion => ({
+  criterion: "",
+  maxPoints: 1,
+});
+
+/** Replaces the rubric of an ESSAY question (an empty list removes it). */
+export function withRubric(
+  question: QuestionDraft,
+  rubric: RubricCriterion[],
+): QuestionDraft {
+  const essay = { ...(question.essay ?? newEssay()) };
+  if (rubric.length) essay.rubric = rubric;
+  else delete essay.rubric;
+  return { ...question, essay };
+}
+
+const rubricTotal = (rubric?: RubricCriterion[]) =>
+  rubric?.length
+    ? rubric.reduce((total, { maxPoints }) => total + maxPoints, 0)
+    : null;
+
+/** essayConfig for the API; a rubric that no longer matches Max Points is omitted. */
+function essayPayload(question: QuestionDraft) {
+  const essay = question.essay ?? newEssay();
+  const guide = essay.gradingGuide.trim();
+  const rubric =
+    rubricTotal(essay.rubric) === (integer(question.points) || 1)
+      ? essay.rubric
+      : undefined;
   return {
+    allowedSubmissionTypes: essay.allowedSubmissionTypes,
+    maxFileUploads: essay.maxFileUploads,
+    ...(essay.maxWords !== undefined && { maxWords: essay.maxWords }),
+    ...(guide && { gradingGuide: guide }),
+    ...(rubric && { rubric }),
+  };
+}
+
+export function questionPayload(question: QuestionDraft) {
+  const common = {
     content: question.content.trim(),
     type: question.type,
     points: integer(question.points) || 1,
     explanation: question.explanation.trim() || null,
+  };
+  // An essay has no options: Max Points + grading guide instead.
+  if (question.type === "ESSAY")
+    return { ...common, essayConfig: essayPayload(question) };
+  return {
+    ...common,
     options: question.options.map((option) => ({
       content: option.content.trim(),
       isCorrect: option.isCorrect,
     })),
+  };
+}
+
+function questionDraftFromApi(question: ApiQuestion): QuestionDraft {
+  const config = question.essayConfig;
+  return {
+    key: question.id,
+    id: question.id,
+    type: question.type,
+    content: question.content,
+    points: String(question.points),
+    explanation: question.explanation ?? "",
+    ...(question.type === "ESSAY" && {
+      essay: {
+        gradingGuide: config?.gradingGuide ?? "",
+        allowedSubmissionTypes:
+          config?.allowedSubmissionTypes ?? newEssay().allowedSubmissionTypes,
+        maxFileUploads: config?.maxFileUploads ?? 3,
+        ...(config?.maxWords !== undefined && { maxWords: config.maxWords }),
+        ...(config?.rubric && { rubric: config.rubric }),
+      },
+    }),
+    options: [...question.options]
+      .sort((a, b) => a.position - b.position)
+      .map((option) => ({
+        key: option.id,
+        id: option.id,
+        content: option.content,
+        isCorrect: option.isCorrect,
+      })),
   };
 }
 
@@ -381,39 +517,13 @@ export function draftFromApi(
     tags: (quiz.tags ?? []).join(", "),
     questions: [...quiz.questions]
       .sort((a, b) => a.position - b.position)
-      .map((question) => ({
-        key: question.id,
-        id: question.id,
-        type: question.type,
-        content: question.content,
-        points: String(question.points),
-        explanation: question.explanation ?? "",
-        options: [...question.options]
-          .sort((a, b) => a.position - b.position)
-          .map((option) => ({
-            key: option.id,
-            id: option.id,
-            content: option.content,
-            isCorrect: option.isCorrect,
-          })),
-      })),
+      .map(questionDraftFromApi),
   };
 }
 
 const sameQuestion = (draft: QuestionDraft, saved: ApiQuestion) =>
   JSON.stringify(questionPayload(draft)) ===
-  JSON.stringify({
-    content: saved.content.trim(),
-    type: saved.type,
-    points: saved.points,
-    explanation: saved.explanation?.trim() || null,
-    options: [...saved.options]
-      .sort((a, b) => a.position - b.position)
-      .map((option) => ({
-        content: option.content.trim(),
-        isCorrect: option.isCorrect,
-      })),
-  });
+  JSON.stringify(questionPayload(questionDraftFromApi(saved)));
 
 export type SyncPlan = {
   // Saved questions no longer in the form, or edited (replaced by a create).
@@ -467,6 +577,8 @@ export const PUBLISH_ISSUE_LABEL: Record<string, string> = {
   INVALID_PASSING_SCORE: "Điểm đạt không hợp lệ.",
   INVALID_MAX_ATTEMPTS: "Số lượt làm bài không hợp lệ.",
   INVALID_DURATION_MINUTES: "Thời gian làm bài không hợp lệ.",
+  ESSAY_CONFIG_REQUIRED: "Có câu tự luận chưa cấu hình.",
+  ESSAY_OPTIONS_NOT_ALLOWED: "Câu tự luận không được có đáp án.",
   REVIEW_POLICY_REQUIRES_MAX_ATTEMPTS:
     "Chính sách xem đáp án này cần giới hạn số lượt.",
 };

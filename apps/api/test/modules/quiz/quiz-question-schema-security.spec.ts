@@ -109,6 +109,7 @@ describe('Q4 quiz question schema', () => {
       type: 'SINGLE_CHOICE',
       position: 1,
       points: 10,
+      essay_config: null,
       explanation: null,
     });
     const [option] = await db.query(
@@ -128,7 +129,8 @@ describe('Q4 quiz question schema', () => {
       ]),
     );
 
-    // Choice-only: no essay/free-text answer columns.
+    // Sprint 9 adds one nullable JSONB configuration column without changing
+    // any existing choice-question column or default.
     const columns = (await db.query(
       `SELECT table_name, column_name FROM information_schema.columns
        WHERE table_schema = $1 AND table_name IN ('quiz_questions', 'quiz_options')`,
@@ -147,6 +149,7 @@ describe('Q4 quiz question schema', () => {
         'content',
         'position',
         'points',
+        'essay_config',
         'explanation',
         'created_at',
         'updated_at',
@@ -159,7 +162,7 @@ describe('Q4 quiz question schema', () => {
        WHERE type.typname = 'QuizQuestionType' AND ns.nspname = $1`,
       [schema],
     );
-    expect(labels).toEqual(['SINGLE_CHOICE', 'MULTIPLE_CHOICE']);
+    expect(labels).toEqual(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'ESSAY']);
 
     await revertThrough(db, schema, 'QuizQuestionsOptions1791417600003');
     for (const name of ['quiz_questions', 'quiz_options'])

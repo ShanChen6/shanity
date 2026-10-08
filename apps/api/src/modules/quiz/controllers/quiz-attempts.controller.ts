@@ -6,6 +6,7 @@ import {
   Header,
   HttpCode,
   Param,
+  Patch,
   ParseUUIDPipe,
   Post,
   Put,
@@ -20,7 +21,11 @@ import {
   SessionGuard,
   type AuthRequest,
 } from '../../../auth/auth.guards.js';
-import { SaveAttemptAnswerDto } from '../dto/quiz-attempt.dto.js';
+import {
+  SaveAttemptAnswerDto,
+  SaveDraftAnswerDto,
+  SubmitQuizDto,
+} from '../dto/quiz-attempt.dto.js';
 import { QuizAttemptsService } from '../services/quiz-attempts.service.js';
 
 @Controller()
@@ -61,8 +66,41 @@ export class QuizAttemptsController {
     return this.attempts.saveAnswer(req.principal, attemptId, body);
   }
 
+  @Patch('quiz-attempts/:attemptId/answers/draft')
+  @Header('Cache-Control', 'private, no-store')
+  saveDraft(
+    @Req() req: AuthRequest,
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Body() body: SaveDraftAnswerDto,
+  ) {
+    return this.attempts.saveDraft(req.principal, attemptId, body);
+  }
+
+  @Post('quiz-attempts/:attemptId/attachments/signature')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  attachmentSignature(
+    @Req() req: AuthRequest,
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+  ) {
+    return this.attempts.attachmentUploadSignature(req.principal, attemptId);
+  }
+
+  @Get('quiz-attempts/:attemptId')
+  @Header('Cache-Control', 'private, no-store')
+  attempt(
+    @Req() req: AuthRequest,
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+  ) {
+    return this.attempts.getAttempt(req.principal, attemptId);
+  }
+
   // Score always; answer key and explanations only as the review policy allows.
-  @Get('quiz-attempts/:attemptId/result')
+  // `student-result` is the same learner view under its E14 name.
+  @Get([
+    'quiz-attempts/:attemptId/result',
+    'quiz-attempts/:attemptId/student-result',
+  ])
   @Header('Cache-Control', 'private, no-store')
   result(
     @Req() req: AuthRequest,
@@ -77,7 +115,8 @@ export class QuizAttemptsController {
   submit(
     @Req() req: AuthRequest,
     @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Body() body: SubmitQuizDto,
   ) {
-    return this.attempts.submit(req.principal, attemptId);
+    return this.attempts.submit(req.principal, attemptId, body);
   }
 }

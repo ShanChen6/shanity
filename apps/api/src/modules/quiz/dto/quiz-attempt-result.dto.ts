@@ -1,6 +1,12 @@
 import type { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizQuestionType } from '../entities/quiz-question.entity.js';
 import type { AttemptSource } from './quiz-attempt.dto.js';
+import type { toBreakdownDto } from '../services/quiz-score-calculator.service.js';
+import {
+  concealedMessage,
+  isScoreConcealed,
+  learnerStatus,
+} from '../services/quiz-attempt-state.js';
 
 /*
  * GET /quiz-attempts/:attemptId/result. One serializer for every scope, built
@@ -31,6 +37,18 @@ export class ResultQuestionDto {
   options: ResultOptionDto[];
 }
 
+/**
+ * Whether a learner is told why a published grade was adjusted. The score
+ * history itself (who, old and new points) stays instructor-side.
+ */
+export const SHOW_ADJUSTMENT_REASON_TO_LEARNER = true;
+
+export type AttemptAdjustment = {
+  count: number;
+  lastAdjustedAt: Date;
+  adjustments: Array<{ adjustedAt: Date; reason: string | null }>;
+};
+
 export class AttemptResultDto {
   attemptId: string;
   quizId: string;
@@ -38,13 +56,21 @@ export class AttemptResultDto {
   status: QuizAttemptStatus;
   // Set when the deadline closed the attempt.
   notice?: 'ATTEMPT_TIMED_OUT';
+  // False while essays await grading; `score` is then null.
+  scoreVisible: boolean;
+  // Set while essays await grading.
+  message?: string;
+  // Set when a grade was changed after the result had been published.
+  adjustment?: AttemptAdjustment;
+  // Only for COMPLETED attempts: where every point came from.
+  breakdown?: ReturnType<typeof toBreakdownDto>;
   score: {
     earnedPoints: number;
     totalPoints: number;
     percentage: number;
     passingScore: number;
-    passed: boolean;
-  };
+    passed: boolean | null;
+  } | null;
   attemptInfo: {
     currentAttempt: number;
     maxAttempts: number | null;
@@ -68,8 +94,11 @@ export function buildAttemptResult(
   attempt: AttemptSource,
   answers: AnswerSource[],
   reviewAllowed: boolean,
+  breakdown?: ReturnType<typeof toBreakdownDto>,
+  adjustment?: AttemptAdjustment,
 ): AttemptResultDto {
   const { quiz, questions } = attempt.quizSnapshot;
+  const concealed = isScoreConcealed(attempt.status);
   const byQuestion = new Map(
     answers.map((answer) => [answer.questionId, answer]),
   );
@@ -77,17 +106,24 @@ export function buildAttemptResult(
     attemptId: attempt.id,
     quizId: attempt.quizId,
     quizTitle: quiz.title,
-    status: attempt.status,
+    status: learnerStatus(attempt.status),
     ...(attempt.status === 'TIMED_OUT' && {
       notice: 'ATTEMPT_TIMED_OUT' as const,
     }),
-    score: {
-      earnedPoints: attempt.earnedPoints!,
-      totalPoints: attempt.totalPoints!,
-      percentage: attempt.percentage!,
-      passingScore: quiz.passingScore,
-      passed: attempt.isPassed!,
-    },
+    scoreVisible: !concealed,
+    ...(concealed && { message: concealedMessage(attempt.status) }),
+    ...(!concealed && breakdown && { breakdown }),
+    ...(!concealed && adjustment && { adjustment }),
+    // The stored MCQ part is internal until the instructor finishes grading.
+    score: concealed
+      ? null
+      : {
+          earnedPoints: attempt.earnedPoints!,
+          totalPoints: attempt.totalPoints!,
+          percentage: attempt.percentage!,
+          passingScore: quiz.passingScore,
+          passed: attempt.isPassed!,
+        },
     attemptInfo: {
       currentAttempt: attempt.attemptNumber,
       maxAttempts: quiz.maxAttempts,

@@ -96,7 +96,7 @@ export class CourseAccessService {
               AND NOT EXISTS (
                 SELECT 1 FROM quiz_attempts attempt
                 WHERE attempt.quiz_id = quiz.id AND attempt.user_id = $2
-                  AND attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+                  AND attempt.status IN ('COMPLETED', 'SUBMITTED', 'TIMED_OUT')
                   AND attempt.is_passed
               )
             ORDER BY quiz.created_at, quiz.id

@@ -39,7 +39,9 @@ const TOTALS_JOIN = `CROSS JOIN LATERAL (
       coalesce(sum(question.points), 0)::int AS "totalPoints",
       (SELECT count(*)::int FROM quiz_attempts taken
        WHERE taken.quiz_id = quiz.id
-         AND taken.status IN ('SUBMITTED', 'TIMED_OUT')) AS "totalAttempts"
+         AND taken.status IN (
+           'NEEDS_GRADING', 'GRADED', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+         )) AS "totalAttempts"
     FROM quiz_questions question WHERE question.quiz_id = quiz.id
   ) totals`;
 
@@ -47,16 +49,24 @@ const TOTALS_JOIN = `CROSS JOIN LATERAL (
 // in course progress.
 const progressJoin = (userParam: string) => `CROSS JOIN LATERAL (
     SELECT count(*)::int AS "attemptsUsed",
-      coalesce(bool_or(attempt.status IN ('IN_PROGRESS', 'SUBMITTING')), false)
+      coalesce(bool_or(attempt.status IN (
+        'IN_PROGRESS', 'SUBMITTING', 'NEEDS_GRADING', 'GRADED'
+      )), false)
         AS "hasActiveAttempt",
-      coalesce(bool_or(attempt.status IN ('SUBMITTED', 'TIMED_OUT')), false)
+      coalesce(bool_or(attempt.status IN (
+        'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+      )), false)
         AS "hasSubmitted",
-      coalesce(bool_or(attempt.status IN ('SUBMITTED', 'TIMED_OUT')
+      coalesce(bool_or(attempt.status IN ('COMPLETED', 'SUBMITTED', 'TIMED_OUT')
         AND attempt.is_passed), false) AS "isPassed",
       (array_agg(attempt.id ORDER BY attempt.attempt_number DESC)
-        FILTER (WHERE attempt.status IN ('SUBMITTED', 'TIMED_OUT')))[1]
+        FILTER (WHERE attempt.status IN (
+          'NEEDS_GRADING', 'GRADED', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+        )))[1]
         AS "latestAttemptId",
-      max(attempt.percentage)::float8 AS "highestPercentage"
+      max(attempt.percentage) FILTER (WHERE attempt.status IN (
+        'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+      ))::float8 AS "highestPercentage"
     FROM quiz_attempts attempt
     WHERE attempt.quiz_id = quiz.id AND attempt.user_id = ${userParam}
   ) mine

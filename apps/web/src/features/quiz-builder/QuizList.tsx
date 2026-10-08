@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ImportQuizDialog } from "@/features/content-import/ImportQuizDialog";
@@ -98,7 +99,16 @@ export function QuizList() {
       {list.error ? (
         <Failure error={list.error} retry={() => void list.refetch()} />
       ) : list.isPending ? (
-        <p className="text-sm text-muted">Đang tải…</p>
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Đang tải danh sách quiz"
+          className="space-y-2"
+        >
+          {[0, 1, 2, 3].map((row) => (
+            <Skeleton key={row} className="h-14 w-full" />
+          ))}
+        </div>
       ) : !list.data.quizzes.length ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
           Chưa có bài quiz nào.{" "}

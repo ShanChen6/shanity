@@ -216,7 +216,7 @@ describe('Q11 versioning and immutable attempt snapshots', () => {
     ]).expect(200);
     const result = await submit(userA.session, attemptV1.body.id).expect(200);
     expect(result.body).toMatchObject({
-      status: 'SUBMITTED',
+      status: 'COMPLETED',
       score: 100,
       isPassed: true,
     });

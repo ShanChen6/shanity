@@ -250,7 +250,7 @@ describe('Quiz engine security audit', () => {
     if (submitted.status === 400) expect(row.status).toBe('IN_PROGRESS');
     else
       expect(row).toEqual({
-        status: 'SUBMITTED',
+        status: 'COMPLETED',
         earnedPoints: 0,
         percentage: '0.00',
         isPassed: false,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { QuizQuestionType } from '../entities/quiz-question.entity.js';
+import { EssaySubmissionType } from '../domain/assessment.types.js';
 import { validateQuizStructure } from './quiz-structure.js';
 
 const question = (
@@ -59,5 +60,32 @@ describe('validateQuizStructure', () => {
           question('q', [true, false], QuizQuestionType.SINGLE_CHOICE, points),
         ]).issues,
       ).toEqual([{ code: 'INVALID_QUESTION_POINTS', questionId: 'q' }]);
+  });
+
+  it('accepts configured Essay questions without options', () => {
+    expect(
+      validateQuizStructure([
+        {
+          ...question('essay', [], QuizQuestionType.ESSAY),
+          essayConfig: {
+            allowedSubmissionTypes: [EssaySubmissionType.TEXT_WITH_KATEX],
+            maxFileUploads: 3,
+          },
+        },
+      ]),
+    ).toEqual({ valid: true, issues: [] });
+  });
+
+  it('rejects Essay questions without config or with choice options', () => {
+    expect(
+      validateQuizStructure([
+        question('missing', [], QuizQuestionType.ESSAY),
+        question('options', [true, false], QuizQuestionType.ESSAY),
+      ]).issues,
+    ).toEqual([
+      { code: 'ESSAY_CONFIG_REQUIRED', questionId: 'missing' },
+      { code: 'ESSAY_CONFIG_REQUIRED', questionId: 'options' },
+      { code: 'ESSAY_OPTIONS_NOT_ALLOWED', questionId: 'options' },
+    ]);
   });
 });

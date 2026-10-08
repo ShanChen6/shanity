@@ -17,6 +17,17 @@ type Question = {
   content: string;
   position: number;
   points: number;
+  essayConfig: {
+    allowedSubmissionTypes: string[];
+    maxFileUploads: number;
+    maxWords?: number;
+    gradingGuide?: string;
+    rubric?: Array<{
+      criterion: string;
+      maxPoints: number;
+      description?: string;
+    }>;
+  } | null;
   explanation: string | null;
   options: Option[];
 };
@@ -470,6 +481,88 @@ describe('Q7 question and option authoring', () => {
         ['C!', 3, false],
         ['D', 4, true],
       ]);
+    });
+
+    it('creates and updates an ESSAY question with JSONB configuration', async () => {
+      const quizId = await draftQuiz();
+      const question = await addQuestion(quizId, {
+        type: 'ESSAY',
+        maxScore: 10,
+        options: [],
+        essayConfig: {
+          allowedSubmissionTypes: ['TEXT_WITH_KATEX', 'FILE_UPLOAD'],
+          maxWords: 500,
+          gradingGuide: 'Award points according to the rubric.',
+          rubric: [
+            { criterion: 'Correct method', maxPoints: 8 },
+            {
+              criterion: 'Presentation',
+              maxPoints: 2,
+              description: 'Clear mathematical notation',
+            },
+          ],
+        },
+      });
+
+      expect(question).toMatchObject({
+        type: 'ESSAY',
+        options: [],
+        essayConfig: {
+          allowedSubmissionTypes: ['TEXT_WITH_KATEX', 'FILE_UPLOAD'],
+          maxFileUploads: 3,
+          maxWords: 500,
+          gradingGuide: 'Award points according to the rubric.',
+          rubric: [
+            { criterion: 'Correct method', maxPoints: 8 },
+            {
+              criterion: 'Presentation',
+              maxPoints: 2,
+              description: 'Clear mathematical notation',
+            },
+          ],
+        },
+      });
+      const [stored] = await t.db.query(
+        `SELECT essay_config AS "essayConfig" FROM quiz_questions WHERE id = $1`,
+        [question.id],
+      );
+      expect(stored.essayConfig).toEqual(question.essayConfig);
+
+      const invalidScoreUpdate = await call(
+        'put',
+        `/admin/quizzes/${quizId}/questions/${question.id}`,
+        owner.session,
+        { maxScore: 9 },
+      ).expect(400);
+      expect(invalidScoreUpdate.body.message).toBe(
+        'Total points of rubric criteria (10) must equal question max score (9)',
+      );
+
+      const updated = await call(
+        'put',
+        `/admin/quizzes/${quizId}/questions/${question.id}`,
+        owner.session,
+        {
+          essayConfig: {
+            allowedSubmissionTypes: ['TEXT_WITH_KATEX'],
+            maxFileUploads: 1,
+            maxWords: 750,
+          },
+        },
+      ).expect(200);
+      expect(updated.body.essayConfig).toMatchObject({
+        allowedSubmissionTypes: ['TEXT_WITH_KATEX'],
+        maxFileUploads: 1,
+        maxWords: 750,
+      });
+
+      const rejected = await call(
+        'post',
+        `/admin/questions/${question.id}/options`,
+        owner.session,
+        { content: 'Not valid for Essay' },
+      ).expect(400);
+      expect(rejected.body.code).toBe('ESSAY_OPTIONS_NOT_ALLOWED');
     });
   });
 
