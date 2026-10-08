@@ -25,7 +25,11 @@ import { learningPath } from "../learning-model";
 import { NotFoundCard } from "../states/NotFoundCard";
 import { LessonSkeleton } from "../states/LessonSkeleton";
 import { AttemptRunner } from "@/features/quiz-player/AttemptRunner";
-import { ResultBanner, ReviewList } from "@/features/quiz-player/ResultView";
+import {
+  isPendingGrading,
+  ResultBanner,
+  ReviewList,
+} from "@/features/quiz-player/ResultView";
 import { canRetry, nextLessonAfterQuiz, stepCompletedBy } from "./quiz-flow";
 
 type Phase =
@@ -293,7 +297,8 @@ function QuizResultView({
     );
 
   const data = result.data;
-  const passed = data.score.passed;
+  const pending = isPendingGrading(data);
+  const passed = data.score?.passed ?? false;
   const done = stepCompletedBy(quiz, passed);
   const next = nextLessonAfterQuiz(learning.curriculum, quiz);
   const nextLocked = next ? learning.isLocked(next) : false;
@@ -318,7 +323,11 @@ function QuizResultView({
         className="space-y-3 rounded-lg border border-border bg-surface p-4"
         aria-label="Bước tiếp theo"
       >
-        {done ? (
+        {pending ? (
+          <p className="text-sm">
+            Bài quiz sẽ được tính khi Giảng viên chấm xong phần Tự luận.
+          </p>
+        ) : done ? (
           <p className="text-sm">
             {quiz.isRequired
               ? "Bài quiz bắt buộc đã hoàn thành."
@@ -328,7 +337,7 @@ function QuizResultView({
           </p>
         ) : (
           <p className="text-sm text-danger-foreground">
-            Bài quiz bắt buộc: bạn cần đạt từ {data.score.passingScore}% để tiếp
+            Bài quiz bắt buộc: bạn cần đạt từ {data.score?.passingScore}% để tiếp
             tục.
             {canRetry(quiz)
               ? " Hãy xem lại bài học và làm lại."
@@ -351,7 +360,7 @@ function QuizResultView({
               Tiếp tục: {next.title}
             </Button>
           ) : null}
-          {!passed && canRetry(quiz) ? (
+          {!pending && !passed && canRetry(quiz) ? (
             <Button
               variant={done ? "outline" : "primary"}
               loading={retrying}

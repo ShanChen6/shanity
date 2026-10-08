@@ -16,6 +16,7 @@ import {
   type QuizScope,
   type ReviewPolicy,
 } from '../entities/quiz.entity.js';
+import { isScoreConcealed } from '../services/quiz-attempt-state.js';
 
 /*
  * Student read model, separate from the authoring DTOs. Responses are built
@@ -158,7 +159,7 @@ export class StudentQuizDetailDto extends StudentQuizSummaryDto {
     attemptId: string;
     status: QuizAttemptStatus;
     passed: boolean | null;
-    percentage: number;
+    percentage: number | null;
     submittedAt: Date | null;
   } | null;
 }
@@ -216,8 +217,13 @@ export class StudentQuizTransformer {
           ? {
               attemptId: progress.latestAttemptId,
               status: progress.latestStatus!,
-              passed: progress.latestPassed!,
-              percentage: progress.latestPercentage!,
+              // Withheld while essays await grading.
+              passed: isScoreConcealed(progress.latestStatus!)
+                ? null
+                : progress.latestPassed!,
+              percentage: isScoreConcealed(progress.latestStatus!)
+                ? null
+                : progress.latestPercentage!,
               submittedAt: progress.latestSubmittedAt,
             }
           : null,
@@ -275,6 +281,7 @@ export class MyAttemptRowDto {
   isPassed: boolean | null;
 
   static from(row: MyAttemptRowDto): MyAttemptRowDto {
+    const concealed = isScoreConcealed(row.status);
     return Object.assign(new MyAttemptRowDto(), {
       attemptId: row.attemptId,
       quizId: row.quizId,
@@ -291,10 +298,10 @@ export class MyAttemptRowDto {
       submittedAt: row.submittedAt,
       expiresAt: row.expiresAt,
       durationSeconds: row.durationSeconds,
-      earnedPoints: row.earnedPoints,
-      totalPoints: row.totalPoints,
-      percentage: row.percentage,
-      isPassed: row.isPassed,
+      earnedPoints: concealed ? null : row.earnedPoints,
+      totalPoints: concealed ? null : row.totalPoints,
+      percentage: concealed ? null : row.percentage,
+      isPassed: concealed ? null : row.isPassed,
     });
   }
 }

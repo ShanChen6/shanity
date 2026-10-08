@@ -1,6 +1,10 @@
 import type { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizQuestionType } from '../entities/quiz-question.entity.js';
 import type { AttemptSource } from './quiz-attempt.dto.js';
+import {
+  isScoreConcealed,
+  PENDING_REVIEW_MESSAGE,
+} from '../services/quiz-attempt-state.js';
 
 /*
  * GET /quiz-attempts/:attemptId/result. One serializer for every scope, built
@@ -38,13 +42,17 @@ export class AttemptResultDto {
   status: QuizAttemptStatus;
   // Set when the deadline closed the attempt.
   notice?: 'ATTEMPT_TIMED_OUT';
+  // False while essays await grading; `score` is then null.
+  scoreVisible: boolean;
+  // Set while essays await grading.
+  message?: string;
   score: {
     earnedPoints: number;
     totalPoints: number;
     percentage: number;
     passingScore: number;
     passed: boolean | null;
-  };
+  } | null;
   attemptInfo: {
     currentAttempt: number;
     maxAttempts: number | null;
@@ -70,6 +78,7 @@ export function buildAttemptResult(
   reviewAllowed: boolean,
 ): AttemptResultDto {
   const { quiz, questions } = attempt.quizSnapshot;
+  const concealed = isScoreConcealed(attempt.status);
   const byQuestion = new Map(
     answers.map((answer) => [answer.questionId, answer]),
   );
@@ -81,13 +90,18 @@ export function buildAttemptResult(
     ...(attempt.status === 'TIMED_OUT' && {
       notice: 'ATTEMPT_TIMED_OUT' as const,
     }),
-    score: {
-      earnedPoints: attempt.earnedPoints!,
-      totalPoints: attempt.totalPoints!,
-      percentage: attempt.percentage!,
-      passingScore: quiz.passingScore,
-      passed: attempt.isPassed!,
-    },
+    scoreVisible: !concealed,
+    ...(concealed && { message: PENDING_REVIEW_MESSAGE }),
+    // The stored MCQ part is internal until the instructor finishes grading.
+    score: concealed
+      ? null
+      : {
+          earnedPoints: attempt.earnedPoints!,
+          totalPoints: attempt.totalPoints!,
+          percentage: attempt.percentage!,
+          passingScore: quiz.passingScore,
+          passed: attempt.isPassed!,
+        },
     attemptInfo: {
       currentAttempt: attempt.attemptNumber,
       maxAttempts: quiz.maxAttempts,

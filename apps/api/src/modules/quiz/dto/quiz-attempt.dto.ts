@@ -26,6 +26,7 @@ import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 import { LearnerQuestionResponseDto } from './quiz-question-response.dto.js';
 import type { EssayAnswer } from '../domain/assessment.types.js';
+import { isScoreConcealed } from '../services/quiz-attempt-state.js';
 
 const present = (_object: object, value: unknown) => value !== undefined;
 
@@ -193,6 +194,42 @@ export class SaveAttemptAnswerDto {
   essayAnswer?: EssayAnswerDto;
 }
 
+/** A draft essay may be partial or empty (the learner cleared it). */
+export class EssayDraftDto {
+  @ValidateIf(present)
+  @IsString()
+  @MaxLength(100_000)
+  text?: string;
+
+  @ValidateIf(present)
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => EssayAttachmentDto)
+  attachments?: EssayAttachmentDto[];
+}
+
+/**
+ * PATCH /quiz-attempts/:id/answers/draft. Either `selectedOptionIds` (MCQ,
+ * [] clears) or `essayAnswer` (essay, {} clears). Nothing is graded.
+ */
+export class SaveDraftAnswerDto {
+  @IsUUID()
+  questionId!: string;
+
+  @ValidateIf((dto: SaveDraftAnswerDto) => dto.essayAnswer === undefined)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  selectedOptionIds?: string[];
+
+  @ValidateIf((dto: SaveDraftAnswerDto) => dto.essayAnswer !== undefined)
+  @ValidateNested()
+  @Type(() => EssayDraftDto)
+  essayAnswer?: EssayDraftDto;
+}
+
 export type SavedAnswerRow = {
   questionId: string;
   selectedOptionIds: string[];
@@ -278,6 +315,7 @@ export class LearnerAttemptResponseDto {
     answers: SavedAnswerRow[] | null,
   ): LearnerAttemptResponseDto {
     const { quiz, questions } = attempt.quizSnapshot;
+    const concealed = isScoreConcealed(attempt.status);
     return Object.assign(new LearnerAttemptResponseDto(), {
       id: attempt.id,
       quizId: attempt.quizId,
@@ -286,11 +324,12 @@ export class LearnerAttemptResponseDto {
       startedAt: attempt.startedAt,
       expiresAt: attempt.expiresAt,
       submittedAt: attempt.submittedAt,
-      score: attempt.score,
-      isPassed: attempt.isPassed,
-      earnedPoints: attempt.earnedPoints,
-      totalPoints: attempt.totalPoints,
-      percentage: attempt.percentage,
+      // Withheld while essays await grading (score concealment).
+      score: concealed ? null : attempt.score,
+      isPassed: concealed ? null : attempt.isPassed,
+      earnedPoints: concealed ? null : attempt.earnedPoints,
+      totalPoints: concealed ? null : attempt.totalPoints,
+      percentage: concealed ? null : attempt.percentage,
       ...(attempt.status === QuizAttemptStatus.TIMED_OUT && {
         notice: 'ATTEMPT_TIMED_OUT' as const,
       }),

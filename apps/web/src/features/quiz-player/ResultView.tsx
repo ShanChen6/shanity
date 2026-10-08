@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Timer, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Hourglass,
+  Timer,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AttemptResult } from "./api";
 
@@ -25,6 +31,10 @@ const elapsedSeconds = (result: AttemptResult) =>
       )
     : null;
 
+/** True while essays await the instructor: no score may be shown. */
+export const isPendingGrading = (result: AttemptResult) =>
+  result.status === "NEEDS_GRADING" || result.score === null;
+
 /** Summary banner: score, percentage, pass/fail, time taken. */
 export function ResultBanner({
   result,
@@ -33,7 +43,42 @@ export function ResultBanner({
   result: AttemptResult;
   children?: ReactNode;
 }) {
-  const { passed } = result.score;
+  if (isPendingGrading(result))
+    return (
+      <section
+        aria-label="Kết quả"
+        data-testid="pending-grading"
+        className="overflow-hidden rounded-xl border border-warning/40 bg-warning-background"
+      >
+        <div className="flex flex-wrap items-center gap-5 p-5 sm:p-7">
+          <Hourglass
+            aria-hidden
+            size={48}
+            className="text-warning-foreground"
+          />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm text-muted">
+              {result.quizTitle} · Lượt {result.attemptInfo.currentAttempt}
+            </p>
+            <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
+              Bài làm đã được nộp
+              <Badge tone="warning">Chờ chấm</Badge>
+            </h1>
+            <p className="text-sm">
+              Kết quả chi tiết sẽ được thông báo sau khi Giảng viên hoàn tất
+              chấm điểm phần Tự luận.
+            </p>
+          </div>
+        </div>
+        {children ? (
+          <div className="flex flex-wrap gap-3 border-t border-border/60 bg-surface/60 p-4">
+            {children}
+          </div>
+        ) : null}
+      </section>
+    );
+  const score = result.score!;
+  const { passed } = score;
   return (
     <section
       aria-label="Kết quả"
@@ -67,7 +112,7 @@ export function ResultBanner({
               <Timer aria-hidden size={14} />{" "}
               {formatDuration(elapsedSeconds(result))}
             </span>
-            <span>Cần {result.score.passingScore}% để đạt</span>
+            <span>Cần {score.passingScore}% để đạt</span>
           </p>
           {result.notice === "ATTEMPT_TIMED_OUT" ? (
             <p className="flex items-center gap-1 text-sm">
@@ -81,10 +126,10 @@ export function ResultBanner({
             className="text-5xl font-semibold tabular-nums"
             data-testid="quiz-percentage"
           >
-            {result.score.percentage}%
+            {score.percentage}%
           </p>
           <p className="text-sm text-muted tabular-nums">
-            {result.score.earnedPoints}/{result.score.totalPoints} điểm
+            {score.earnedPoints}/{score.totalPoints} điểm
           </p>
         </div>
       </div>

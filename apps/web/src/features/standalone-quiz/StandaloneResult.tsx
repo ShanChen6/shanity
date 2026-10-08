@@ -8,7 +8,11 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Failure } from "@/features/instructor/shared";
-import { ResultBanner, ReviewList } from "@/features/quiz-player/ResultView";
+import {
+  isPendingGrading,
+  ResultBanner,
+  ReviewList,
+} from "@/features/quiz-player/ResultView";
 import { startAttempt, useAttemptResult } from "@/features/quiz-player/api";
 import { ApiError, errorMessage } from "@/lib/api";
 import { attemptHref, detailKey, useStandaloneDetail } from "./api";
@@ -78,7 +82,7 @@ export function StandaloneResult({
   return (
     <main className="container max-w-4xl space-y-6 py-8">
       <ResultBanner result={result.data}>
-        {canRetry ? (
+        {isPendingGrading(result.data) ? null : canRetry ? (
           <Button loading={retrying} onClick={() => void retry()}>
             <RotateCcw aria-hidden size={16} /> Làm lại Bài thi
           </Button>

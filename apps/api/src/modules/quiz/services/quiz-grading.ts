@@ -79,7 +79,7 @@ export function gradeAttempt(
 }
 
 /** round(earned * 100 / total, 2) * 100, half up, in exact integers. */
-function percentHundredths(earned: number, total: number) {
+export function percentHundredths(earned: number, total: number) {
   if (total <= 0) return 0;
   // floor(earned * 10000 / total + 1/2) = floor((2 * earned * 10000 + total) / (2 * total))
   return Math.floor((2 * earned * 10_000 + total) / (2 * total));

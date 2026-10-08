@@ -54,8 +54,9 @@ export type StandaloneDetail = StandaloneSummary & {
   latestResult: {
     attemptId: string;
     status: AttemptStatus;
-    passed: boolean;
-    percentage: number;
+    // Null while essays await grading.
+    passed: boolean | null;
+    percentage: number | null;
     submittedAt: string | null;
   } | null;
 };

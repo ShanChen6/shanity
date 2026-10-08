@@ -17,6 +17,13 @@ describe('Sprint 9 mixed Quiz submission engine', () => {
   let origin: string;
 
   beforeAll(async () => {
+    // Attachment hosts are only enforced when Cloudinary is configured.
+    for (const name of [
+      'CLOUDINARY_CLOUD_NAME',
+      'CLOUDINARY_API_KEY',
+      'CLOUDINARY_API_SECRET',
+    ])
+      delete process.env[name];
     t = await learningApp('quiz-mixed-submission');
     origin = t.app.get(AuthConfig).origin;
     owner = await t.account('instructor');
@@ -141,14 +148,20 @@ describe('Sprint 9 mixed Quiz submission engine', () => {
     );
 
     const response = await submit(attempt.attemptId, answers).expect(200);
+    // The auto-graded MCQ part (30/50) is stored but concealed.
     expect(response.body).toMatchObject({
       status: 'NEEDS_GRADING',
-      earnedPoints: 30,
-      totalPoints: 50,
-      score: 60,
-      percentage: 60,
+      earnedPoints: null,
+      totalPoints: null,
+      score: null,
+      percentage: null,
       isPassed: null,
     });
+    const [stored] = await t.db.query(
+      'SELECT earned_points, score FROM quiz_attempts WHERE id = $1',
+      [attempt.attemptId],
+    );
+    expect(stored).toMatchObject({ earned_points: 30, score: 60 });
 
     const rows = (await t.db.query(
       `SELECT answer.question_id AS "questionId",

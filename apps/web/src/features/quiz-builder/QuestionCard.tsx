@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   markCorrect,
+  newEssay,
   newOption,
   withType,
   type QuestionDraft,
@@ -48,6 +49,8 @@ export function QuestionCard({
   } = useSortable({ id: question.key, disabled: readOnly });
   const label = `Câu ${index + 1}`;
   const single = question.type === "SINGLE_CHOICE";
+  const essay = question.type === "ESSAY";
+  const essayConfig = question.essay ?? newEssay();
   const set = (patch: Partial<QuestionDraft>) =>
     onChange({ ...question, ...patch });
 
@@ -87,12 +90,13 @@ export function QuestionCard({
             >
               <option value="SINGLE_CHOICE">Một đáp án</option>
               <option value="MULTIPLE_CHOICE">Nhiều đáp án</option>
+              <option value="ESSAY">Tự luận (Essay)</option>
             </Select>
           </label>
           <label className="flex items-center gap-2 text-xs text-muted">
-            Điểm
+            {essay ? "Điểm tối đa" : "Điểm"}
             <Input
-              aria-label={`Điểm ${label}`}
+              aria-label={`${essay ? "Điểm tối đa" : "Điểm"} ${label}`}
               type="number"
               inputMode="numeric"
               min={1}
@@ -140,75 +144,96 @@ export function QuestionCard({
         />
       </label>
 
-      <fieldset className="mt-4">
-        <legend className="text-sm font-medium">
-          Đáp án{" "}
+      {essay ? (
+        <label className="mt-4 block text-sm font-medium">
+          Hướng dẫn chấm / Rubric{" "}
           <span className="font-normal text-muted">
-            ({single ? "chọn 1 đáp án đúng" : "đánh dấu mọi đáp án đúng"})
+            (chỉ giảng viên thấy, không hiển thị cho học viên)
           </span>
-        </legend>
-        <ul className="mt-2 space-y-2">
-          {question.options.map((option, optionIndex) => {
-            const Control = single ? Radio : Checkbox;
-            return (
-              <li key={option.key} className="flex items-center gap-3">
-                <Control
-                  name={`correct-${question.key}`}
-                  checked={option.isCorrect}
-                  disabled={readOnly}
-                  aria-label={`Đáp án ${optionIndex + 1} đúng`}
-                  onChange={(event) =>
-                    onChange(
-                      markCorrect(question, option.key, event.target.checked),
-                    )
-                  }
-                />
-                <Input
-                  value={option.content}
-                  disabled={readOnly}
-                  maxLength={2000}
-                  aria-label={`Nội dung đáp án ${optionIndex + 1}`}
-                  placeholder={`Đáp án ${optionIndex + 1}`}
-                  className={`py-2 text-sm ${option.isCorrect ? "border-success/60" : ""}`}
-                  onChange={(event) =>
-                    set({
-                      options: question.options.map((item) =>
-                        item.key === option.key
-                          ? { ...item, content: event.target.value }
-                          : item,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={readOnly || question.options.length <= 2}
-                  aria-label={`Xóa đáp án ${optionIndex + 1}`}
-                  onClick={() =>
-                    set({
-                      options: question.options.filter(
-                        (item) => item.key !== option.key,
-                      ),
-                    })
-                  }
-                >
-                  <X aria-hidden size={15} />
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          disabled={readOnly || question.options.length >= MAX_OPTIONS}
-          onClick={() => set({ options: [...question.options, newOption()] })}
-        >
-          <Plus aria-hidden size={14} /> Thêm đáp án
-        </Button>
-      </fieldset>
+          <Textarea
+            value={essayConfig.gradingGuide}
+            disabled={readOnly}
+            maxLength={20000}
+            placeholder="Ví dụ: Đầy đủ 3 ý chính (4đ), lập luận mạch lạc (4đ), trình bày (2đ)."
+            className="mt-2 !min-h-28 text-sm"
+            onChange={(event) =>
+              set({
+                essay: { ...essayConfig, gradingGuide: event.target.value },
+              })
+            }
+          />
+        </label>
+      ) : (
+        <fieldset className="mt-4">
+          <legend className="text-sm font-medium">
+            Đáp án{" "}
+            <span className="font-normal text-muted">
+              ({single ? "chọn 1 đáp án đúng" : "đánh dấu mọi đáp án đúng"})
+            </span>
+          </legend>
+          <ul className="mt-2 space-y-2">
+            {question.options.map((option, optionIndex) => {
+              const Control = single ? Radio : Checkbox;
+              return (
+                <li key={option.key} className="flex items-center gap-3">
+                  <Control
+                    name={`correct-${question.key}`}
+                    checked={option.isCorrect}
+                    disabled={readOnly}
+                    aria-label={`Đáp án ${optionIndex + 1} đúng`}
+                    onChange={(event) =>
+                      onChange(
+                        markCorrect(question, option.key, event.target.checked),
+                      )
+                    }
+                  />
+                  <Input
+                    value={option.content}
+                    disabled={readOnly}
+                    maxLength={2000}
+                    aria-label={`Nội dung đáp án ${optionIndex + 1}`}
+                    placeholder={`Đáp án ${optionIndex + 1}`}
+                    className={`py-2 text-sm ${option.isCorrect ? "border-success/60" : ""}`}
+                    onChange={(event) =>
+                      set({
+                        options: question.options.map((item) =>
+                          item.key === option.key
+                            ? { ...item, content: event.target.value }
+                            : item,
+                        ),
+                      })
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={readOnly || question.options.length <= 2}
+                    aria-label={`Xóa đáp án ${optionIndex + 1}`}
+                    onClick={() =>
+                      set({
+                        options: question.options.filter(
+                          (item) => item.key !== option.key,
+                        ),
+                      })
+                    }
+                  >
+                    <X aria-hidden size={15} />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            disabled={readOnly || question.options.length >= MAX_OPTIONS}
+            onClick={() => set({ options: [...question.options, newOption()] })}
+          >
+            <Plus aria-hidden size={14} /> Thêm đáp án
+          </Button>
+        </fieldset>
+      )}
 
       <label className="mt-4 block text-sm font-medium">
         Giải thích đáp án{" "}

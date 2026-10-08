@@ -6,6 +6,10 @@ import { CourseEnrollmentGuard } from '../../courses/course-enrollment.guard.js'
 import { CourseOwnershipService } from '../../courses/course-ownership.service.js';
 import { DatabaseModule } from '../../database/database.module.js';
 import { ProgressModule } from '../progress/progress.module.js';
+import { InstructorGradingController } from './controllers/instructor-grading.controller.js';
+import { InstructorGradingQueueService } from './services/instructor-grading-queue.service.js';
+import { QuizGradingController } from './controllers/quiz-grading.controller.js';
+import { QuizGradingService } from './services/quiz-grading.service.js';
 import { QuizAttemptsController } from './controllers/quiz-attempts.controller.js';
 import { QuizAuthoringController } from './controllers/quiz-authoring.controller.js';
 import { QuizQuestionAuthoringController } from './controllers/quiz-question-authoring.controller.js';
@@ -34,6 +38,8 @@ import { QuizTargetValidationService } from './services/quiz-target-validation.s
     QuizTakeController,
     AdminQuizQuestionsController,
     QuizAttemptsController,
+    InstructorGradingController,
+    QuizGradingController,
     QuizAuthoringController,
     QuizQuestionAuthoringController,
   ],
@@ -45,6 +51,8 @@ import { QuizTargetValidationService } from './services/quiz-target-validation.s
     QuizQuestionsService,
     QuizStudentReadService,
     QuizAttemptsService,
+    InstructorGradingQueueService,
+    QuizGradingService,
     QuizAuthoringService,
     QuizQuestionAuthoringService,
     QuizPublishValidationPipeline,

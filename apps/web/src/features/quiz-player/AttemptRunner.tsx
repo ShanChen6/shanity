@@ -10,10 +10,14 @@ import { Toast } from "@/components/ui/toast";
 import { ApiError, errorMessage } from "@/lib/api";
 import {
   saveAnswer,
+  saveDraft,
   submitAttempt,
   type Attempt,
+  type EssayAnswerValue,
   type SavedAnswer,
+  uploadEssayAttachment,
 } from "./api";
+import { EssayAnswerInput, hasEssayContent } from "./EssayAnswerInput";
 import { AutosaveQueue, formatRemaining, type SaveState } from "./autosave";
 
 const timeOf = (iso: string) =>
@@ -49,6 +53,19 @@ export function AttemptRunner({
         ]),
       ),
   );
+  // Essay drafts restored from the server (`answers[].essayAnswer`).
+  const [essays, setEssays] = useState(
+    () =>
+      new Map<string, EssayAnswerValue>(
+        (attempt.answers ?? []).flatMap((answer) =>
+          answer.essayAnswer ? [[answer.questionId, answer.essayAnswer]] : [],
+        ),
+      ),
+  );
+  // Essay saves in flight (also after their question was left) and the
+  // visible essay's flush, awaited before submitting.
+  const essaySaves = useRef(new Set<Promise<unknown>>());
+  const essayFlush = useRef<(() => Promise<void>) | null>(null);
   const [saveStates, setSaveStates] = useState<ReadonlyMap<string, SaveState>>(
     new Map(),
   );
@@ -104,6 +121,8 @@ export function AttemptRunner({
     if (closed.current) return;
     setSubmitting(true);
     setConfirming(false);
+    await essayFlush.current?.();
+    await Promise.allSettled([...essaySaves.current]);
     await queue().flush();
     // Another tab or a retry may hold the submission: wait for its result.
     for (let tries = 0; tries < 10; tries++) {
@@ -147,10 +166,39 @@ export function AttemptRunner({
   }, [remaining, submit]);
 
   const answered = (questionId: string) =>
-    (selections.get(questionId) ?? []).length > 0;
+    (selections.get(questionId) ?? []).length > 0 ||
+    hasEssayContent(essays.get(questionId));
   const answeredCount = questions.filter(({ id }) => answered(id)).length;
   const saving = [...saveStates.values()].includes("saving");
   const question = questions[current];
+  // The draft the server returned, not the live edits: it seeds the editor.
+  const savedEssay = (questionId: string) =>
+    attempt.answers?.find((answer) => answer.questionId === questionId)
+      ?.essayAnswer;
+
+  function saveEssay(questionId: string, answer: EssayAnswerValue) {
+    const save = saveDraft(attempt.id, questionId, { essayAnswer: answer });
+    const tracked = save.finally(() => essaySaves.current.delete(tracked));
+    essaySaves.current.add(tracked);
+    return save.then(
+      (saved) => {
+        setLastSavedAt(saved.savedAt);
+        return saved;
+      },
+      (error: unknown) => {
+        // Past the deadline the server closed the attempt: same as MCQ.
+        if (error instanceof ApiError && error.code === "ATTEMPT_EXPIRED") {
+          const closedAttempt = error.data.attempt as Attempt | undefined;
+          finish({ id: closedAttempt?.id ?? attempt.id, status: "TIMED_OUT" });
+        } else if (
+          error instanceof ApiError &&
+          error.code === "ATTEMPT_NOT_IN_PROGRESS"
+        )
+          finish({ id: attempt.id, status: "SUBMITTED" });
+        throw error;
+      },
+    );
+  }
 
   function choose(optionId: string, checked: boolean) {
     if (!question) return;
@@ -219,50 +267,74 @@ export function AttemptRunner({
             <div className="rounded-lg border border-border bg-surface p-4 sm:p-6">
               <p className="text-xs text-muted">
                 Câu {current + 1}/{questions.length} · {question.points} điểm ·{" "}
-                {question.type === "SINGLE_CHOICE"
-                  ? "Chọn 1 đáp án"
-                  : "Chọn tất cả đáp án đúng"}
+                {question.type === "ESSAY"
+                  ? "Tự luận"
+                  : question.type === "SINGLE_CHOICE"
+                    ? "Chọn 1 đáp án"
+                    : "Chọn tất cả đáp án đúng"}
               </p>
               <h2 className="mt-2 whitespace-pre-line text-lg font-medium">
                 {question.content}
               </h2>
-              <fieldset
-                className="mt-5"
-                disabled={submitting || Boolean(timedOut)}
-              >
-                <legend className="sr-only">Đáp án</legend>
-                <ul className="space-y-2">
-                  {question.options.map((option) => {
-                    const checked = (
-                      selections.get(question.id) ?? []
-                    ).includes(option.id);
-                    const Control =
-                      question.type === "SINGLE_CHOICE" ? Radio : Checkbox;
-                    return (
-                      <li key={option.id}>
-                        <label
-                          className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors ${
-                            checked
-                              ? "border-primary bg-secondary"
-                              : "border-border hover:bg-surface-hover"
-                          }`}
-                        >
-                          <Control
-                            name={`answer-${question.id}`}
-                            checked={checked}
-                            onChange={(event) =>
-                              choose(option.id, event.target.checked)
-                            }
-                          />
-                          <span className="min-w-0 flex-1">
-                            {option.content}
-                          </span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </fieldset>
+              {question.type === "ESSAY" ? (
+                <div className="mt-5">
+                  <EssayAnswerInput
+                    key={question.id}
+                    config={question.essayConfig}
+                    initial={savedEssay(question.id)}
+                    initialSavedAt={
+                      attempt.answers?.find(
+                        ({ questionId }) => questionId === question.id,
+                      )?.savedAt
+                    }
+                    disabled={submitting || Boolean(timedOut)}
+                    flushRef={essayFlush}
+                    onUpload={(file) => uploadEssayAttachment(attempt.id, file)}
+                    onSave={(answer) => saveEssay(question.id, answer)}
+                    onChange={(answer) =>
+                      setEssays((map) => new Map(map).set(question.id, answer))
+                    }
+                  />
+                </div>
+              ) : (
+                <fieldset
+                  className="mt-5"
+                  disabled={submitting || Boolean(timedOut)}
+                >
+                  <legend className="sr-only">Đáp án</legend>
+                  <ul className="space-y-2">
+                    {question.options.map((option) => {
+                      const checked = (
+                        selections.get(question.id) ?? []
+                      ).includes(option.id);
+                      const Control =
+                        question.type === "SINGLE_CHOICE" ? Radio : Checkbox;
+                      return (
+                        <li key={option.id}>
+                          <label
+                            className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors ${
+                              checked
+                                ? "border-primary bg-secondary"
+                                : "border-border hover:bg-surface-hover"
+                            }`}
+                          >
+                            <Control
+                              name={`answer-${question.id}`}
+                              checked={checked}
+                              onChange={(event) =>
+                                choose(option.id, event.target.checked)
+                              }
+                            />
+                            <span className="min-w-0 flex-1">
+                              {option.content}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              )}
               <div className="mt-6 flex justify-between gap-3">
                 <Button
                   variant="outline"

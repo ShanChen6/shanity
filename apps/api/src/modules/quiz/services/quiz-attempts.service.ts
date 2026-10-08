@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ServiceUnavailableException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -12,6 +13,7 @@ import {
   LearnerAttemptResponseDto,
   type AttemptSource,
   type SaveAttemptAnswerDto,
+  type SaveDraftAnswerDto,
   type SavedAnswerRow,
   type SubmitAnswerDto,
   type SubmitQuizDto,
@@ -30,6 +32,12 @@ import {
 } from './quiz-course-resolver.service.js';
 import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import { gradeAttempt } from './quiz-grading.js';
+import {
+  cloudinaryConfig,
+  isCloudinaryUrl,
+  signCloudinaryParams,
+} from './cloudinary-upload.js';
+import { assertTransition } from './quiz-attempt-state.js';
 import { QuizLearnerAccessService } from './quiz-learner-access.service.js';
 import { buildAttemptResult } from '../dto/quiz-attempt-result.dto.js';
 import { isReviewAllowed } from './quiz-review-policy.js';
@@ -258,6 +266,78 @@ export class QuizAttemptsService {
     attemptId: string,
     answer: SaveAttemptAnswerDto,
   ) {
+    return this.persistAnswer(principal, attemptId, answer, false);
+  }
+
+  /**
+   * Draft autosave for any question type (PATCH .../answers/draft): the same
+   * UPSERT on (attempt, question) as saveAnswer, but an essay may be empty or
+   * unfinished. Never grades and never changes the attempt's status.
+   */
+  async saveDraft(
+    principal: Principal,
+    attemptId: string,
+    draft: SaveDraftAnswerDto,
+  ) {
+    return this.persistAnswer(principal, attemptId, draft, true);
+  }
+
+  /**
+   * The attempt with every saved answer (`selectedOptionIds`, `essayAnswer`)
+   * so a reload or another device restores the exact state. Applies the same
+   * lazy timeout settlement as the other touchpoints.
+   */
+  async getAttempt(principal: Principal, attemptId: string) {
+    await this.assertOwnAttempt(principal, attemptId);
+    return this.transaction(async (manager) => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      return (
+        (await this.settleStaleSubmission(manager, attempt)) ??
+        (await this.checkAndEnforceTimeout(manager, attempt)) ??
+        this.view(manager, attempt)
+      );
+    });
+  }
+
+  /**
+   * Signed parameters for a direct browser -> Cloudinary upload into this
+   * attempt's folder. The file never passes through the API, and the secret
+   * never leaves it.
+   */
+  async attachmentUploadSignature(principal: Principal, attemptId: string) {
+    await this.assertOwnAttempt(principal, attemptId);
+    const config = cloudinaryConfig();
+    if (!config)
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        ...error('UPLOADS_NOT_CONFIGURED'),
+      });
+    const [attempt] = await this.dataSource.query<Array<{ status: string }>>(
+      'SELECT status FROM quiz_attempts WHERE id = $1',
+      [attemptId],
+    );
+    if (attempt?.status !== QuizAttemptStatus.IN_PROGRESS)
+      throw new ConflictException({
+        statusCode: 409,
+        ...error('ATTEMPT_NOT_IN_PROGRESS'),
+      });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const folder = `shanity/quiz-attempts/${attemptId}`;
+    return {
+      uploadUrl: `https://api.cloudinary.com/v1_1/${config.cloudName}/auto/upload`,
+      apiKey: config.apiKey,
+      timestamp,
+      folder,
+      signature: signCloudinaryParams({ folder, timestamp }, config.apiSecret),
+    };
+  }
+
+  private async persistAnswer(
+    principal: Principal,
+    attemptId: string,
+    answer: AnswerInput,
+    draft: boolean,
+  ) {
     await this.assertOwnAttempt(principal, attemptId);
     const result = await this.transaction(
       async (
@@ -272,7 +352,7 @@ export class QuizAttemptsService {
           return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
         const timedOut = await this.checkAndEnforceTimeout(manager, attempt);
         if (timedOut) return { timedOut };
-        return { saved: await upsertAnswer(manager, attempt, answer) };
+        return { saved: await upsertAnswer(manager, attempt, answer, draft) };
       },
     );
     // Thrown after commit so a detected timeout stays recorded.
@@ -334,7 +414,7 @@ export class QuizAttemptsService {
             if (!attempt.leaseExpired)
               return { rejected: 'SUBMISSION_IN_PROGRESS' };
             return {
-              token: await this.claim(manager, attempt.id),
+              token: await this.claim(manager, attempt),
               // The original claim marks when the learner submitted.
               submittedAt: attempt.submissionToken,
             };
@@ -347,7 +427,7 @@ export class QuizAttemptsService {
             if (timedOut) return { done: timedOut };
             await saveSubmittedAnswers(manager, attempt, dto.answers ?? []);
             await ensureEssayAnswerRows(manager, attempt);
-            const token = await this.claim(manager, attempt.id);
+            const token = await this.claim(manager, attempt);
             return { token, submittedAt: token };
           }
         }
@@ -435,11 +515,14 @@ export class QuizAttemptsService {
   }
 
   /** IN_PROGRESS/SUBMITTING -> SUBMITTING; returns the claim's token. */
-  private async claim(manager: EntityManager, attemptId: string) {
+  private async claim(manager: EntityManager, attempt: LockedAttempt) {
+    // A SUBMITTING claim whose lease expired is re-claimed: same state.
+    if (attempt.status !== QuizAttemptStatus.SUBMITTING)
+      assertTransition(attempt.status, QuizAttemptStatus.SUBMITTING);
     const [[row]] = await manager.query<[Array<{ token: string }>, number]>(
       `UPDATE quiz_attempts SET status = 'SUBMITTING'
        WHERE id = $1 RETURNING updated_at::text AS token`,
-      [attemptId],
+      [attempt.id],
     );
     return row!.token;
   }
@@ -592,6 +675,7 @@ export class QuizAttemptsService {
     const finalStatus = hasEssayQuestions
       ? QuizAttemptStatus.NEEDS_GRADING
       : status;
+    assertTransition(attempt.status, finalStatus);
     const { courseId } = attempt.quizSnapshot.quiz;
     if (courseId && finalStatus !== QuizAttemptStatus.NEEDS_GRADING)
       this.closedIn.get(manager)?.push({ userId: attempt.userId, courseId });
@@ -651,9 +735,20 @@ export class QuizAttemptsService {
 const invalid = (code: string) =>
   new BadRequestException({ statusCode: 400, ...error(code) });
 
-type AnswerInput = SaveAttemptAnswerDto | SubmitAnswerDto;
+type AnswerInput = {
+  questionId: string;
+  selectedOptionId?: string;
+  selectedOptionIds?: string[];
+  essayAnswer?: EssayAnswer;
+};
 
-function normalizedAnswer(attempt: LockedAttempt, answer: AnswerInput) {
+// `draft` relaxes what only a final submission needs: an essay may be empty
+// or over its word limit while the learner is still typing.
+function normalizedAnswer(
+  attempt: LockedAttempt,
+  answer: AnswerInput,
+  draft = false,
+) {
   const question = attempt.quizSnapshot.questions.find(
     ({ id }) => id === answer.questionId,
   );
@@ -670,7 +765,7 @@ function normalizedAnswer(attempt: LockedAttempt, answer: AnswerInput) {
     if (!config) throw invalid('INVALID_ESSAY_CONFIG');
     const text = answer.essayAnswer.text;
     const attachments = answer.essayAnswer.attachments ?? [];
-    if (!text?.trim() && attachments.length === 0)
+    if (!draft && !text?.trim() && attachments.length === 0)
       throw invalid('ESSAY_ANSWER_REQUIRED');
     if (
       text?.trim() &&
@@ -684,9 +779,16 @@ function normalizedAnswer(attempt: LockedAttempt, answer: AnswerInput) {
       !config.allowedSubmissionTypes.includes(EssaySubmissionType.FILE_UPLOAD)
     )
       throw invalid('ESSAY_ATTACHMENTS_NOT_ALLOWED');
+    const cloud = cloudinaryConfig();
+    if (
+      cloud &&
+      attachments.some(({ url }) => !isCloudinaryUrl(url, cloud.cloudName))
+    )
+      throw invalid('ESSAY_ATTACHMENT_URL_NOT_ALLOWED');
     if (attachments.length > config.maxFileUploads)
       throw invalid('ESSAY_ATTACHMENT_LIMIT_EXCEEDED');
     if (
+      !draft &&
       config.maxWords !== undefined &&
       text?.trim() &&
       text.trim().split(/\s+/u).length > config.maxWords
@@ -722,8 +824,9 @@ async function upsertAnswer(
   manager: EntityManager,
   attempt: LockedAttempt,
   answer: AnswerInput,
+  draft = false,
 ) {
-  const normalized = normalizedAnswer(attempt, answer);
+  const normalized = normalizedAnswer(attempt, answer, draft);
   const [saved] = await manager.query<SavedAnswerRow[]>(
     `INSERT INTO attempt_answers(
        attempt_id, question_id, selected_option_ids, essay_answer, grading,

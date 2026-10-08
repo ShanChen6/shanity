@@ -29,9 +29,26 @@ export type CourseQuiz = {
 };
 
 // POST /quizzes/:id/attempts and GET /quizzes/:id/active-attempt.
+export type EssaySubmissionType = "TEXT_WITH_KATEX" | "FILE_UPLOAD";
+export type EssayAttachment = {
+  url: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+};
+export type EssayAnswerValue = {
+  text?: string;
+  attachments?: EssayAttachment[];
+};
 export type AttemptQuestion = {
   id: string;
-  type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "ESSAY";
+  // Essay only; the grading guide is never sent to learners.
+  essayConfig?: {
+    allowedSubmissionTypes: EssaySubmissionType[];
+    maxFileUploads: number;
+    maxWords?: number;
+  };
   content: string;
   position: number;
   points: number;
@@ -41,10 +58,17 @@ export type SavedAnswer = {
   questionId: string;
   selectedOptionId: string | null;
   selectedOptionIds: string[];
+  essayAnswer?: EssayAnswerValue | null;
   savedAt: string;
 };
 export type AttemptStatus =
-  "IN_PROGRESS" | "SUBMITTING" | "SUBMITTED" | "TIMED_OUT" | "ABANDONED";
+  | "IN_PROGRESS"
+  | "SUBMITTING"
+  | "SUBMITTED"
+  | "NEEDS_GRADING"
+  | "COMPLETED"
+  | "TIMED_OUT"
+  | "ABANDONED";
 export type Attempt = {
   id: string;
   quizId: string;
@@ -75,13 +99,16 @@ export type AttemptResult = {
   quizTitle: string;
   status: AttemptStatus;
   notice?: "ATTEMPT_TIMED_OUT";
+  // Null (and `message` set) while essays await the instructor's grading.
+  scoreVisible: boolean;
+  message?: string;
   score: {
     earnedPoints: number;
     totalPoints: number;
     percentage: number;
     passingScore: number;
     passed: boolean;
-  };
+  } | null;
   attemptInfo: {
     currentAttempt: number;
     maxAttempts: number | null;
@@ -162,6 +189,68 @@ export const saveAnswer = (
     method: "PUT",
     body: JSON.stringify({ questionId, selectedOptionIds }),
   });
+
+/**
+ * Draft autosave (PATCH): an essay (`{}` clears it) or an option selection.
+ * Never grades; the attempt stays IN_PROGRESS.
+ */
+export const saveDraft = (
+  attemptId: string,
+  questionId: string,
+  answer: { essayAnswer: EssayAnswerValue } | { selectedOptionIds: string[] },
+) =>
+  api<SavedAnswer>(`/quiz-attempts/${attemptId}/answers/draft`, {
+    method: "PATCH",
+    body: JSON.stringify({ questionId, ...answer }),
+  });
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Uploads a draft photo/PDF straight to Cloudinary with parameters signed by
+ * the API, and returns the attachment to store in the essay answer.
+ */
+export async function uploadEssayAttachment(
+  attemptId: string,
+  file: File,
+): Promise<EssayAttachment> {
+  if (file.size > MAX_ATTACHMENT_BYTES)
+    throw new Error("Tệp tối đa 10 MB.");
+  const signed = await api<{
+    uploadUrl: string;
+    apiKey: string;
+    timestamp: number;
+    folder: string;
+    signature: string;
+  }>(`/quiz-attempts/${attemptId}/attachments/signature`, { method: "POST" });
+  const form = new FormData();
+  form.set("file", file);
+  form.set("api_key", signed.apiKey);
+  form.set("timestamp", String(signed.timestamp));
+  form.set("folder", signed.folder);
+  form.set("signature", signed.signature);
+  const response = await fetch(signed.uploadUrl, {
+    method: "POST",
+    body: form,
+  }).catch(() => {
+    throw new Error(
+      "Không kết nối được tới Cloudinary (mạng hoặc trình duyệt chặn).",
+    );
+  });
+  const result = (await response.json().catch(() => ({}))) as {
+    secure_url?: string;
+    bytes?: number;
+    error?: { message?: string };
+  };
+  if (!response.ok || !result.secure_url)
+    throw new Error(result.error?.message ?? "Tải lên thất bại.");
+  return {
+    url: result.secure_url,
+    filename: file.name.slice(0, 255),
+    mimeType: file.type || "application/octet-stream",
+    size: Math.max(1, result.bytes ?? file.size),
+  };
+}
 
 export const submitAttempt = (attemptId: string) =>
   post(`/quiz-attempts/${attemptId}/submit`);
