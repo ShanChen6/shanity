@@ -33,11 +33,15 @@ import {
 import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import { gradeAttempt } from './quiz-grading.js';
 import {
+  calculateScore,
+  toBreakdownDto,
+} from './quiz-score-calculator.service.js';
+import {
   cloudinaryConfig,
   isCloudinaryUrl,
   signCloudinaryParams,
 } from './cloudinary-upload.js';
-import { assertTransition } from './quiz-attempt-state.js';
+import { assertTransition, isScoreConcealed } from './quiz-attempt-state.js';
 import { QuizLearnerAccessService } from './quiz-learner-access.service.js';
 import { buildAttemptResult } from '../dto/quiz-attempt-result.dto.js';
 import { isReviewAllowed } from './quiz-review-policy.js';
@@ -407,6 +411,7 @@ export class QuizAttemptsService {
           case QuizAttemptStatus.TIMED_OUT:
           case QuizAttemptStatus.COMPLETED:
           case QuizAttemptStatus.NEEDS_GRADING:
+          case QuizAttemptStatus.GRADED:
             return { done: await this.view(manager, attempt) };
           case QuizAttemptStatus.ABANDONED:
             return { rejected: 'ATTEMPT_NOT_IN_PROGRESS' };
@@ -477,14 +482,15 @@ export class QuizAttemptsService {
         attempt.status !== QuizAttemptStatus.SUBMITTED &&
         attempt.status !== QuizAttemptStatus.TIMED_OUT &&
         attempt.status !== QuizAttemptStatus.COMPLETED &&
-        attempt.status !== QuizAttemptStatus.NEEDS_GRADING
+        attempt.status !== QuizAttemptStatus.NEEDS_GRADING &&
+        attempt.status !== QuizAttemptStatus.GRADED
       )
         return { rejected: 'ATTEMPT_NOT_SUBMITTED' };
 
       const answers = await manager.query<GradedAnswerRow[]>(
         `SELECT question_id AS "questionId",
            selected_option_ids AS "selectedOptionIds",
-           is_correct AS "isCorrect", points_earned AS "pointsEarned"
+           is_correct AS "isCorrect", points_earned AS "pointsEarned", grading
          FROM attempt_answers WHERE attempt_id = $1`,
         [attempt.id],
       );
@@ -501,8 +507,12 @@ export class QuizAttemptsService {
         result: buildAttemptResult(
           attempt,
           answers,
-          attempt.status !== QuizAttemptStatus.NEEDS_GRADING &&
+          !isScoreConcealed(attempt.status) &&
             isReviewAllowed(attempt.quizSnapshot.quiz, attempt, history!),
+          // Recomputed from the stored answers by the one scoring service.
+          attempt.status === QuizAttemptStatus.COMPLETED
+            ? toBreakdownDto(calculateScore(attempt.quizSnapshot, answers))
+            : undefined,
         ),
       };
     });
@@ -684,6 +694,7 @@ export class QuizAttemptsService {
     const [[closed]] = await manager.query<[LockedAttempt[], number]>(
       `UPDATE quiz_attempts
          SET status = $2::"QuizAttemptStatus",
+          published_at = CASE WHEN $10 THEN clock_timestamp() END,
           submitted_at = CASE WHEN $9
            THEN LEAST(expires_at, clock_timestamp())
            ELSE coalesce($8::timestamptz, clock_timestamp()) END,
@@ -701,6 +712,8 @@ export class QuizAttemptsService {
         grade.percentage.toFixed(2),
         submittedAt,
         status === QuizAttemptStatus.TIMED_OUT,
+        // Nothing awaits an instructor: the result is visible at once.
+        finalStatus !== QuizAttemptStatus.NEEDS_GRADING,
       ],
     );
     return LearnerAttemptResponseDto.from(closed!, null);

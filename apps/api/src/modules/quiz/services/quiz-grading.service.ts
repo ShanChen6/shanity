@@ -7,7 +7,6 @@ import {
 import { DataSource } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import type { Principal } from '../../../auth/auth.service.js';
-import { CourseProgressCalculatorService } from '../../progress/services/course-progress-calculator.service.js';
 import {
   EssayGradingStatus,
   type EssayAnswer,
@@ -21,9 +20,11 @@ import type {
 import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import { QuizQuestionType } from '../entities/quiz-question.entity.js';
 import { InstructorGradingQueueService } from './instructor-grading-queue.service.js';
-import { assertTransition } from './quiz-attempt-state.js';
 import type { QuizAttemptSnapshot } from './quiz-attempt-snapshot.js';
-import { percentHundredths } from './quiz-grading.js';
+import {
+  QuizScoreCalculatorService,
+  toBreakdownDto,
+} from './quiz-score-calculator.service.js';
 
 export const GRADING_ATTEMPT_FORBIDDEN =
   'You do not have permission to grade this attempt';
@@ -36,6 +37,7 @@ type AttemptRow = {
   quizSnapshot: QuizAttemptSnapshot;
   submittedAt: Date | null;
   totalPoints: number | null;
+  publishedAt?: Date | null;
 };
 
 const bad = (message: string, code: string) =>
@@ -58,7 +60,7 @@ export class QuizGradingService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly queue: InstructorGradingQueueService,
-    private readonly progress: CourseProgressCalculatorService,
+    private readonly calculator: QuizScoreCalculatorService,
   ) {}
 
   /**
@@ -109,6 +111,7 @@ export class QuizGradingService {
     return {
       attemptId: attempt.id,
       status: attempt.status,
+      publishedAt: attempt.publishedAt ?? null,
       submittedAt: attempt.submittedAt,
       student: { id: attempt.userId, ...pick(header, 'fullName', 'email') },
       quiz: { id: quiz.id, title: quiz.title },
@@ -151,14 +154,15 @@ export class QuizGradingService {
   /**
    * Saves grades for one or several essay questions of an attempt awaiting
    * grading. When the last UNGRADED essay is graded, the attempt closes as
-   * COMPLETED with its final score: MCQ points + essay points.
+   * GRADED with its final score (MCQ points + essay points), still private
+   * until QuizPublishService publishes it.
    */
   async grade(
     principal: Principal,
     attemptId: string,
     dto: GradeQuizAttemptDto,
   ) {
-    const known = await this.authorized(principal, attemptId);
+    await this.authorized(principal, attemptId);
     const closed = await this.dataSource.transaction(async (manager) => {
       const attempt = await this.lock(manager, attemptId);
       if (attempt.status !== QuizAttemptStatus.NEEDS_GRADING)
@@ -208,58 +212,33 @@ export class QuizGradingService {
       const remaining = essayIds.length - graded!;
       if (remaining > 0) return { remaining, result: null, attempt };
 
-      // Final score: every answer row now carries its points (MCQ at
-      // submission, essays just now).
-      assertTransition(attempt.status, QuizAttemptStatus.COMPLETED);
-      const [{ earned }] = await manager.query<Array<{ earned: number }>>(
-        `SELECT coalesce(sum(points_earned), 0)::int AS earned
-         FROM attempt_answers WHERE attempt_id = $1`,
-        [attempt.id],
+      // The last essay is graded: the domain service recomputes everything
+      // from the stored answers and closes the attempt. Nothing is computed
+      // here and nothing comes from the client.
+      const final = await this.calculator.calculateAndFinalizeAttempt(
+        attempt.id,
+        manager,
       );
-      const total = attempt.totalPoints ?? 0;
-      const hundredths = percentHundredths(earned!, total);
-      const isPassed =
-        hundredths >= attempt.quizSnapshot.quiz.passingScore * 100;
-      await manager.query(
-        `UPDATE quiz_attempts
-         SET status = 'COMPLETED', earned_points = $2, score = $3,
-           percentage = $4, is_passed = $5
-         WHERE id = $1`,
-        [
-          attempt.id,
-          earned,
-          Math.floor(hundredths / 100),
-          (hundredths / 100).toFixed(2),
-          isPassed,
-        ],
-      );
-      return {
-        remaining: 0,
-        attempt,
-        result: {
-          earnedPoints: earned!,
-          totalPoints: total,
-          percentage: hundredths / 100,
-          score: Math.floor(hundredths / 100),
-          isPassed,
-        },
-      };
+      return { remaining: 0, attempt, result: final };
     });
 
-    // A pass can complete a course; refresh only once the grade committed.
-    if (closed.result && known.quizSnapshot.quiz.courseId)
-      await this.progress.invalidateStudentProgress(
-        known.userId,
-        known.quizSnapshot.quiz.courseId,
-      );
+    // The score stays private (GRADED) until the instructor publishes it, so
+    // course progress is not touched here: publication does that.
     return {
       attemptId,
       status: closed.result
-        ? QuizAttemptStatus.COMPLETED
+        ? QuizAttemptStatus.GRADED
         : QuizAttemptStatus.NEEDS_GRADING,
       remainingUngradedCount: closed.remaining,
       gradedQuestionIds: dto.grades.map(({ questionId }) => questionId),
-      result: closed.result,
+      result: closed.result && {
+        earnedPoints: closed.result.totalScore,
+        totalPoints: closed.result.totalMaxScore,
+        percentage: closed.result.percentage,
+        score: closed.result.score,
+        isPassed: closed.result.isPassed,
+        breakdown: toBreakdownDto(closed.result),
+      },
     };
   }
 
@@ -353,7 +332,7 @@ export class QuizGradingService {
     const [attempt] = await this.dataSource.query<AttemptRow[]>(
       `SELECT id, user_id AS "userId", quiz_id AS "quizId", status,
          quiz_snapshot AS "quizSnapshot", submitted_at AS "submittedAt",
-         total_points AS "totalPoints"
+         total_points AS "totalPoints", published_at AS "publishedAt"
        FROM quiz_attempts WHERE id = $1`,
       [attemptId],
     );

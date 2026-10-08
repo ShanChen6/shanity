@@ -16,7 +16,9 @@ export type GradingQueueItem = {
   submittedAt: string | null;
   totalEssays: number;
   pendingEssaysCount: number;
-  status: "NEEDS_GRADING" | "COMPLETED";
+  // GRADED: graded but private; COMPLETED: published to the learner.
+  status: "NEEDS_GRADING" | "GRADED" | "COMPLETED";
+  publishedAt: string | null;
 };
 export type GradingQueuePage = {
   items: GradingQueueItem[];
@@ -56,6 +58,19 @@ export function queueQuery(filters: QueueFilters, limit = 20): string {
   return query.toString();
 }
 
+export type StatusBadge = {
+  tone: "warning" | "neutral" | "success";
+  label: string;
+};
+
+/** What the badge says: pending essays, graded-but-private, or published. */
+export function statusBadge(item: GradingQueueItem): StatusBadge {
+  if (item.status === "COMPLETED") return { tone: "success", label: "PUBLISHED" };
+  if (item.status === "GRADED")
+    return { tone: "neutral", label: "GRADED (Unpublished)" };
+  return { tone: "warning", label: pendingLabel(item) };
+}
+
 /** "2 essays pending" / "1 essay pending" / "Graded". */
 export function pendingLabel(item: GradingQueueItem): string {
   if (item.pendingEssaysCount === 0) return "Graded";
@@ -69,6 +84,8 @@ export type QuizGroup = {
   quizTitle: string;
   courseTitle: string | null;
   pending: number;
+  // Graded attempts whose result is still private.
+  unpublished: number;
   items: GradingQueueItem[];
 };
 
@@ -81,10 +98,12 @@ export function groupByQuiz(items: GradingQueueItem[]): QuizGroup[] {
       quizTitle: item.quiz.title,
       courseTitle: item.course?.title ?? null,
       pending: 0,
+      unpublished: 0,
       items: [],
     };
     group.items.push(item);
     group.pending += item.pendingEssaysCount;
+    if (item.status === "GRADED") group.unpublished += 1;
     groups.set(item.quiz.id, group);
   }
   return [...groups.values()];
@@ -138,6 +157,7 @@ export type ObjectiveQuestionView = {
 export type GradingAttempt = {
   attemptId: string;
   status: string;
+  publishedAt: string | null;
   submittedAt: string | null;
   student: { id: string; fullName: string; email: string };
   quiz: { id: string; title: string };
@@ -149,7 +169,7 @@ export type GradingAttempt = {
 // POST /instructor/quiz-attempts/:attemptId/grade
 export type GradeResult = {
   attemptId: string;
-  status: "NEEDS_GRADING" | "COMPLETED";
+  status: "NEEDS_GRADING" | "GRADED";
   remainingUngradedCount: number;
   result: {
     earnedPoints: number;

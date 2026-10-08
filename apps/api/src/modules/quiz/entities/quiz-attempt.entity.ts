@@ -19,6 +19,9 @@ export enum QuizAttemptStatus {
   // Committed while exactly one request grades the attempt.
   SUBMITTING = 'SUBMITTING',
   NEEDS_GRADING = 'NEEDS_GRADING',
+  // Every essay graded and the final score stored, but still private.
+  GRADED = 'GRADED',
+  // Result published to the learner (published_at is set).
   COMPLETED = 'COMPLETED',
   // Legacy terminal values remain readable during the compatibility window.
   SUBMITTED = 'SUBMITTED',
@@ -88,6 +91,10 @@ export class QuizAttemptEntity {
 
   @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
   submittedAt: Date | null;
+
+  // When the result became visible to the learner; null until published.
+  @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
+  publishedAt: Date | null;
 
   // Whole percentage, floor(percentage), so score >= passingScore exactly
   // when isPassed.

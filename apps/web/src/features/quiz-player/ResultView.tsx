@@ -65,8 +65,8 @@ export function ResultBanner({
               <Badge tone="warning">Chờ chấm</Badge>
             </h1>
             <p className="text-sm">
-              Kết quả chi tiết sẽ được thông báo sau khi Giảng viên hoàn tất
-              chấm điểm phần Tự luận.
+              Bài thi của bạn đã nộp và đang trong quá trình duyệt/công bố điểm.
+              Kết quả sẽ hiện ở đây sau khi Giảng viên chấm xong và công bố.
             </p>
           </div>
         </div>

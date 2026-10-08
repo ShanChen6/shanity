@@ -134,7 +134,7 @@ describe('E11 instructor grading queue and course authorization', () => {
       [gradedAttempt],
     );
     await t.db.query(
-      `UPDATE quiz_attempts SET status = 'COMPLETED', is_passed = true WHERE id = $1`,
+      `UPDATE quiz_attempts SET status = 'GRADED', is_passed = true WHERE id = $1`,
       [gradedAttempt],
     );
     foreignAttempt = await submitAttempt(
@@ -172,7 +172,7 @@ describe('E11 instructor grading queue and course authorization', () => {
       pendingEssaysCount: 2,
     });
     expect(byAttempt.get(gradedAttempt)).toMatchObject({
-      status: 'COMPLETED',
+      status: 'GRADED',
       totalEssays: 1,
       pendingEssaysCount: 0,
     });

@@ -102,6 +102,24 @@ export type AttemptResult = {
   // Null (and `message` set) while essays await the instructor's grading.
   scoreVisible: boolean;
   message?: string;
+  // COMPLETED attempts only: where every point came from (server-computed).
+  breakdown?: {
+    mcq: { score: number; maxScore: number };
+    essay: {
+      score: number;
+      maxScore: number;
+      questions: Array<{
+        questionId: string;
+        number: number;
+        awardedPoints: number;
+        maxScore: number;
+        feedback: string;
+      }>;
+    };
+    total: { score: number; maxScore: number };
+    percentage: number;
+    isPassed: boolean;
+  };
   score: {
     earnedPoints: number;
     totalPoints: number;

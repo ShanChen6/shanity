@@ -26,7 +26,7 @@ import { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizAttemptSnapshot } from '../services/quiz-attempt-snapshot.js';
 import { LearnerQuestionResponseDto } from './quiz-question-response.dto.js';
 import type { EssayAnswer } from '../domain/assessment.types.js';
-import { isScoreConcealed } from '../services/quiz-attempt-state.js';
+import { isScoreConcealed, learnerStatus } from '../services/quiz-attempt-state.js';
 
 const present = (_object: object, value: unknown) => value !== undefined;
 
@@ -320,7 +320,7 @@ export class LearnerAttemptResponseDto {
       id: attempt.id,
       quizId: attempt.quizId,
       attemptNumber: attempt.attemptNumber,
-      status: attempt.status,
+      status: learnerStatus(attempt.status),
       startedAt: attempt.startedAt,
       expiresAt: attempt.expiresAt,
       submittedAt: attempt.submittedAt,

@@ -33,7 +33,8 @@ type Row = {
   quizId: string;
   quizTitle: string;
   submittedAt: Date | null;
-  status: 'NEEDS_GRADING' | 'COMPLETED';
+  publishedAt: Date | null;
+  status: 'NEEDS_GRADING' | 'GRADED' | 'COMPLETED';
   totalEssays: number;
   pendingEssaysCount: number;
   totalItems: string;
@@ -78,7 +79,7 @@ export class InstructorGradingQueueService {
     const params: unknown[] = [principal.id];
     const bind = (value: unknown) => `$${params.push(value)}`;
     const filters: string[] = [
-      `attempt.status IN ('NEEDS_GRADING', 'COMPLETED')`,
+      `attempt.status IN ('NEEDS_GRADING', 'GRADED', 'COMPLETED')`,
       'essays.total > 0',
     ];
     if (!isAdmin)
@@ -92,7 +93,8 @@ export class InstructorGradingQueueService {
       filters.push(
         `attempt.status = 'NEEDS_GRADING' AND essays.total - essays.graded > 0`,
       );
-    if (query.status === 'GRADED') filters.push(`attempt.status = 'COMPLETED'`);
+    if (query.status === 'GRADED')
+      filters.push(`attempt.status IN ('GRADED', 'COMPLETED')`);
     if (query.search) {
       const pattern = bind(likePattern(query.search));
       filters.push(
@@ -110,6 +112,7 @@ export class InstructorGradingQueueService {
          course.slug AS "courseSlug", attempt.quiz_id AS "quizId",
          attempt.quiz_snapshot->'quiz'->>'title' AS "quizTitle",
          attempt.submitted_at AS "submittedAt", attempt.status,
+         attempt.published_at AS "publishedAt",
          essays.total AS "totalEssays",
          (essays.total - essays.graded) AS "pendingEssaysCount",
          COUNT(*) OVER () AS "totalItems"
@@ -137,29 +140,28 @@ export class InstructorGradingQueueService {
 
     const totalItems = Number(rows[0]?.totalItems ?? 0);
     return {
-      items: rows.map(
-        (row): GradingQueueItemDto => ({
-          attemptId: row.attemptId,
-          student: {
-            id: row.studentId,
-            fullName: row.fullName,
-            email: row.email,
-            avatarUrl: row.avatarKey ? `/avatars/${row.avatarKey}` : null,
-          },
-          course: row.courseId
-            ? {
-                id: row.courseId,
-                title: row.courseTitle!,
-                slug: row.courseSlug,
-              }
-            : null,
-          quiz: { id: row.quizId, title: row.quizTitle },
-          submittedAt: row.submittedAt,
-          totalEssays: row.totalEssays,
-          pendingEssaysCount: row.pendingEssaysCount,
-          status: row.status,
-        }),
-      ),
+      items: rows.map((row): GradingQueueItemDto => ({
+        attemptId: row.attemptId,
+        student: {
+          id: row.studentId,
+          fullName: row.fullName,
+          email: row.email,
+          avatarUrl: row.avatarKey ? `/avatars/${row.avatarKey}` : null,
+        },
+        course: row.courseId
+          ? {
+              id: row.courseId,
+              title: row.courseTitle!,
+              slug: row.courseSlug,
+            }
+          : null,
+        quiz: { id: row.quizId, title: row.quizTitle },
+        submittedAt: row.submittedAt,
+        totalEssays: row.totalEssays,
+        pendingEssaysCount: row.pendingEssaysCount,
+        status: row.status,
+        publishedAt: row.publishedAt,
+      })),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -206,7 +208,7 @@ export class InstructorGradingQueueService {
   }
 
   /** The quiz's course is managed by the caller, or they authored a STANDALONE one. */
-  private async canGradeQuiz(principal: Principal, quizId: string) {
+  async canGradeQuiz(principal: Principal, quizId: string) {
     const [quiz] = await this.dataSource.query<
       Array<{
         id: string;

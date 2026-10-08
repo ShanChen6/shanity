@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthConfig } from '../../../auth/auth.config.js';
+import { QuizScoreCalculatorService } from './quiz-score-calculator.service.js';
 import {
   learningApp,
   type Account,
@@ -263,7 +264,7 @@ describe('E12 manual essay grading and server-side score integrity', () => {
     ).expect(200);
   });
 
-  it('completes the attempt with MCQ + essay points when the last essay is graded', async () => {
+  it('grades the attempt with MCQ + essay points when the last essay is graded', async () => {
     const { attemptId, essay1, essay2 } = await submittedAttempt();
     await grade(attemptId, [{ questionId: essay1, awardedPoints: 4 }]).expect(
       200,
@@ -273,7 +274,7 @@ describe('E12 manual essay grading and server-side score integrity', () => {
     ]).expect(200);
     // 10 (MCQ) + 4 + 5 = 19 of 20.
     expect(last.body).toMatchObject({
-      status: 'COMPLETED',
+      status: 'GRADED',
       remainingUngradedCount: 0,
       result: {
         earnedPoints: 19,
@@ -284,24 +285,26 @@ describe('E12 manual essay grading and server-side score integrity', () => {
       },
     });
     expect(await attemptRow(attemptId)).toMatchObject({
-      status: 'COMPLETED',
+      status: 'GRADED',
       score: 95,
       isPassed: true,
       earnedPoints: 19,
       percentage: 95,
     });
 
-    // The learner now sees the final result.
+    // Graded is not published: the learner still sees nothing of it.
     const result = await t
       .http()
       .get(`/quiz-attempts/${attemptId}/result`)
       .set('Cookie', student.session)
       .expect(200);
     expect(result.body).toMatchObject({
-      status: 'COMPLETED',
-      scoreVisible: true,
-      score: { earnedPoints: 19, totalPoints: 20, passed: true },
+      status: 'NEEDS_GRADING',
+      scoreVisible: false,
+      score: null,
+      message: 'Submitted. Waiting for instructor to publish results.',
     });
+    expect(result.body).not.toHaveProperty('breakdown');
 
     // Closed attempts cannot be graded again.
     await grade(attemptId, [{ questionId: essay1, awardedPoints: 1 }]).expect(
@@ -366,5 +369,83 @@ describe('E12 manual essay grading and server-side score integrity', () => {
       essayAnswer: { text: 'Answer $x^2$' },
       grading: { status: 'UNGRADED' },
     });
+  });
+
+  it('refuses client-computed totals and recomputes everything on the server', async () => {
+    const { attemptId, essay1, essay2 } = await submittedAttempt();
+    // Pre-computed fields are rejected outright (global whitelist) ...
+    for (const extra of [
+      { finalScore: 25 },
+      { percentage: 100 },
+      { isPassed: true },
+    ])
+      await t
+        .http()
+        .post(`/instructor/quiz-attempts/${attemptId}/grade`)
+        .set('Origin', origin)
+        .set('Cookie', instructorA.session)
+        .send({
+          grades: [{ questionId: essay1, awardedPoints: 1 }],
+          ...extra,
+        })
+        .expect(400);
+    await grade(attemptId, [
+      { questionId: essay1, awardedPoints: 1, finalScore: 5, isPassed: true },
+    ]).expect(400);
+    expect((await stored(attemptId, essay1))!.grading).toMatchObject({
+      status: 'UNGRADED',
+    });
+
+    // ... and what is stored comes only from the database.
+    await grade(attemptId, [
+      { questionId: essay1, awardedPoints: 4 },
+      { questionId: essay2, awardedPoints: 3 },
+    ]).expect(200);
+    // MCQ 10/10 + essays 7/10 = 17/20 = 85%.
+    expect(await attemptRow(attemptId)).toMatchObject({
+      earnedPoints: 17,
+      score: 85,
+      percentage: 85,
+      isPassed: true,
+    });
+  });
+
+  it('refuses to finalize while an essay is ungraded, and only once', async () => {
+    const calculator = t.app.get(QuizScoreCalculatorService);
+    const { attemptId, essay1, essay2 } = await submittedAttempt();
+    await grade(attemptId, [{ questionId: essay1, awardedPoints: 4 }]).expect(
+      200,
+    );
+    await expect(
+      calculator.calculateAndFinalizeAttempt(attemptId),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(await attemptRow(attemptId)).toMatchObject({
+      status: 'NEEDS_GRADING',
+    });
+
+    await grade(attemptId, [{ questionId: essay2, awardedPoints: 5 }]).expect(
+      200,
+    );
+    await expect(
+      calculator.calculateAndFinalizeAttempt(attemptId),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      calculator.calculateAndFinalizeAttempt(randomUUID()),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('keeps the breakdown out of the learner view until the result is published', async () => {
+    const { attemptId, essay1, essay2 } = await submittedAttempt();
+    await grade(attemptId, [
+      { questionId: essay1, awardedPoints: 4, feedback: 'Good method' },
+      { questionId: essay2, awardedPoints: 3 },
+    ]).expect(200);
+    const result = await t
+      .http()
+      .get(`/quiz-attempts/${attemptId}/result`)
+      .set('Cookie', student.session)
+      .expect(200);
+    expect(JSON.stringify(result.body)).not.toContain('Good method');
+    expect(result.body).not.toHaveProperty('breakdown');
   });
 });

@@ -1,9 +1,11 @@
 import type { QuizAttemptStatus } from '../entities/quiz-attempt.entity.js';
 import type { QuizQuestionType } from '../entities/quiz-question.entity.js';
 import type { AttemptSource } from './quiz-attempt.dto.js';
+import type { toBreakdownDto } from '../services/quiz-score-calculator.service.js';
 import {
+  concealedMessage,
   isScoreConcealed,
-  PENDING_REVIEW_MESSAGE,
+  learnerStatus,
 } from '../services/quiz-attempt-state.js';
 
 /*
@@ -46,6 +48,8 @@ export class AttemptResultDto {
   scoreVisible: boolean;
   // Set while essays await grading.
   message?: string;
+  // Only for COMPLETED attempts: where every point came from.
+  breakdown?: ReturnType<typeof toBreakdownDto>;
   score: {
     earnedPoints: number;
     totalPoints: number;
@@ -76,6 +80,7 @@ export function buildAttemptResult(
   attempt: AttemptSource,
   answers: AnswerSource[],
   reviewAllowed: boolean,
+  breakdown?: ReturnType<typeof toBreakdownDto>,
 ): AttemptResultDto {
   const { quiz, questions } = attempt.quizSnapshot;
   const concealed = isScoreConcealed(attempt.status);
@@ -86,12 +91,13 @@ export function buildAttemptResult(
     attemptId: attempt.id,
     quizId: attempt.quizId,
     quizTitle: quiz.title,
-    status: attempt.status,
+    status: learnerStatus(attempt.status),
     ...(attempt.status === 'TIMED_OUT' && {
       notice: 'ATTEMPT_TIMED_OUT' as const,
     }),
     scoreVisible: !concealed,
-    ...(concealed && { message: PENDING_REVIEW_MESSAGE }),
+    ...(concealed && { message: concealedMessage(attempt.status) }),
+    ...(!concealed && breakdown && { breakdown }),
     // The stored MCQ part is internal until the instructor finishes grading.
     score: concealed
       ? null

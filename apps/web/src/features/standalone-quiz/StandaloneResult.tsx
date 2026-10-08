@@ -8,6 +8,7 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Failure } from "@/features/instructor/shared";
+import { QuizResultSummary } from "@/features/quiz-player/QuizResultSummary";
 import {
   isPendingGrading,
   ResultBanner,
@@ -107,6 +108,7 @@ export function StandaloneResult({
           {errorMessage(error)}
         </p>
       ) : null}
+      <QuizResultSummary result={result.data} />
       <ReviewList result={result.data} />
     </main>
   );

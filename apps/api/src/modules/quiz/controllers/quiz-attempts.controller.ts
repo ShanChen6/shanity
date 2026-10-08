@@ -96,7 +96,11 @@ export class QuizAttemptsController {
   }
 
   // Score always; answer key and explanations only as the review policy allows.
-  @Get('quiz-attempts/:attemptId/result')
+  // `student-result` is the same learner view under its E14 name.
+  @Get([
+    'quiz-attempts/:attemptId/result',
+    'quiz-attempts/:attemptId/student-result',
+  ])
   @Header('Cache-Control', 'private, no-store')
   result(
     @Req() req: AuthRequest,

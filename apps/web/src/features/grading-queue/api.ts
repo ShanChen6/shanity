@@ -78,6 +78,52 @@ export function useGradingAttempt(attemptId: string) {
   });
 }
 
+export type PublishResult = {
+  attemptId: string;
+  status: "COMPLETED";
+  publishedAt: string;
+  alreadyPublished: boolean;
+};
+export type PublishAllResult = {
+  quizId: string;
+  publishedCount: number;
+  attemptIds: string[];
+  stillNeedGradingCount: number;
+};
+
+function useRefreshQueue() {
+  const client = useQueryClient();
+  return () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: ["instructor", "grading-queue"] }),
+      client.invalidateQueries({ queryKey: ["instructor", "grading-attempt"] }),
+    ]);
+}
+
+/** Makes one graded attempt's result visible to its learner. */
+export function usePublishAttempt() {
+  const refresh = useRefreshQueue();
+  return useMutation({
+    mutationFn: (attemptId: string) =>
+      api<PublishResult>(`/instructor/quiz-attempts/${attemptId}/publish`, {
+        method: "POST",
+      }),
+    onSuccess: refresh,
+  });
+}
+
+/** Publishes every graded attempt of a quiz. */
+export function usePublishQuizResults() {
+  const refresh = useRefreshQueue();
+  return useMutation({
+    mutationFn: (quizId: string) =>
+      api<PublishAllResult>(`/instructor/quizzes/${quizId}/publish-results`, {
+        method: "POST",
+      }),
+    onSuccess: refresh,
+  });
+}
+
 /** Saves the filled-in grades; the server finalizes the attempt itself. */
 export function useSaveGrades(attemptId: string) {
   const client = useQueryClient();

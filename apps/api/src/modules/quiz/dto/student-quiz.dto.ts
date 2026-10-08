@@ -16,7 +16,7 @@ import {
   type QuizScope,
   type ReviewPolicy,
 } from '../entities/quiz.entity.js';
-import { isScoreConcealed } from '../services/quiz-attempt-state.js';
+import { isScoreConcealed, learnerStatus } from '../services/quiz-attempt-state.js';
 
 /*
  * Student read model, separate from the authoring DTOs. Responses are built
@@ -216,7 +216,7 @@ export class StudentQuizTransformer {
         latestResult: progress.latestAttemptId
           ? {
               attemptId: progress.latestAttemptId,
-              status: progress.latestStatus!,
+              status: learnerStatus(progress.latestStatus!),
               // Withheld while essays await grading.
               passed: isScoreConcealed(progress.latestStatus!)
                 ? null
@@ -292,7 +292,7 @@ export class MyAttemptRowDto {
       courseSlug: row.courseSlug,
       courseTitle: row.courseTitle,
       attemptNumber: row.attemptNumber,
-      status: row.status,
+      status: learnerStatus(row.status),
       isExpired: row.isExpired,
       startedAt: row.startedAt,
       submittedAt: row.submittedAt,

@@ -32,6 +32,7 @@ const essay = (
 const attempt = (questions: EssayQuestionView[]): GradingAttempt => ({
   attemptId: "a1",
   status: "NEEDS_GRADING",
+  publishedAt: null,
   submittedAt: "2026-10-08T03:00:00.000Z",
   student: { id: "s1", fullName: "An Nguyen", email: "an@example.test" },
   quiz: { id: "q1", title: "Midterm" },

@@ -54,7 +54,7 @@ describe("ResultBanner", () => {
       "Bài làm đã được nộp",
     );
     expect(screen.getByTestId("pending-grading")).toHaveTextContent(
-      "Kết quả chi tiết sẽ được thông báo sau khi Giảng viên hoàn tất chấm điểm",
+      "đang trong quá trình duyệt/công bố điểm",
     );
     expect(screen.queryByTestId("quiz-percentage")).toBeNull();
     expect(screen.queryByText(/PASSED|FAILED/)).toBeNull();

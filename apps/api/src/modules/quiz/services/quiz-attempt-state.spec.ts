@@ -12,7 +12,8 @@ describe('quiz attempt state machine', () => {
     expect(canTransition(S.IN_PROGRESS, S.SUBMITTING)).toBe(true);
     expect(canTransition(S.SUBMITTING, S.COMPLETED)).toBe(true);
     expect(canTransition(S.SUBMITTING, S.NEEDS_GRADING)).toBe(true);
-    expect(canTransition(S.NEEDS_GRADING, S.COMPLETED)).toBe(true);
+    expect(canTransition(S.NEEDS_GRADING, S.GRADED)).toBe(true);
+    expect(canTransition(S.GRADED, S.COMPLETED)).toBe(true);
     expect(canTransition(S.IN_PROGRESS, S.TIMED_OUT)).toBe(true);
   });
 
@@ -28,6 +29,10 @@ describe('quiz attempt state machine', () => {
     // An attempt cannot jump to COMPLETED without being claimed first.
     expect(canTransition(S.IN_PROGRESS, S.COMPLETED)).toBe(false);
     expect(canTransition(S.NEEDS_GRADING, S.SUBMITTING)).toBe(false);
+    // Grading never publishes by itself, and publishing cannot be skipped.
+    expect(canTransition(S.NEEDS_GRADING, S.COMPLETED)).toBe(false);
+    expect(canTransition(S.GRADED, S.NEEDS_GRADING)).toBe(false);
+    expect(canTransition(S.COMPLETED, S.GRADED)).toBe(false);
   });
 
   it('reports a machine-readable code', () => {
@@ -44,6 +49,7 @@ describe('quiz attempt state machine', () => {
 
   it('conceals scores only while essays await grading', () => {
     expect(isScoreConcealed(S.NEEDS_GRADING)).toBe(true);
+    expect(isScoreConcealed(S.GRADED)).toBe(true);
     for (const status of [S.COMPLETED, S.TIMED_OUT, S.IN_PROGRESS])
       expect(isScoreConcealed(status)).toBe(false);
   });

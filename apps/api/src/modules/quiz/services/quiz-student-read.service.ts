@@ -40,7 +40,7 @@ const TOTALS_JOIN = `CROSS JOIN LATERAL (
       (SELECT count(*)::int FROM quiz_attempts taken
        WHERE taken.quiz_id = quiz.id
          AND taken.status IN (
-           'NEEDS_GRADING', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+           'NEEDS_GRADING', 'GRADED', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
          )) AS "totalAttempts"
     FROM quiz_questions question WHERE question.quiz_id = quiz.id
   ) totals`;
@@ -50,7 +50,7 @@ const TOTALS_JOIN = `CROSS JOIN LATERAL (
 const progressJoin = (userParam: string) => `CROSS JOIN LATERAL (
     SELECT count(*)::int AS "attemptsUsed",
       coalesce(bool_or(attempt.status IN (
-        'IN_PROGRESS', 'SUBMITTING', 'NEEDS_GRADING'
+        'IN_PROGRESS', 'SUBMITTING', 'NEEDS_GRADING', 'GRADED'
       )), false)
         AS "hasActiveAttempt",
       coalesce(bool_or(attempt.status IN (
@@ -61,7 +61,7 @@ const progressJoin = (userParam: string) => `CROSS JOIN LATERAL (
         AND attempt.is_passed), false) AS "isPassed",
       (array_agg(attempt.id ORDER BY attempt.attempt_number DESC)
         FILTER (WHERE attempt.status IN (
-          'NEEDS_GRADING', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
+          'NEEDS_GRADING', 'GRADED', 'COMPLETED', 'SUBMITTED', 'TIMED_OUT'
         )))[1]
         AS "latestAttemptId",
       max(attempt.percentage) FILTER (WHERE attempt.status IN (

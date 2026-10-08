@@ -25,6 +25,7 @@ import { learningPath } from "../learning-model";
 import { NotFoundCard } from "../states/NotFoundCard";
 import { LessonSkeleton } from "../states/LessonSkeleton";
 import { AttemptRunner } from "@/features/quiz-player/AttemptRunner";
+import { QuizResultSummary } from "@/features/quiz-player/QuizResultSummary";
 import {
   isPendingGrading,
   ResultBanner,
@@ -319,6 +320,7 @@ function QuizResultView({
   return (
     <article className="mx-auto max-w-3xl space-y-6 p-6">
       <ResultBanner result={data} />
+      <QuizResultSummary result={data} />
       <section
         className="space-y-3 rounded-lg border border-border bg-surface p-4"
         aria-label="Bước tiếp theo"

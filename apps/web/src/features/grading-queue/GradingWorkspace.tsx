@@ -11,7 +11,11 @@ import { Toast } from "@/components/ui/toast";
 import { Failure } from "@/features/instructor/shared";
 import { KatexText } from "@/features/quiz-player/KatexText";
 import { ApiError, errorMessage } from "@/lib/api";
-import { useGradingAttempt, useSaveGrades } from "./api";
+import {
+  useGradingAttempt,
+  usePublishAttempt,
+  useSaveGrades,
+} from "./api";
 import {
   awardedOf,
   essaysOf,
@@ -262,6 +266,7 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
   const [final, setFinal] = useState<GradeResult | null>(null);
   const closeToast = useCallback(() => setToast(null), []);
   const save = useSaveGrades(attempt.attemptId);
+  const publish = usePublishAttempt();
   const essays = essaysOf(attempt);
   const open = attempt.status === "NEEDS_GRADING";
   const payload = gradesPayload(attempt, inputs);
@@ -301,10 +306,20 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
       >
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold">{attempt.student.fullName}</h1>
-          <Badge tone={open ? "warning" : "success"}>
+          <Badge
+            tone={
+              open
+                ? "warning"
+                : attempt.status === "GRADED"
+                  ? "neutral"
+                  : "success"
+            }
+          >
             {open
               ? `${attempt.pendingEssaysCount} essays pending`
-              : "Đã chấm xong"}
+              : attempt.status === "GRADED"
+                ? "GRADED (Unpublished)"
+                : "PUBLISHED"}
           </Badge>
         </div>
         <p className="mt-1 text-sm text-muted">{attempt.student.email}</p>
@@ -321,7 +336,8 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
         >
           Bài đã chấm xong: {final.result.earnedPoints}/
           {final.result.totalPoints} điểm ({final.result.percentage}%) —{" "}
-          {final.result.isPassed ? "Đạt" : "Chưa đạt"}.
+          {final.result.isPassed ? "Đạt" : "Chưa đạt"}. Học viên chỉ thấy kết quả
+          sau khi bạn công bố.
         </p>
       ) : null}
 
@@ -353,9 +369,32 @@ function Workspace({ attempt }: { attempt: GradingAttempt }) {
           </Button>
         </div>
       ) : (
-        <p className="text-sm text-muted">
-          Bài này đã chấm xong nên không thể chỉnh sửa.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3">
+          <p className="text-sm text-muted">
+            {attempt.status === "GRADED"
+              ? "Đã chấm xong. Học viên chưa thấy kết quả cho đến khi bạn công bố."
+              : "Kết quả đã được công bố cho học viên."}
+          </p>
+          {attempt.status === "GRADED" ? (
+            <Button
+              loading={publish.isPending}
+              loadingLabel="Đang công bố…"
+              onClick={() =>
+                publish.mutate(attempt.attemptId, {
+                  onSuccess: () =>
+                    setToast({
+                      tone: "info",
+                      message: "Đã công bố kết quả cho học viên.",
+                    }),
+                  onError: (error) =>
+                    setToast({ tone: "error", message: saveError(error) }),
+                })
+              }
+            >
+              Publish Result
+            </Button>
+          ) : null}
+        </div>
       )}
       {toast ? (
         <Toast tone={toast.tone} message={toast.message} onClose={closeToast} />

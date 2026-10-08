@@ -1,23 +1,27 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Toast } from "@/components/ui/toast";
 import { Failure } from "@/features/instructor/shared";
 import { useDebounce } from "@/hooks/useDebounce";
-import { API_URL } from "@/lib/api";
+import { API_URL, ApiError, errorMessage } from "@/lib/api";
 import {
   useCourseQuizOptions,
   useGradingCourses,
   useGradingQueue,
+  usePublishAttempt,
+  usePublishQuizResults,
 } from "./api";
 import {
   gradingHref,
   groupByQuiz,
-  pendingLabel,
+  statusBadge,
   STATUS_TABS,
   type GradingQueueItem,
   type QueueStatus,
@@ -36,8 +40,17 @@ const avatarSrc = (path: string | null) =>
     ? `${API_URL}${path}`
     : undefined;
 
-function Row({ item }: { item: GradingQueueItem }) {
-  const pending = item.pendingEssaysCount > 0;
+function Row({
+  item,
+  publishing,
+  onPublish,
+}: {
+  item: GradingQueueItem;
+  publishing: boolean;
+  onPublish: (attemptId: string) => void;
+}) {
+  const pending = item.status === "NEEDS_GRADING";
+  const badge = statusBadge(item);
   return (
     <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       <Avatar
@@ -52,9 +65,17 @@ function Row({ item }: { item: GradingQueueItem }) {
           {item.student.email} · Nộp {dateTime(item.submittedAt)}
         </p>
       </div>
-      <Badge tone={pending ? "warning" : "success"}>
-        {pendingLabel(item)}
-      </Badge>
+      <Badge tone={badge.tone}>{badge.label}</Badge>
+      {item.status === "GRADED" ? (
+        <Button
+          size="sm"
+          loading={publishing}
+          loadingLabel="Đang công bố…"
+          onClick={() => onPublish(item.attemptId)}
+        >
+          Publish Result
+        </Button>
+      ) : null}
       <Link
         href={gradingHref(item.attemptId)}
         className="inline-flex min-h-9 items-center rounded-md border border-border-strong px-3 text-sm font-semibold hover:bg-surface-hover"
@@ -73,6 +94,26 @@ export function GradingQueue() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 400);
+  const [toast, setToast] = useState<{
+    tone: "info" | "error";
+    message: string;
+  } | null>(null);
+  const [confirming, setConfirming] = useState<{
+    quizId: string;
+    title: string;
+    count: number;
+  } | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
+  const publishOne = usePublishAttempt();
+  const publishAll = usePublishQuizResults();
+  const fail = (error: unknown) =>
+    setToast({
+      tone: "error",
+      message:
+        error instanceof ApiError && error.status === 409
+          ? "Bài này chưa chấm xong nên chưa thể công bố."
+          : errorMessage(error),
+    });
 
   const courses = useGradingCourses();
   const quizzes = useCourseQuizOptions(courseId);
@@ -190,16 +231,95 @@ export function GradingQueue() {
                   bài nộp
                   {group.pending ? ` · ${group.pending} essays pending` : ""}
                 </span>
+                {group.unpublished ? (
+                  <Button
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() =>
+                      setConfirming({
+                        quizId: group.key,
+                        title: group.quizTitle,
+                        count: group.unpublished,
+                      })
+                    }
+                  >
+                    Publish All Graded Results ({group.unpublished})
+                  </Button>
+                ) : null}
               </header>
               <ul className="divide-y divide-border">
                 {group.items.map((item) => (
-                  <Row key={item.attemptId} item={item} />
+                  <Row
+                    key={item.attemptId}
+                    item={item}
+                    publishing={
+                      publishOne.isPending &&
+                      publishOne.variables === item.attemptId
+                    }
+                    onPublish={(attemptId) =>
+                      publishOne.mutate(attemptId, {
+                        onSuccess: () =>
+                          setToast({
+                            tone: "info",
+                            message: "Đã công bố kết quả cho học viên.",
+                          }),
+                        onError: fail,
+                      })
+                    }
+                  />
                 ))}
               </ul>
             </section>
           ))}
         </div>
       )}
+
+      {confirming ? (
+        <Dialog
+          title="Công bố kết quả?"
+          description={`Công bố ${confirming.count} kết quả đã chấm của “${confirming.title}”. Học viên sẽ thấy điểm, nhận xét và (theo chính sách xem đáp án) đáp án của mình.`}
+          busy={publishAll.isPending}
+          onClose={() => setConfirming(null)}
+        >
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              disabled={publishAll.isPending}
+              onClick={() => setConfirming(null)}
+            >
+              Hủy
+            </Button>
+            <Button
+              loading={publishAll.isPending}
+              loadingLabel="Đang công bố…"
+              onClick={() =>
+                publishAll.mutate(confirming.quizId, {
+                  onSuccess: (result) => {
+                    setConfirming(null);
+                    setToast({
+                      tone: "info",
+                      message: `Đã công bố ${result.publishedCount} kết quả.${
+                        result.stillNeedGradingCount
+                          ? ` Còn ${result.stillNeedGradingCount} bài chưa chấm xong.`
+                          : ""
+                      }`,
+                    });
+                  },
+                  onError: (error) => {
+                    setConfirming(null);
+                    fail(error);
+                  },
+                })
+              }
+            >
+              Công bố
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
+      {toast ? (
+        <Toast tone={toast.tone} message={toast.message} onClose={closeToast} />
+      ) : null}
 
       {pagination && pagination.totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between text-sm">

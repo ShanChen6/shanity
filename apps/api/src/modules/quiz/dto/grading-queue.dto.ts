@@ -65,8 +65,9 @@ export class GradingQueueItemDto {
   submittedAt: Date | null;
   totalEssays: number;
   pendingEssaysCount: number;
-  // COMPLETED = fully graded.
-  status: 'NEEDS_GRADING' | 'COMPLETED';
+  // GRADED: graded but private; COMPLETED: published to the learner.
+  status: 'NEEDS_GRADING' | 'GRADED' | 'COMPLETED';
+  publishedAt: Date | null;
 }
 
 export class GradingQueueResponseDto {
