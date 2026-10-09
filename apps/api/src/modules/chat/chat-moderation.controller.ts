@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Get,
   Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +19,7 @@ import {
 } from '../../auth/auth.guards.js';
 import { ChatModerationService } from './chat-moderation.service.js';
 import {
+  ChatModerationQueueQueryDto,
   HideChatMessageDto,
   MuteChatUserDto,
   ReportChatMessageDto,
@@ -47,6 +50,25 @@ export class ChatModerationController {
     @Body() dto: HideChatMessageDto,
   ) {
     return this.moderation.hide(req.principal, id, dto.reason);
+  }
+
+  /** Unfounded reports: resolve them and unflag the message. */
+  @Post('messages/:id/dismiss')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  dismiss(
+    @Req() req: AuthRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: HideChatMessageDto,
+  ) {
+    return this.moderation.dismiss(req.principal, id, dto.reason);
+  }
+
+  /** Flagged messages awaiting a decision, in the courses the caller moderates. */
+  @Get('moderation/queue')
+  @Header('Cache-Control', 'no-store')
+  queue(@Req() req: AuthRequest, @Query() query: ChatModerationQueueQueryDto) {
+    return this.moderation.queue(req.principal, query.courseId);
   }
 
   @Post('users/:userId/mute')

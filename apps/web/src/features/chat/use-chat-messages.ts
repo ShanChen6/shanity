@@ -105,9 +105,9 @@ export function useChatMessages(
   );
 
   const hide = useCallback(
-    (messageId: string) =>
+    (messageId: string, options?: { keepContent?: boolean }) =>
       client.setQueryData<ChatRoomState>(key, (current) =>
-        current ? markHidden(current, messageId) : current,
+        current ? markHidden(current, messageId, options) : current,
       ),
     [client, key],
   );

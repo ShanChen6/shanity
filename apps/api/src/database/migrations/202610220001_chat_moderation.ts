@@ -6,7 +6,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
  * - chat_mutes: a user's right to send in one course's room, suspended until
  *   muted_until. One row per (course, user); muting again replaces the
  *   deadline (the latest moderator decision wins). Expired rows are inert.
- * - chat_moderation_logs: append-only audit of every hide and mute
+ * - chat_moderation_logs: append-only audit of every hide, dismissal and mute
  *   (docs/permissions.md requires it for hiding content). Rows can never be
  *   updated, deleted or truncated, and what they reference cannot be deleted.
  * - chat_reports gains who resolved it and when; the CHECK keeps those two in
@@ -37,7 +37,8 @@ export class ChatModeration1792627200001 implements MigrationInterface {
       CREATE TRIGGER chat_mutes_set_updated_at BEFORE UPDATE ON chat_mutes
         FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-      CREATE TYPE "ChatModerationAction" AS ENUM ('HIDE_MESSAGE', 'MUTE_USER');
+      CREATE TYPE "ChatModerationAction"
+        AS ENUM ('HIDE_MESSAGE', 'DISMISS_REPORTS', 'MUTE_USER');
       CREATE TABLE chat_moderation_logs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         course_id uuid NOT NULL,
@@ -50,7 +51,8 @@ export class ChatModeration1792627200001 implements MigrationInterface {
         details jsonb,
         created_at timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT "CHK_chat_moderation_logs_target" CHECK (
-          (action = 'HIDE_MESSAGE' AND message_id IS NOT NULL)
+          (action IN ('HIDE_MESSAGE', 'DISMISS_REPORTS')
+            AND message_id IS NOT NULL)
           OR (action = 'MUTE_USER' AND target_user_id IS NOT NULL)
         ),
         CONSTRAINT "CHK_chat_moderation_logs_reason"

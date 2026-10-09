@@ -147,22 +147,25 @@ export async function syncRoom(
 }
 
 /**
- * A message a moderator just hid: its content leaves the device (memory and
- * localStorage) at once. The row stays as a HIDDEN placeholder so the list
- * does not jump; for learners the next sync drops it entirely, and course
- * teachers get the content back from the server on their next read.
+ * A message a moderator just hid. For learners its content leaves the
+ * device (memory and localStorage) at once; the row stays as a HIDDEN
+ * placeholder so the list does not jump, and the next sync drops it.
+ * Moderators may still read it (`keepContent`): only the status changes.
  */
 export function markHidden(
   state: ChatRoomState,
   messageId: string,
+  { keepContent = false }: { keepContent?: boolean } = {},
 ): ChatRoomState {
   if (!state.messages.some((message) => message.id === messageId)) return state;
   return {
     ...state,
     messages: state.messages.map((message) =>
-      message.id === messageId
-        ? { ...message, status: "HIDDEN", content: "", attachments: [] }
-        : message,
+      message.id !== messageId
+        ? message
+        : keepContent
+          ? { ...message, status: "HIDDEN" }
+          : { ...message, status: "HIDDEN", content: "", attachments: [] },
     ),
   };
 }

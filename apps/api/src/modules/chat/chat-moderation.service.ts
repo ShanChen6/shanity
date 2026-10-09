@@ -12,6 +12,12 @@ import { managesCourseSql } from '../../courses/course-ownership.service.js';
 import { ChatAccessService } from './chat-access.service.js';
 import { courseChannel } from './chat-channels.js';
 import { ChatEvents } from './chat-events.js';
+import {
+  CHAT_MESSAGE_COLUMNS,
+  chatMessageView,
+  type ChatMessageRow,
+  type ChatMessageView,
+} from './chat-message-view.js';
 import type { MuteChatUserDto } from './chat.dto.js';
 import { RealtimeProvider } from './realtime/realtime-provider.js';
 
@@ -23,8 +29,37 @@ const error = (statusCode: number, code: string) => ({
 
 type MessageRow = { courseId: string; senderId: string; status: string };
 
+/** Most flagged messages one queue read returns. */
+export const CHAT_QUEUE_LIMIT = 100;
+
+export interface ChatQueueReport {
+  id: string;
+  reason: string;
+  reporter: { id: string; name: string };
+  createdAt: string;
+}
+
+/** A message awaiting a moderator's decision, with its pending reports. */
+export interface ChatQueueItem {
+  message: ChatMessageView;
+  course: { id: string; title: string; slug: string };
+  reportCount: number;
+  lastReportedAt: string;
+  reports: ChatQueueReport[];
+}
+
+type QueueRow = ChatMessageRow & {
+  courseId: string;
+  courseTitle: string;
+  courseSlug: string;
+  reportCount: number;
+  lastReportedAt: Date;
+  reports: ChatQueueReport[];
+};
+
 /**
- * Reports, hiding and muting in course chats.
+ * Reports, the moderation queue, hiding, dismissing and muting in course
+ * chats.
  *
  * Moderators of a course are its teachers (owner, instructor, assigned) and
  * platform admins (docs/permissions.md: admins moderate when needed, even
@@ -133,6 +168,102 @@ export class ChatModerationService {
       status: 'HIDDEN' as const,
       resolvedReports: result.resolvedReports,
     };
+  }
+
+  /**
+   * Messages with pending reports in the courses the caller moderates (one
+   * course with `courseId`), most recently reported first.
+   */
+  async queue(
+    principal: Principal,
+    courseId?: string,
+  ): Promise<ChatQueueItem[]> {
+    if (courseId) await this.assertModerator(principal, courseId);
+    const rows = await this.dataSource.query<QueueRow[]>(
+      `SELECT ${CHAT_MESSAGE_COLUMNS},
+         course.id AS "courseId",
+         course.title AS "courseTitle",
+         course.slug AS "courseSlug",
+         pending.count AS "reportCount",
+         pending.last AS "lastReportedAt",
+         pending.reports
+       FROM chat_messages message
+       INNER JOIN users sender ON sender.id = message.sender_id
+       INNER JOIN courses course ON course.id = message.course_id
+       CROSS JOIN LATERAL (
+         SELECT count(*)::int AS count,
+           max(report.created_at) AS last,
+           json_agg(json_build_object(
+             'id', report.id,
+             'reason', report.reason,
+             'reporter', json_build_object(
+               'id', reporter.id, 'name', reporter.display_name),
+             'createdAt', report.created_at
+           ) ORDER BY report.created_at) AS reports
+         FROM chat_reports report
+         INNER JOIN users reporter ON reporter.id = report.reporter_id
+         WHERE report.message_id = message.id AND report.status = 'PENDING'
+       ) pending
+       WHERE message.id IN (
+           SELECT message_id FROM chat_reports WHERE status = 'PENDING')
+         AND ($1::uuid IS NULL OR message.course_id = $1)
+         AND ($3 OR ${managesCourseSql('$2')})
+       ORDER BY pending.last DESC, message.id
+       LIMIT ${CHAT_QUEUE_LIMIT}`,
+      [courseId ?? null, principal.id, principal.roles.includes('admin')],
+    );
+    return rows.map((row) => ({
+      message: chatMessageView(row),
+      course: {
+        id: row.courseId,
+        title: row.courseTitle,
+        slug: row.courseSlug,
+      },
+      reportCount: row.reportCount,
+      lastReportedAt: row.lastReportedAt.toISOString(),
+      reports: row.reports,
+    }));
+  }
+
+  /**
+   * The reports were unfounded: they are resolved and the message is
+   * unflagged (FLAGGED -> ACTIVE). It never touches a hidden message.
+   */
+  async dismiss(principal: Principal, messageId: string, reason?: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const message = await this.lockMessage(manager, messageId);
+      await this.assertModerator(principal, message.courseId);
+      // TypeORM answers UPDATE ... RETURNING with [rows, affectedCount].
+      const [resolved] = await manager.query<[Array<{ id: string }>, number]>(
+        `UPDATE chat_reports
+         SET status = 'RESOLVED', resolved_by = $2, resolved_at = now()
+         WHERE message_id = $1 AND status = 'PENDING'
+         RETURNING id`,
+        [messageId, principal.id],
+      );
+      let status = message.status;
+      if (message.status === 'FLAGGED') {
+        await manager.query(
+          `UPDATE chat_messages SET status = 'ACTIVE' WHERE id = $1`,
+          [messageId],
+        );
+        status = 'ACTIVE';
+      }
+      if (resolved.length)
+        await manager.query(
+          `INSERT INTO chat_moderation_logs
+             (course_id, actor_id, action, message_id, reason, details)
+           VALUES ($1, $2, 'DISMISS_REPORTS', $3, $4, $5)`,
+          [
+            message.courseId,
+            principal.id,
+            messageId,
+            reason ?? null,
+            { dismissedReports: resolved.length },
+          ],
+        );
+      return { messageId, status, dismissedReports: resolved.length };
+    });
   }
 
   /**

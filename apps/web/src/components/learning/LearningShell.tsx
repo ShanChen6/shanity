@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
+import { useSession } from "@/features/auth/session-provider";
 import { ApiError } from "@/lib/api";
 import { Failure } from "@/features/instructor/shared";
 import { CurriculumSidebar } from "./CurriculumSidebar";
@@ -90,6 +91,9 @@ function ShellContent({ children }: { children: ReactNode }) {
     quizId?: string;
   }>();
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const { isAuthenticated } = useSession();
+  const chatHref = `/learn/${encodeURIComponent(learning.courseSlug)}/chat`;
   const sidebar = (onNavigate?: () => void) => (
     <CurriculumSidebar
       courseSlug={learning.courseSlug}
@@ -111,6 +115,9 @@ function ShellContent({ children }: { children: ReactNode }) {
           courseTitle={learning.syllabus.course.title}
           courseProgress={learning.courseProgress}
           showProgress={learning.isTracking}
+          // The room itself checks membership; guests have none to check.
+          chatHref={isAuthenticated ? chatHref : undefined}
+          chatActive={pathname === chatHref}
           onOpenMenu={() => setMenuOpen(true)}
         />
       }

@@ -1,31 +1,20 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { decodeChatCursor, type ChatCursor } from './chat-cursor.js';
+import { ChatMessageStatus } from './entities/chat-message.entity.js';
 import {
-  decodeChatCursor,
-  encodeChatCursor,
-  type ChatCursor,
-} from './chat-cursor.js';
+  CHAT_MESSAGE_COLUMNS,
+  chatMessageView,
+  type ChatMessageRow,
+  type ChatMessageView,
+} from './chat-message-view.js';
 import {
   CHAT_HISTORY_DEFAULT_LIMIT,
   type ChatHistoryQueryDto,
 } from './chat.dto.js';
-import type {
-  ChatAttachment,
-  ChatMessageStatus,
-} from './entities/chat-message.entity.js';
 import type { ChatMember } from './realtime/realtime-provider.js';
 
-export interface ChatMessageView {
-  id: string;
-  sender: { id: string; name: string; avatarUrl: string | null };
-  content: string;
-  attachments: ChatAttachment[];
-  status: ChatMessageStatus;
-  /** ISO 8601, microsecond precision. */
-  createdAt: string;
-  /** Pass as `cursor` (older) or `after` (newer) to page from this message. */
-  cursor: string;
-}
+export type { ChatMessageView };
 
 export interface ChatHistoryPage {
   /** Always oldest first, whichever direction was asked for. */
@@ -33,17 +22,6 @@ export interface ChatHistoryPage {
   /** More messages exist beyond this page in the direction asked for. */
   hasMore: boolean;
 }
-
-type Row = {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderAvatarKey: string | null;
-  content: string;
-  attachments: ChatAttachment[];
-  status: ChatMessageStatus;
-  createdAt: string;
-};
 
 const invalid = (code: string) =>
   new BadRequestException({ statusCode: 400, message: code, code });
@@ -54,7 +32,8 @@ export class ChatHistoryService {
 
   /**
    * One page of a course's chat, read by keyset on (created_at, id). Learners
-   * never see HIDDEN messages; the course's instructors do, to moderate.
+   * never see HIDDEN messages nor that one is FLAGGED; the course's
+   * instructors see both, to moderate.
    */
   async page(
     courseId: string,
@@ -75,16 +54,8 @@ export class ChatHistoryService {
         ($3::timestamptz, $4::uuid)`;
     }
     const order = forward ? 'ASC' : 'DESC';
-    const rows = await this.dataSource.query<Row[]>(
-      `SELECT message.id,
-         message.sender_id AS "senderId",
-         sender.display_name AS "senderName",
-         sender.avatar_key AS "senderAvatarKey",
-         message.content,
-         message.attachments,
-         message.status,
-         to_char(message.created_at AT TIME ZONE 'UTC',
-           'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt"
+    const rows = await this.dataSource.query<ChatMessageRow[]>(
+      `SELECT ${CHAT_MESSAGE_COLUMNS}
        FROM chat_messages message
        INNER JOIN users sender ON sender.id = message.sender_id
        WHERE message.course_id = $1
@@ -98,7 +69,14 @@ export class ChatHistoryService {
     const hasMore = rows.length > limit;
     const page = rows.slice(0, limit);
     if (!forward) page.reverse();
-    return { messages: page.map((row) => this.view(row)), hasMore };
+    const messages = page.map(chatMessageView);
+    // Who has been reported is moderators' business: to learners (the sender
+    // included) a flagged message is just a message.
+    if (viewer.role === 'student')
+      for (const message of messages)
+        if (message.status === ChatMessageStatus.FLAGGED)
+          message.status = ChatMessageStatus.ACTIVE;
+    return { messages, hasMore };
   }
 
   private decode(value: string | undefined): ChatCursor | null {
@@ -106,23 +84,5 @@ export class ChatHistoryService {
     const cursor = decodeChatCursor(value);
     if (!cursor) throw invalid('CHAT_CURSOR_INVALID');
     return cursor;
-  }
-
-  private view(row: Row): ChatMessageView {
-    return {
-      id: row.id,
-      sender: {
-        id: row.senderId,
-        name: row.senderName,
-        avatarUrl: row.senderAvatarKey
-          ? `/avatars/${row.senderAvatarKey}`
-          : null,
-      },
-      content: row.content,
-      attachments: row.attachments,
-      status: row.status,
-      createdAt: row.createdAt,
-      cursor: encodeChatCursor({ createdAt: row.createdAt, id: row.id }),
-    };
   }
 }

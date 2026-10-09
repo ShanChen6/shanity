@@ -97,3 +97,20 @@ export class MuteChatUserDto {
   @MaxLength(CHAT_REASON_MAX_LENGTH)
   reason?: string;
 }
+
+export const CHAT_MESSAGE_MAX_LENGTH = 2000;
+
+export class SendChatMessageDto {
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(CHAT_MESSAGE_MAX_LENGTH)
+  content: string;
+}
+
+export class ChatModerationQueueQueryDto {
+  /** One course only; otherwise every course the caller moderates. */
+  @IsOptional()
+  @IsUUID()
+  courseId?: string;
+}

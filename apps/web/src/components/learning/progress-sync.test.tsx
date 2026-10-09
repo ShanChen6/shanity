@@ -16,6 +16,7 @@ let lessonSlug = "l-10";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, prefetch: vi.fn(), replace: vi.fn() }),
   useParams: () => ({ lessonSlug }),
+  usePathname: () => `/learn/course/${lessonSlug}`,
 }));
 vi.mock("@/features/auth/session-provider", () => ({
   useSession: () => ({

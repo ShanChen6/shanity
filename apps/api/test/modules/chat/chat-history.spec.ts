@@ -119,8 +119,16 @@ describe('C4 chat history', { timeout: 60_000 }, () => {
     const asStudent = (await get(student, '', other.id).expect(200))
       .body as Page;
     expect(texts(asStudent).sort()).toEqual(['flagged', 'shown']);
+    // Learners are not told a message was reported.
+    expect(asStudent.messages.map((m) => m.status)).toEqual([
+      'ACTIVE',
+      'ACTIVE',
+    ]);
     const asOwner = (await get(owner, '', other.id).expect(200)).body as Page;
     expect(texts(asOwner).sort()).toEqual(['flagged', 'hidden', 'shown']);
+    expect(asOwner.messages.find((m) => m.content === 'flagged')?.status).toBe(
+      'FLAGGED',
+    );
   });
 
   it('never serves course A history to a learner of course B', async () => {

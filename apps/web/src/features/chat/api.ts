@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { ChatHistoryPage } from "./types";
+import type { ChatHistoryPage, ChatMessage } from "./types";
 
 const enc = encodeURIComponent;
 
@@ -7,6 +7,9 @@ export const chatKeys = {
   // Per user as well as per course: one browser can be shared by two accounts.
   room: (userId: string, courseId: string) =>
     ["chat", "room", userId, courseId] as const,
+  me: (userId: string, courseId: string) =>
+    ["chat", "me", userId, courseId] as const,
+  queue: ["chat", "moderation-queue"] as const,
 };
 
 export type ChatPageQuery = {
@@ -37,6 +40,7 @@ export type ChatPageFetcher = typeof fetchChatPage;
 
 /** Events the API publishes on `presence-course-<courseId>`. */
 export const ChatEvents = {
+  MESSAGE_CREATED: "message_created",
   MESSAGE_HIDDEN: "message_hidden",
   USER_MUTED: "user_muted",
 } as const;
@@ -73,4 +77,49 @@ export const muteChatUser = (
     "POST",
     `/api/v1/chat/users/${enc(userId)}/mute`,
     { courseId, durationMinutes, ...(reason ? { reason } : {}) },
+  );
+
+export const CHAT_MESSAGE_MAX_LENGTH = 2000;
+
+/** The caller's standing in a room. */
+export type ChatMe = {
+  courseId: string;
+  role: "instructor" | "student";
+  /** ISO 8601 while muted, else null. */
+  mutedUntil: string | null;
+};
+
+export const fetchChatMe = (courseId: string, signal?: AbortSignal) =>
+  api<ChatMe>(`/api/v1/courses/${enc(courseId)}/chat/me`, { signal });
+
+export const sendChatMessage = (courseId: string, content: string) =>
+  write<ChatMessage>("POST", `/api/v1/courses/${enc(courseId)}/chat/messages`, {
+    content,
+  });
+
+export type ChatQueueReport = {
+  id: string;
+  reason: string;
+  reporter: { id: string; name: string };
+  createdAt: string;
+};
+
+/** A flagged message awaiting a moderator, with its pending reports. */
+export type ChatQueueItem = {
+  message: ChatMessage;
+  course: { id: string; title: string; slug: string };
+  reportCount: number;
+  lastReportedAt: string;
+  reports: ChatQueueReport[];
+};
+
+export const fetchModerationQueue = (signal?: AbortSignal) =>
+  api<ChatQueueItem[]>("/api/v1/chat/moderation/queue", { signal });
+
+/** Unfounded reports: resolve them, the message stays. */
+export const dismissChatReports = (messageId: string) =>
+  write<{ messageId: string; status: string; dismissedReports: number }>(
+    "POST",
+    `/api/v1/chat/messages/${enc(messageId)}/dismiss`,
+    {},
   );

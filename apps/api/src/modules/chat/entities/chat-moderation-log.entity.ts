@@ -14,6 +14,8 @@ import { ChatMessage } from './chat-message.entity.js';
 export enum ChatModerationAction {
   /** `messageId` set. */
   HIDE_MESSAGE = 'HIDE_MESSAGE',
+  /** `messageId` set: its reports were judged unfounded, the message stays. */
+  DISMISS_REPORTS = 'DISMISS_REPORTS',
   /** `targetUserId` set; `details.mutedUntil` the deadline given. */
   MUTE_USER = 'MUTE_USER',
 }
