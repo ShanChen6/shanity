@@ -28,6 +28,8 @@ import { BlogPost } from '../modules/blog/entities/blog-post.entity.js';
 import { PostReviewLog } from '../modules/blog/entities/post-review-log.entity.js';
 import { PostComment } from '../modules/blog/entities/post-comment.entity.js';
 import { PostCommentReviewLog } from '../modules/blog/entities/post-comment-review-log.entity.js';
+import { LiveSession } from '../modules/live/entities/live-session.entity.js';
+import { LiveAttendance } from '../modules/live/entities/live-attendance.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -75,6 +77,8 @@ export function createAppDataSource(): DataSource {
       PostReviewLog,
       PostComment,
       PostCommentReviewLog,
+      LiveSession,
+      LiveAttendance,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

@@ -53,6 +53,12 @@ export const studentNav: readonly NavItem[] = [
     keywords: ["khám phá", "danh mục", "catalog"],
   },
   {
+    href: "/student/dashboard/schedule",
+    label: "Lịch học",
+    icon: "calendar",
+    keywords: ["lớp học trực tiếp", "live", "thời khóa biểu"],
+  },
+  {
     href: "/quizzes",
     label: "Bài kiểm tra",
     icon: "quiz",
@@ -103,6 +109,13 @@ export const instructorNav: readonly NavItem[] = [
     icon: "grading",
     roles: INSTRUCTOR_ROLES,
     keywords: ["tự luận", "chấm điểm"],
+  },
+  {
+    href: "/instructor/dashboard/schedule",
+    label: "Lịch giảng dạy",
+    icon: "calendar",
+    roles: INSTRUCTOR_ROLES,
+    keywords: ["lớp học trực tiếp", "live", "điểm danh"],
   },
   {
     href: "/instructor/chat-moderation",

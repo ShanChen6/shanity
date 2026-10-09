@@ -36,5 +36,6 @@ export const config = {
     "/quiz-attempts",
     "/admin/:path*",
     "/instructor/:path*",
+    "/student/:path*",
   ],
 };

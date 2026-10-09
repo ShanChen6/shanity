@@ -94,6 +94,7 @@ describe("SiteHeader for a signed-in user", () => {
       "Tổng quan",
       "Góc học tập",
       "Khóa học",
+      "Lịch học",
       "Bài kiểm tra",
       "Lịch sử làm bài",
       "Đơn hàng",

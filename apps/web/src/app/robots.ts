@@ -19,6 +19,7 @@ export default function robots(): MetadataRoute.Robots {
         "/orders",
         "/profile",
         "/quiz-attempts",
+        "/student",
       ],
     },
     sitemap: absoluteUrl("/sitemap.xml"),
