@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formatDateTime, formatMoney } from "./format";
 import type { SortField, SortOrder } from "./filters";
 import { OrderStatusBadge, ProviderBadge } from "./order-badges";
@@ -42,7 +43,10 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={ariaSort}
-      className={`whitespace-nowrap px-4 py-3 font-semibold ${column.align === "right" ? "text-right" : ""}`}
+      className={cn(
+        "whitespace-nowrap px-4 py-3 font-semibold",
+        column.align === "right" && "text-right",
+      )}
     >
       {field ? (
         <button
@@ -51,7 +55,7 @@ function SortHeader({
           className="inline-flex min-h-9 items-center gap-1 rounded-md uppercase hover:text-foreground focus-visible:outline-2"
         >
           {column.label}
-          <span aria-hidden="true" className={active ? "" : "opacity-40"}>
+          <span aria-hidden="true" className={cn(!active && "opacity-40")}>
             {active ? (sortOrder === "asc" ? "↑" : "↓") : "↕"}
           </span>
         </button>

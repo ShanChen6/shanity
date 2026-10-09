@@ -7,6 +7,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { AttemptResult } from "./api";
 
 const POLICY_HINT: Record<string, string> = {
@@ -82,11 +83,12 @@ export function ResultBanner({
   return (
     <section
       aria-label="Kết quả"
-      className={`overflow-hidden rounded-xl border ${
+      className={cn(
+        "overflow-hidden rounded-xl border",
         passed
           ? "border-success/40 bg-success-background"
-          : "border-danger/40 bg-danger-background"
-      }`}
+          : "border-danger/40 bg-danger-background",
+      )}
     >
       <div className="flex flex-wrap items-center gap-5 p-5 sm:p-7">
         {passed ? (
@@ -189,7 +191,10 @@ export function ReviewList({ result }: { result: AttemptResult }) {
                   return (
                     <li
                       key={option.id}
-                      className={`flex items-center gap-3 rounded-md border p-3 text-sm ${tone}`}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md border p-3 text-sm",
+                        tone,
+                      )}
                     >
                       <span className="min-w-0 flex-1">{option.content}</span>
                       {chosen ? <Badge tone="info">Bạn chọn</Badge> : null}

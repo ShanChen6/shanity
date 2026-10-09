@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 
 export function Skeleton({
   className = "",
@@ -8,7 +9,10 @@ export function Skeleton({
     <div
       {...props}
       aria-hidden="true"
-      className={`animate-pulse rounded-md bg-surface-secondary motion-reduce:animate-none ${className}`}
+      className={cn(
+        "animate-pulse rounded-md bg-surface-secondary motion-reduce:animate-none",
+        className,
+      )}
     />
   );
 }

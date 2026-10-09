@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 const variants = {
   default: "border-border bg-surface shadow-sm",
   interactive:
@@ -13,7 +14,11 @@ export function Card({
   return (
     <div
       {...props}
-      className={`rounded-lg border p-5 sm:p-6 ${variants[variant]} ${className}`}
+      className={cn(
+        "rounded-lg border p-5 sm:p-6",
+        variants[variant],
+        className,
+      )}
     />
   );
 }
@@ -23,7 +28,7 @@ export function CardHeader({
   ...props
 }: ComponentPropsWithRef<"div">) {
   return (
-    <div {...props} className={`mb-4 flex flex-col gap-1.5 ${className}`} />
+    <div {...props} className={cn("mb-4 flex flex-col gap-1.5", className)} />
   );
 }
 
@@ -34,7 +39,7 @@ export function CardTitle({
   return (
     <h3
       {...props}
-      className={`font-heading text-h3 font-semibold ${className}`}
+      className={cn("font-heading text-h3 font-semibold", className)}
     />
   );
 }
@@ -43,14 +48,14 @@ export function CardDescription({
   className = "",
   ...props
 }: ComponentPropsWithRef<"p">) {
-  return <p {...props} className={`text-body-sm text-muted ${className}`} />;
+  return <p {...props} className={cn("text-body-sm text-muted", className)} />;
 }
 
 export function CardContent({
   className = "",
   ...props
 }: ComponentPropsWithRef<"div">) {
-  return <div {...props} className={className} />;
+  return <div {...props} className={cn(className)} />;
 }
 
 export function CardFooter({
@@ -60,7 +65,10 @@ export function CardFooter({
   return (
     <div
       {...props}
-      className={`mt-4 flex items-center border-t border-border pt-4 ${className}`}
+      className={cn(
+        "mt-4 flex items-center border-t border-border pt-4",
+        className,
+      )}
     />
   );
 }

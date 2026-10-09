@@ -17,15 +17,17 @@ import { useSession } from "@/features/auth/session-provider";
 import { UserMenu } from "@/features/auth/user-menu";
 import { CommandMenuTrigger } from "@/features/command-menu/command-menu";
 import { NotificationBell } from "@/features/notifications/notification-bell";
+import { cn } from "@/lib/utils";
 
 const PUBLIC_NAV: readonly NavItem[] = [
   { href: "/courses", label: "Khóa học", icon: "search" },
 ];
 
 const linkClass = (active: boolean) =>
-  `inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition-colors hover:bg-surface-hover ${
-    active ? "text-primary" : "text-foreground-secondary"
-  }`;
+  cn(
+    "inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition-colors hover:bg-surface-hover",
+    active ? "text-primary" : "text-foreground-secondary",
+  );
 
 /**
  * Header of every public and learner page. The links, search, bell and menus
@@ -152,9 +154,10 @@ export function SiteHeader() {
               key={item.href}
               href={item.href}
               aria-current={item.active ? "page" : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-surface-hover ${
-                item.active ? "bg-secondary text-secondary-foreground" : ""
-              }`}
+              className={cn(
+                "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-surface-hover",
+                item.active && "bg-secondary text-secondary-foreground",
+              )}
             >
               <Icon name={item.icon} />
               {item.label}

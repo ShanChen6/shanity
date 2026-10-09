@@ -13,6 +13,7 @@ import { Toast } from "@/components/ui/toast";
 import { Failure } from "@/features/instructor/shared";
 import { useDebounce } from "@/hooks/useDebounce";
 import { API_URL, ApiError, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   useCourseQuizOptions,
   useGradingCourses,
@@ -257,11 +258,12 @@ export function GradingQueue() {
             type="button"
             aria-selected={status === tab.value}
             onClick={() => filter(setStatus)(tab.value)}
-            className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
+            className={cn(
+              "rounded-md border px-3 py-1.5 text-sm font-semibold",
               status === tab.value
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-strong hover:bg-surface-hover"
-            }`}
+                : "border-border-strong hover:bg-surface-hover",
+            )}
           >
             {tab.label}
           </button>

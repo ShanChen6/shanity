@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BRAND, BRAND_ASPECT, type BrandVariant } from "@/config/brand.config";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_WIDTH: Record<BrandVariant, number> = {
   full: 120,
@@ -96,7 +97,7 @@ export function BrandLogo({
             alt={alt}
             {...size}
             fetchPriority={fetchPriority}
-            className={surface === "auto" ? "shrink-0 dark:hidden" : "shrink-0"}
+            className={cn("shrink-0", surface === "auto" && "dark:hidden")}
           />
         )}
         {surface !== "light" && (
@@ -105,22 +106,26 @@ export function BrandLogo({
             alt={alt}
             {...size}
             fetchPriority={fetchPriority}
-            className={
-              surface === "auto" ? "hidden shrink-0 dark:block" : "shrink-0"
-            }
+            className={cn(
+              "shrink-0",
+              surface === "auto" && "hidden dark:block",
+            )}
           />
         )}
       </>
     );
 
   if (href === null)
-    return <span className={`inline-flex ${className}`}>{logo}</span>;
+    return <span className={cn("inline-flex", className)}>{logo}</span>;
   return (
     <Link
       href={href}
       aria-label={label ?? `${BRAND.name} — trang chủ`}
       // 44px keeps the touch target accessible even for a small logo.
-      className={`inline-flex min-h-11 items-center rounded-md ${className}`}
+      className={cn(
+        "inline-flex min-h-11 items-center rounded-md",
+        className,
+      )}
     >
       {logo}
     </Link>

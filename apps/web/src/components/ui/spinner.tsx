@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 export function Spinner({
   label = "Đang tải",
   decorative = false,
@@ -10,7 +12,7 @@ export function Spinner({
   return (
     <span
       role={decorative ? undefined : "status"}
-      className={`inline-flex items-center ${className}`}
+      className={cn("inline-flex items-center", className)}
       aria-hidden={decorative || undefined}
     >
       <svg

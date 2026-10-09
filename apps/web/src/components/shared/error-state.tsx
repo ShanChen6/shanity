@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function ErrorState({
   title,
@@ -17,7 +18,10 @@ export function ErrorState({
   return (
     <section
       role="alert"
-      className={`rounded-md border border-danger bg-danger-background p-5 ${className}`}
+      className={cn(
+        "rounded-md border border-danger bg-danger-background p-5",
+        className,
+      )}
     >
       <h2 className="font-heading text-h3 font-semibold text-danger-foreground">
         {title}

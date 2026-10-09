@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
 import { useSession } from "@/features/auth/session-provider";
 import {
   adminNav,
@@ -24,7 +25,12 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
             prefetch={false}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-secondary text-secondary-foreground" : "text-muted hover:bg-surface-hover hover:text-foreground"}`}
+            className={cn(
+              "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              active
+                ? "bg-secondary text-secondary-foreground"
+                : "text-muted hover:bg-surface-hover hover:text-foreground",
+            )}
           >
             <Icon name={icon} />
             {label}

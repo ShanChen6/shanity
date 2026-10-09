@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type AvatarContextValue = {
   name: string;
@@ -59,7 +60,10 @@ function AvatarContent({
       <span
         role="img"
         aria-label={name}
-        className={`relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-sm font-semibold text-accent-foreground ${className}`}
+        className={cn(
+          "relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-sm font-semibold text-accent-foreground",
+          className,
+        )}
       >
         {content}
       </span>
@@ -86,7 +90,7 @@ export function AvatarImage({
       alt={alt ?? name}
       fill
       sizes="48px"
-      className={`object-cover ${className}`}
+      className={cn("object-cover", className)}
       onLoad={() => setImageLoaded(true)}
       onError={() => {
         setImageLoaded(false);

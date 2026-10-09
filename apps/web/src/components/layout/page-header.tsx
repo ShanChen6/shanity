@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function PageHeader({
   title,
@@ -13,7 +14,10 @@ export function PageHeader({
 }) {
   return (
     <header
-      className={`flex flex-wrap items-start justify-between gap-4 ${className}`}
+      className={cn(
+        "flex flex-wrap items-start justify-between gap-4",
+        className,
+      )}
     >
       <div className="min-w-0">
         <h1 className="font-heading text-h1 font-semibold">{title}</h1>

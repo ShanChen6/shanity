@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 import { Spinner } from "./spinner";
 
 const variants = {
@@ -45,7 +46,12 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex min-w-0 items-center justify-center gap-2 rounded-md border font-semibold transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-55 ${sizeClass} ${variants[variant]} ${className}`}
+      className={cn(
+        "inline-flex min-w-0 items-center justify-center gap-2 rounded-md border font-semibold transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-55",
+        sizeClass,
+        variants[variant],
+        className,
+      )}
     >
       {loading ? (
         <>

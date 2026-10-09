@@ -18,6 +18,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { useSession } from "@/features/auth/session-provider";
+import { cn } from "@/lib/utils";
 import { fetchStudentOrders, paymentKeys } from "./api";
 import { useNow } from "./use-now";
 import { formatDateTime, formatMoney } from "./format";
@@ -69,7 +70,10 @@ function OrderActions({ order, now }: { order: StudentOrder; now: number }) {
     return (
       <Link
         href={`/checkout/${order.code}`}
-        className={`${className} bg-primary text-primary-foreground hover:bg-primary-hover`}
+        className={cn(
+          className,
+          "bg-primary text-primary-foreground hover:bg-primary-hover",
+        )}
       >
         Thanh toán ngay
       </Link>
@@ -79,14 +83,20 @@ function OrderActions({ order, now }: { order: StudentOrder; now: number }) {
       {order.status === "COMPLETED" && slug && (
         <Link
           href={`/learn/${encodeURIComponent(slug)}`}
-          className={`${className} bg-primary text-primary-foreground hover:bg-primary-hover`}
+          className={cn(
+            className,
+            "bg-primary text-primary-foreground hover:bg-primary-hover",
+          )}
         >
           Vào học
         </Link>
       )}
       <Link
         href={`/checkout/${order.code}`}
-        className={`${className} border border-border-strong hover:bg-surface-hover`}
+        className={cn(
+          className,
+          "border border-border-strong hover:bg-surface-hover",
+        )}
       >
         Chi tiết
       </Link>
@@ -152,11 +162,12 @@ export function OrdersHistory() {
             aria-selected={filter === item.value}
             aria-controls="orders-panel"
             onClick={() => go({ status: item.value })}
-            className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+            className={cn(
+              "-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
               filter === item.value
                 ? "border-primary text-primary"
-                : "border-transparent text-muted hover:text-foreground"
-            }`}
+                : "border-transparent text-muted hover:text-foreground",
+            )}
           >
             {item.label}
           </button>

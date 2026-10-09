@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 
 export function Switch({
   className = "",
@@ -9,7 +10,10 @@ export function Switch({
       {...props}
       type="checkbox"
       role="switch"
-      className={`switch-control focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={cn(
+        "switch-control focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60",
+        className,
+      )}
     />
   );
 }

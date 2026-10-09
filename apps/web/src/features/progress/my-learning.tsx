@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { CatalogThumbnail } from "@/features/courses/catalog-thumbnail";
 import { useSession } from "@/features/auth/session-provider";
 import { api, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   LEARNING_FILTERS,
   LEARNING_SORTS,
@@ -102,20 +103,22 @@ export function MyLearning() {
                 aria-selected={active}
                 aria-controls="my-learning-panel"
                 onClick={() => update("filter", item.value, "all")}
-                className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3.5 text-sm font-semibold transition-colors duration-fast ${
+                className={cn(
+                  "inline-flex min-h-10 items-center gap-2 rounded-md px-3.5 text-sm font-semibold transition-colors duration-fast",
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-foreground-secondary hover:bg-surface-hover hover:text-foreground"
-                }`}
+                    : "text-foreground-secondary hover:bg-surface-hover hover:text-foreground",
+                )}
               >
                 {item.label}
                 {query.isSuccess && (
                   <span
-                    className={`rounded-sm px-1.5 text-xs tabular-nums ${
+                    className={cn(
+                      "rounded-sm px-1.5 text-xs tabular-nums",
                       active
                         ? "bg-primary-foreground/20"
-                        : "bg-surface-secondary"
-                    }`}
+                        : "bg-surface-secondary",
+                    )}
                   >
                     {counts[item.value]}
                   </span>
@@ -241,7 +244,10 @@ export function LearningCourseCard({ course }: { course: EnrolledCourse }) {
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="text-foreground-secondary">Tiến độ</span>
             <span
-              className={`font-semibold tabular-nums ${done ? "text-success" : "text-primary"}`}
+              className={cn(
+                "font-semibold tabular-nums",
+                done ? "text-success" : "text-primary",
+              )}
             >
               {percentage}%
             </span>
@@ -261,11 +267,12 @@ export function LearningCourseCard({ course }: { course: EnrolledCourse }) {
         <Link
           href={action.href}
           data-action={action.kind}
-          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors duration-fast ${
+          className={cn(
+            "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors duration-fast",
             action.kind === "review"
               ? "border border-border-strong text-foreground hover:bg-surface-hover"
-              : "bg-primary text-primary-foreground hover:bg-primary-hover"
-          }`}
+              : "bg-primary text-primary-foreground hover:bg-primary-hover",
+          )}
         >
           {action.label}
           {action.kind !== "review" && <Icon name="arrow" />}

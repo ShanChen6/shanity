@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { breadcrumbsFor, type Crumb } from "@/config/breadcrumbs";
+import { cn } from "@/lib/utils";
 
 type Overrides = Readonly<Record<string, string>>;
 type Registry = {
@@ -90,7 +91,7 @@ export function Breadcrumbs({
   // A single crumb is just the page title again.
   if (trail.length < (alwaysShow ? 1 : 2)) return null;
   return (
-    <nav aria-label="Breadcrumb" className={`text-sm ${className}`}>
+    <nav aria-label="Breadcrumb" className={cn("text-sm", className)}>
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {trail.map((crumb, index) => (
           <li key={crumb.href} className="flex items-center gap-2">

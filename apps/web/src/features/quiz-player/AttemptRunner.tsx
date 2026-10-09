@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Radio } from "@/components/ui/radio";
 import { Toast } from "@/components/ui/toast";
 import { ApiError, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   saveAnswer,
   saveDraft,
@@ -226,11 +227,12 @@ export function AttemptRunner({
             <span
               role="timer"
               aria-label="Thời gian còn lại"
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums ${
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums",
                 remaining < 60_000
                   ? "bg-danger-background text-danger-foreground"
-                  : "bg-surface-secondary"
-              }`}
+                  : "bg-surface-secondary",
+              )}
             >
               <Clock aria-hidden size={15} /> {formatRemaining(remaining)}
             </span>
@@ -319,11 +321,12 @@ export function AttemptRunner({
                       return (
                         <li key={option.id}>
                           <label
-                            className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors ${
+                            className={cn(
+                              "flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors",
                               checked
                                 ? "border-primary bg-secondary"
-                                : "border-border hover:bg-surface-hover"
-                            }`}
+                                : "border-border hover:bg-surface-hover",
+                            )}
                           >
                             <Control
                               name={`answer-${question.id}`}
@@ -384,11 +387,14 @@ export function AttemptRunner({
                       aria-current={active ? "step" : undefined}
                       aria-label={`Câu ${index + 1}${done ? ", đã trả lời" : ", chưa trả lời"}`}
                       data-state={done ? "answered" : "empty"}
-                      className={`flex size-9 items-center justify-center rounded-md border text-sm font-semibold tabular-nums transition-colors ${
+                      className={cn(
+                        "flex size-9 items-center justify-center rounded-md border text-sm font-semibold tabular-nums transition-colors",
                         done
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border-strong bg-transparent hover:bg-surface-hover"
-                      } ${active ? "ring-2 ring-offset-2 ring-primary ring-offset-surface" : ""}`}
+                          : "border-border-strong bg-transparent hover:bg-surface-hover",
+                        active &&
+                          "ring-2 ring-offset-2 ring-primary ring-offset-surface",
+                      )}
                     >
                       {index + 1}
                     </button>

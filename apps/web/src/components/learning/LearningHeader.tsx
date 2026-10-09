@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 export function LearningHeader({
   courseTitle,
@@ -23,7 +24,10 @@ export function LearningHeader({
   const { percentage } = courseProgress;
   const done = percentage >= 100;
   // Slow, eased width change so a completion visibly "fills" the bar.
-  const indicator = `${done ? "bg-lesson-completed" : "bg-course-progress"} duration-slow ease-out`;
+  const indicator = cn(
+    "duration-slow ease-out",
+    done ? "bg-lesson-completed" : "bg-course-progress",
+  );
   return (
     <header className="relative shrink-0 border-b border-border bg-surface">
       <div className="flex items-center gap-3 px-4 py-3">
@@ -53,7 +57,10 @@ export function LearningHeader({
               indicatorClassName={indicator}
             />
             <span
-              className={`text-sm font-semibold tabular-nums ${done ? "text-success" : "text-foreground"}`}
+              className={cn(
+                "text-sm font-semibold tabular-nums",
+                done ? "text-success" : "text-foreground",
+              )}
               aria-live="polite"
               title={`Đã hoàn thành ${courseProgress.completedRequiredLessons}/${courseProgress.totalRequiredLessons} bài học bắt buộc`}
             >

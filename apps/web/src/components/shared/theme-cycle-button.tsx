@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
 import { useTheme, type ThemePreference } from "@/providers/theme-provider";
 
 const ORDER: ThemePreference[] = ["light", "dark", "system"];
@@ -20,7 +21,10 @@ export function ThemeCycleButton({ className = "" }: { className?: string }) {
       onClick={() => setTheme(next)}
       aria-label={`Giao diện ${NAME[theme]}. Chuyển sang giao diện ${NAME[next]}`}
       title={`Giao diện ${NAME[theme]}`}
-      className={`flex size-11 items-center justify-center rounded-md text-muted hover:bg-surface-hover hover:text-foreground ${className}`}
+      className={cn(
+        "flex size-11 items-center justify-center rounded-md text-muted hover:bg-surface-hover hover:text-foreground",
+        className,
+      )}
     >
       <Icon name={resolvedTheme === "dark" ? "moon" : "sun"} />
     </button>

@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { ApiError, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { listUsers } from "./api";
 import type { AdminUserListResponse } from "./types";
 
@@ -424,7 +425,7 @@ function UserPagination({
       "inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 py-2";
     if (disabled)
       return (
-        <span aria-disabled="true" className={`${classes} text-muted`}>
+        <span aria-disabled="true" className={cn(classes, "text-muted")}>
           {label}
         </span>
       );
@@ -437,7 +438,7 @@ function UserPagination({
           event.preventDefault();
           onNavigate(href);
         }}
-        className={`${classes} text-primary hover:bg-surface-hover`}
+        className={cn(classes, "text-primary hover:bg-surface-hover")}
       >
         {label}
       </Link>

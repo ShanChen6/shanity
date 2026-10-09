@@ -2,6 +2,7 @@
 
 import { CreditCard, Landmark, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { PROVIDER_META } from "./order-model";
 import type { PaymentMethod, PaymentProvider } from "./types";
 
@@ -67,15 +68,15 @@ export function PaymentMethods({
         return (
           <label
             key={provider}
-            className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+            className={cn(
+              "flex items-center gap-3 rounded-lg border p-3 transition-colors",
               selected
                 ? "border-primary bg-accent/40"
-                : "border-border bg-surface"
-            } ${
+                : "border-border bg-surface",
               selectable
                 ? "cursor-pointer hover:border-border-strong"
-                : "cursor-not-allowed opacity-55"
-            }`}
+                : "cursor-not-allowed opacity-55",
+            )}
           >
             <input
               type="radio"

@@ -12,6 +12,7 @@ import { Toast } from "@/components/ui/toast";
 import { Failure } from "@/features/instructor/shared";
 import { KatexText } from "@/features/quiz-player/KatexText";
 import { ApiError, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   useGradeHistory,
   useGradingAttempt,
@@ -143,18 +144,22 @@ function EssayCard({
             type="button"
             aria-selected={pane === value}
             onClick={() => setPane(value)}
-            className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
+            className={cn(
+              "flex-1 rounded-md border px-3 py-2 text-sm font-semibold",
               pane === value
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-strong hover:bg-surface-hover"
-            }`}
+                : "border-border-strong hover:bg-surface-hover",
+            )}
           >
             {label}
           </button>
         ))}
       </div>
       <div
-        className={`min-w-0 space-y-4 ${pane === "answer" ? "" : "max-lg:hidden"}`}
+        className={cn(
+          "min-w-0 space-y-4",
+          pane !== "answer" && "max-lg:hidden",
+        )}
       >
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           <span>
@@ -226,9 +231,10 @@ function EssayCard({
 
       <fieldset
         disabled={disabled}
-        className={`space-y-3 rounded-md border border-border-strong p-3 lg:self-start ${
-          pane === "grade" ? "" : "max-lg:hidden"
-        }`}
+        className={cn(
+          "space-y-3 rounded-md border border-border-strong p-3 lg:self-start",
+          pane !== "grade" && "max-lg:hidden",
+        )}
       >
         <legend className="px-1 text-sm font-semibold">Chấm điểm</legend>
         {rubric ? (

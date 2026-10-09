@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/icon";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { STATUS_META } from "@/features/payments/order-model";
+import { cn } from "@/lib/utils";
 import { DebouncedInput } from "./debounced-input";
 import {
   hasActiveFilters,
@@ -28,7 +29,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className={`block min-w-0 space-y-1 text-sm ${className}`}>
+    <label className={cn("block min-w-0 space-y-1 text-sm", className)}>
       <span className="font-semibold">{label}</span>
       {children}
     </label>
