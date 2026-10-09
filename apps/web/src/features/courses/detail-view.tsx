@@ -60,7 +60,7 @@ export function PublicCourseDetailView({
     <SiteShell>
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border bg-surface-secondary">
-          <div className="absolute inset-y-0 right-0 hidden w-[38%] border-l border-emerald-900/10 bg-[repeating-linear-gradient(135deg,transparent_0_22px,color-mix(in_oklab,var(--success)_8%,transparent)_22px_23px,transparent_23px_46px)] lg:block" />
+          <div className="absolute inset-y-0 right-0 hidden w-[38%] border-l border-border bg-[repeating-linear-gradient(135deg,transparent_0_22px,color-mix(in_oklab,var(--brand-teal)_10%,transparent)_22px_23px,transparent_23px_46px)] lg:block" />
           <div className="container relative py-8 sm:py-11">
             <nav
               aria-label="Đường dẫn"
@@ -81,7 +81,7 @@ export function PublicCourseDetailView({
               </span>
             </nav>
             <div className="max-w-4xl">
-              <p className="text-caption font-bold uppercase text-emerald-800 dark:text-emerald-300">
+              <p className="text-caption font-bold uppercase text-primary">
                 Khóa học công khai
               </p>
               <h1 className="mt-3 break-words font-heading text-h1 font-semibold">
@@ -102,7 +102,7 @@ export function PublicCourseDetailView({
                         : undefined
                     }
                     unoptimized
-                    className="size-11 border border-border bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+                    className="size-11 border border-border bg-accent text-accent-foreground"
                   >
                     {instructor?.avatar && (
                       <AvatarImage src={avatarSource(instructor.avatar)} />
