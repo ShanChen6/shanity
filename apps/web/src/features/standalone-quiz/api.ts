@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { api, apiPage } from "@/lib/api";
+import { api, apiNestedPage } from "@/lib/api";
 import type { AttemptStatus } from "@/features/quiz-player/api";
 
 export type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
@@ -111,7 +111,11 @@ export function useStandaloneList(filters: HubFilters) {
   return useQuery({
     queryKey: [...standaloneKey, filters],
     queryFn: ({ signal }) =>
-      api<StandaloneList>(`/quizzes/standalone?${query}`, { signal }),
+      apiNestedPage<"quizzes", StandaloneSummary>(
+        "quizzes",
+        `/api/v1/student/quizzes/standalone?${query}`,
+        { signal },
+      ),
   });
 }
 
@@ -119,9 +123,12 @@ export function useStandaloneDetail(slug: string) {
   return useQuery({
     queryKey: detailKey(slug),
     queryFn: ({ signal }) =>
-      api<StandaloneDetail>(`/quizzes/standalone/${encodeURIComponent(slug)}`, {
-        signal,
-      }),
+      api<StandaloneDetail>(
+        `/api/v1/student/quizzes/standalone/${encodeURIComponent(slug)}`,
+        {
+          signal,
+        },
+      ),
     // /quiz-attempts/[id] opens a result without knowing the quiz slug.
     enabled: slug.length > 0,
     retry: false,
@@ -129,25 +136,16 @@ export function useStandaloneDetail(slug: string) {
 }
 
 /** The learner's attempts, read from the standard `/api/v1/student` envelope. */
-export async function fetchMyAttempts(
+export const fetchMyAttempts = (
   scope: HistoryScope,
   page: number,
   signal?: AbortSignal,
-): Promise<MyAttemptPage> {
-  const { data, meta } = await apiPage<MyAttempt>(
+) =>
+  apiNestedPage<"attempts", MyAttempt>(
+    "attempts",
     `/api/v1/student/quiz-attempts?scope=${scope}&page=${page}&limit=20`,
     { signal },
   );
-  return {
-    attempts: data,
-    pagination: {
-      page: meta.page,
-      limit: meta.limit,
-      totalItems: meta.total,
-      totalPages: meta.totalPages,
-    },
-  };
-}
 
 export function useMyAttempts(scope: HistoryScope, page: number) {
   return useQuery({

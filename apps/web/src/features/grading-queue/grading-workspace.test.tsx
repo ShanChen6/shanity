@@ -207,11 +207,9 @@ describe("GradingWorkspace", () => {
 
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toEqual({
-      url: "/instructor/quiz-attempts/a1/grade",
+      url: "/api/v1/instructor/quiz-attempts/a1/grade",
       body: {
-        grades: [
-          { questionId: "e1", awardedPoints: 4, feedback: "Well done" },
-        ],
+        grades: [{ questionId: "e1", awardedPoints: 4, feedback: "Well done" }],
       },
     });
     expect(await screen.findByText(/Đã lưu điểm\. Còn 1 câu/)).toBeVisible();
@@ -352,8 +350,9 @@ describe("GradingWorkspace", () => {
     await user.click(tabs[1]!);
     expect(tabs[1]).toHaveAttribute("aria-selected", "true");
     expect(form.className).not.toContain("max-lg:hidden");
-    const answer = within(card).getByText("Đề bài").closest("div")!
-      .parentElement!;
+    const answer = within(card)
+      .getByText("Đề bài")
+      .closest("div")!.parentElement!;
     expect(answer.className).toContain("max-lg:hidden");
   });
 

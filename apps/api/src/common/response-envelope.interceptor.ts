@@ -30,10 +30,7 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
           return value;
         // A handler that chose a non-JSON content type owns its body.
         const contentType = response.getHeader('Content-Type');
-        if (
-          typeof contentType === 'string' &&
-          !contentType.includes('json')
-        )
+        if (typeof contentType === 'string' && !contentType.includes('json'))
           return value;
         return successEnvelope(
           response.statusCode,

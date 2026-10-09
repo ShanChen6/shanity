@@ -77,7 +77,7 @@ function uploadForm(file: File, fields: Record<string, string | undefined>) {
 const IMPORT_TIMEOUT_MS = 60_000;
 
 export const importLesson = (chapterId: string, file: File, title?: string) =>
-  api<ApiLesson>("/admin/import/lesson", {
+  api<ApiLesson>("/api/v1/instructor/import/lesson", {
     method: "POST",
     body: uploadForm(file, { chapterId, title }),
     signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS),
@@ -91,7 +91,7 @@ export type QuizImportFields = {
 };
 
 export const importQuiz = (file: File, fields: QuizImportFields) =>
-  api<ImportedQuiz>("/admin/import/quiz", {
+  api<ImportedQuiz>("/api/v1/instructor/import/quiz", {
     method: "POST",
     body: uploadForm(file, fields),
     signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS),

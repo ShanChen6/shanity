@@ -2,7 +2,7 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import type { Role, User } from "./api";
+import { unwrapBody, type Role, type User } from "./api";
 import { loginUrl } from "./auth-redirect";
 
 // Reuse in future server pages/actions before reading protected data.
@@ -23,7 +23,7 @@ const apiOrigin = () =>
 export const getServerUser = cache(async (): Promise<User | null> => {
   const cookie = await accessCookie();
   if (!cookie) return null;
-  const response = await fetch(new URL("/users/me", apiOrigin()), {
+  const response = await fetch(new URL("/api/v1/me", apiOrigin()), {
     headers: { cookie },
     cache: "no-store",
     redirect: "error",
@@ -33,7 +33,7 @@ export const getServerUser = cache(async (): Promise<User | null> => {
   // Login bootstrap silently refreshes a valid refresh cookie, then returns here.
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error("Không thể kiểm tra phiên đăng nhập.");
-  return response.json() as Promise<User>;
+  return unwrapBody(await response.json()) as User;
 });
 
 export const requireUser = cache(async (): Promise<User> => {

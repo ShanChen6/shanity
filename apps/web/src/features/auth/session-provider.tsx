@@ -153,7 +153,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await getCurrentUser();
     await sessionLock(async () => {
       await api(
-        "/users/me/password",
+        "/api/v1/me/password",
         {
           method: "PATCH",
           body: JSON.stringify({ currentPassword, newPassword }),
@@ -185,7 +185,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   function update(displayName: string) {
     return updateSelf(
-      "/users/me",
+      "/api/v1/me",
       { method: "PATCH", body: JSON.stringify({ displayName }) },
       "Đã cập nhật hồ sơ.",
     );
@@ -194,14 +194,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const body = new FormData();
     body.append("file", file);
     return updateSelf(
-      "/users/me/avatar",
+      "/api/v1/me/avatar",
       { method: "POST", body },
       "Đã cập nhật ảnh đại diện.",
     );
   }
   function removeAvatar() {
     return updateSelf(
-      "/users/me/avatar",
+      "/api/v1/me/avatar",
       { method: "DELETE" },
       "Đã xóa ảnh đại diện.",
     );

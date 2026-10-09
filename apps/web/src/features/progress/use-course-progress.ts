@@ -128,7 +128,10 @@ export function useCourseProgress(
   return useQuery({
     queryKey: courseProgressKey(courseId, userId),
     queryFn: ({ signal }) =>
-      api<CourseProgressResponse>(`/courses/${courseId}/progress`, { signal }),
+      api<CourseProgressResponse>(
+        `/api/v1/student/courses/${courseId}/progress`,
+        { signal },
+      ),
     enabled,
     retry: false,
   });
@@ -194,10 +197,13 @@ export function useCompleteLesson(courseId: string, userId?: string) {
       lessonId: string;
       evidence: CompletionEvidence;
     }) =>
-      api<LessonProgressResult>(`/lessons/${lessonId}/progress/complete`, {
-        method: "POST",
-        body: JSON.stringify(evidence),
-      }),
+      api<LessonProgressResult>(
+        `/api/v1/student/lessons/${lessonId}/progress/complete`,
+        {
+          method: "POST",
+          body: JSON.stringify(evidence),
+        },
+      ),
     onMutate: ({ lessonId }) => cache.optimistic(lessonId),
     onError: (_error, _variables, context) => cache.rollback(context),
     onSuccess: cache.merge,
@@ -224,10 +230,13 @@ export function useVideoProgress(courseId: string, userId?: string) {
       lessonId: string;
       progress: VideoProgress;
     }) =>
-      api<LessonProgressResult>(`/lessons/${lessonId}/video-progress`, {
-        method: "PATCH",
-        body: JSON.stringify(progress),
-      }),
+      api<LessonProgressResult>(
+        `/api/v1/student/lessons/${lessonId}/video-progress`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(progress),
+        },
+      ),
     onMutate: async ({ lessonId, progress }) =>
       completesVideo(progress) ? cache.optimistic(lessonId) : {},
     onError: (_error, _variables, context) => cache.rollback(context),
@@ -244,9 +253,12 @@ export function useStartLesson(courseId: string, userId?: string) {
   const cache = useProgressCache(courseId, userId);
   return useMutation({
     mutationFn: (lessonId: string) =>
-      api<LessonProgressResult>(`/lessons/${lessonId}/progress/start`, {
-        method: "POST",
-      }),
+      api<LessonProgressResult>(
+        `/api/v1/student/lessons/${lessonId}/progress/start`,
+        {
+          method: "POST",
+        },
+      ),
     onSuccess: (result) => {
       cache.merge(result);
       invalidateSummaries(cache.client);
@@ -267,10 +279,13 @@ export function useLessonHeartbeat(courseId: string, userId?: string) {
       lessonId: string;
       lastPosition: number;
     }) =>
-      api<LessonProgressResult>(`/lessons/${lessonId}/progress/heartbeat`, {
-        method: "PATCH",
-        body: JSON.stringify({ lastPosition }),
-      }),
+      api<LessonProgressResult>(
+        `/api/v1/student/lessons/${lessonId}/progress/heartbeat`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ lastPosition }),
+        },
+      ),
     onSuccess: cache.merge,
   });
 }

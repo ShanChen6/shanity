@@ -30,7 +30,9 @@ export function StandaloneAttempt({ slug }: { slug: string }) {
   const active = useQuery({
     queryKey: ["standalone-attempt", quizId],
     queryFn: ({ signal }) =>
-      api<Attempt>(`/quizzes/${quizId}/active-attempt`, { signal }),
+      api<Attempt>(`/api/v1/student/quizzes/${quizId}/active-attempt`, {
+        signal,
+      }),
     enabled: Boolean(quizId),
     retry: false,
     // A resumed attempt must not refetch under the runner.
@@ -61,8 +63,7 @@ export function StandaloneAttempt({ slug }: { slug: string }) {
         <Failure error={active.error} retry={() => void active.refetch()} />
       </main>
     );
-  if (!active.data || closedAttempt || missing)
-    return <AttemptSkeleton />;
+  if (!active.data || closedAttempt || missing) return <AttemptSkeleton />;
 
   return (
     <AttemptRunner

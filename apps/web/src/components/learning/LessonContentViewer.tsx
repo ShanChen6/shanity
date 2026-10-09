@@ -90,7 +90,11 @@ export function LessonContentViewer({ lessonSlug }: { lessonSlug: string }) {
   const query = useQuery({
     queryKey: ["learn", "lesson", target?.id, user?.id ?? "guest"],
     queryFn: ({ signal }) =>
-      api<LessonData>(`/lessons/${target!.id}`, { signal }, isAuthenticated),
+      api<LessonData>(
+        `/api/v1/student/lessons/${target!.id}`,
+        { signal },
+        isAuthenticated,
+      ),
     enabled: Boolean(target),
     retry: false,
   });

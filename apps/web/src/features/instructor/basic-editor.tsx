@@ -61,7 +61,7 @@ function BasicForm({ course }: { course: Course }) {
       const body = new FormData();
       body.append("file", file);
       const result = await api<{ url: string }>(
-        `/courses/${course.id}/thumbnail`,
+        `/api/v1/instructor/courses/${course.id}/thumbnail`,
         { method: "POST", body },
       );
       field("thumbnail", result.url);

@@ -1,3 +1,4 @@
+import { pageEnvelope } from "@/test-utils/envelope";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -185,18 +186,18 @@ function installBackend() {
       const reply = (data: unknown, status = 200) =>
         new Response(JSON.stringify(data), { status });
       const view = () => ({ ...quiz, attemptCount: 0, questions });
-      if (path === "/courses" && method === "GET")
+      if (path === "/api/v1/instructor/courses" && method === "GET")
         return reply([
           { id: "c1", title: "TypeScript", status: "published" },
           { id: "c2", title: "Go", status: "draft" },
         ]);
-      if (path === "/courses/c1/chapters")
+      if (path === "/api/v1/instructor/courses/c1/chapters")
         return reply([{ id: "ch1", title: "Basics", position: 0 }]);
-      if (path === "/courses/c1/lessons")
+      if (path === "/api/v1/instructor/courses/c1/lessons")
         return reply([
           { id: "l1", chapterId: "ch1", title: "Intro", position: 0 },
         ]);
-      if (path === "/admin/quizzes" && method === "POST") {
+      if (path === "/api/v1/instructor/quizzes" && method === "POST") {
         quiz = {
           id: "z1",
           status: "DRAFT",
@@ -206,7 +207,10 @@ function installBackend() {
         };
         return reply(view(), 201);
       }
-      if (path === "/admin/quizzes/z1/questions" && method === "POST") {
+      if (
+        path === "/api/v1/instructor/quizzes/z1/questions" &&
+        method === "POST"
+      ) {
         const id = `q${questions.length + 1}`;
         questions = [
           ...questions,
@@ -231,7 +235,7 @@ function installBackend() {
         ];
         return reply(questions.at(-1), 201);
       }
-      if (path === "/admin/quizzes/z1/publish") {
+      if (path === "/api/v1/instructor/quizzes/z1/publish") {
         if (publishStatus === 422)
           return reply(
             {
@@ -243,10 +247,10 @@ function installBackend() {
         quiz = { ...quiz, status: "PUBLISHED" };
         return reply({ id: "z1", version: 1, status: "PUBLISHED" });
       }
-      if (path === "/admin/quizzes/z1" && method === "GET")
+      if (path === "/api/v1/instructor/quizzes/z1" && method === "GET")
         return reply(view());
-      if (path.startsWith("/admin/quizzes?"))
-        return reply({ quizzes: [], pagination: {} });
+      if (path.startsWith("/api/v1/instructor/quizzes?"))
+        return reply(pageEnvelope([]));
       return reply({ message: "not found" }, 404);
     }),
   );
@@ -398,13 +402,14 @@ describe("quiz builder form", () => {
         .filter(({ method }) => method !== "GET")
         .map(({ method, path }) => `${method} ${path}`),
     ).toEqual([
-      "POST /admin/quizzes",
-      "POST /admin/quizzes/z1/questions",
-      "POST /admin/quizzes/z1/publish",
+      "POST /api/v1/instructor/quizzes",
+      "POST /api/v1/instructor/quizzes/z1/questions",
+      "POST /api/v1/instructor/quizzes/z1/publish",
     ]);
     expect(
       calls.find(
-        ({ path, method }) => method === "POST" && path === "/admin/quizzes",
+        ({ path, method }) =>
+          method === "POST" && path === "/api/v1/instructor/quizzes",
       )!.body,
     ).toMatchObject({
       title: "Quiz",

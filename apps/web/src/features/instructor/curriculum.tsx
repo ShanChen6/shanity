@@ -90,7 +90,7 @@ export function Curriculum({ id }: { id: string }) {
                 busy={busy}
                 save={(title) =>
                   act({
-                    path: `/chapters/${chapter.id}`,
+                    path: `/api/v1/instructor/chapters/${chapter.id}`,
                     method: "PATCH",
                     body: { title },
                   })
@@ -118,7 +118,7 @@ export function Curriculum({ id }: { id: string }) {
                   disabled={busy}
                   onClick={() =>
                     setDeletion({
-                      path: `/chapters/${chapter.id}`,
+                      path: `/api/v1/instructor/chapters/${chapter.id}`,
                       method: "DELETE",
                     })
                   }
@@ -150,7 +150,7 @@ export function Curriculum({ id }: { id: string }) {
           if (!busy)
             act(
               {
-                path: `/courses/${id}/chapters`,
+                path: `/api/v1/instructor/courses/${id}/chapters`,
                 method: "POST",
                 body: { title: title.trim() },
               },

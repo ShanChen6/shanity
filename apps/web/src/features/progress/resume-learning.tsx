@@ -23,7 +23,7 @@ export function ResumeLearning() {
   const query = useQuery({
     queryKey: ["student", "resume-course"],
     queryFn: ({ signal }) =>
-      api<ResumeCourse>("/student/resume-course", { signal }),
+      api<ResumeCourse>("/api/v1/student/resume-course", { signal }),
     retry: false,
   });
   if (query.isPending || query.isError || !query.data.hasActiveCourse)

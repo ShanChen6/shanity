@@ -128,7 +128,7 @@ describe("StudentProgressDashboard", () => {
       expect(row).toHaveTextContent("Đang học");
     }
     expect(lastApiPath()).toBe(
-      "/instructor/courses/c1/students-progress?page=1&limit=20&sortBy=last_accessed_desc&status=ALL",
+      "/api/v1/instructor/courses/c1/students-progress?page=1&limit=20&sortBy=last_accessed_desc&status=ALL",
     );
   });
 
@@ -175,7 +175,9 @@ describe("StudentProgressDashboard", () => {
       await screen.findByRole("button", { name: "Student B" }),
     );
     expect(await screen.findByText("Modules")).toBeInTheDocument();
-    expect(lastApiPath()).toBe("/instructor/courses/c1/students/b/progress");
+    expect(lastApiPath()).toBe(
+      "/api/v1/instructor/courses/c1/students/b/progress",
+    );
     expect(
       screen.getByText("Modules").closest("[data-status]"),
     ).toHaveAttribute("data-status", "COMPLETED");

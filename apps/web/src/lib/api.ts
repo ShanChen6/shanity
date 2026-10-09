@@ -50,6 +50,9 @@ type Envelope = {
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+/** The payload of a response body: an envelope's `data`, else the body itself. */
+export const unwrapBody = (body: unknown) =>
+  isEnvelope(body) ? body.data : body;
 const isEnvelope = (value: unknown): value is Envelope =>
   isRecord(value) &&
   typeof value.success === "boolean" &&
@@ -83,7 +86,11 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-function toApiError(status: number, data: unknown, correlationId?: string) {
+export function toApiError(
+  status: number,
+  data: unknown,
+  correlationId?: string,
+) {
   if (isEnvelope(data))
     return new ApiError(
       status,
@@ -123,7 +130,7 @@ async function refreshOnce() {
     refreshFlight = sessionLock(async () => {
       // Another tab may already have refreshed while this tab waited for the lock.
       try {
-        await send("/users/me");
+        await send("/api/v1/me");
         return;
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 401) throw error;
@@ -171,7 +178,7 @@ export async function api<T>(
   authenticated = true,
 ): Promise<T> {
   const body = await authorized(path, init, authenticated);
-  return (isEnvelope(body) ? body.data : body) as T;
+  return unwrapBody(body) as T;
 }
 
 /** A `/api/v1/<domain>` list: its rows plus the pagination the envelope carries. */
@@ -184,6 +191,43 @@ export async function apiPage<T>(
   if (!isEnvelope(body) || !Array.isArray(body.data) || !body.meta)
     throw new ApiError(502, ["Dữ liệu danh sách không hợp lệ."]);
   return { data: body.data as T[], meta: body.meta };
+}
+/**
+ * `/api/v1` lists for screens written against the two list shapes the
+ * services return, so a screen keeps its type when it moves to v1.
+ */
+export type NestedPagination = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+};
+/** `{ <key>: rows, pagination }` */
+export async function apiNestedPage<K extends string, T>(
+  key: K,
+  path: string,
+  init: RequestInit = {},
+  authenticated = true,
+): Promise<{ [P in K]: T[] } & { pagination: NestedPagination }> {
+  const { data, meta } = await apiPage<T>(path, init, authenticated);
+  return {
+    [key]: data,
+    pagination: {
+      page: meta.page,
+      limit: meta.limit,
+      totalItems: meta.total,
+      totalPages: meta.totalPages,
+    },
+  } as { [P in K]: T[] } & { pagination: NestedPagination };
+}
+/** `{ items, page, limit, total, totalPages }` */
+export async function apiFlatPage<T>(
+  path: string,
+  init: RequestInit = {},
+  authenticated = true,
+): Promise<{ items: T[] } & PaginationMeta> {
+  const { data, meta } = await apiPage<T>(path, init, authenticated);
+  return { items: data, ...meta };
 }
 export function errorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Có lỗi xảy ra. Vui lòng thử lại.";
@@ -204,9 +248,9 @@ export function errorMessage(error: unknown) {
   return "Không thể hoàn tất yêu cầu. Vui lòng thử lại.";
 }
 
-// GET /users/me: the only endpoint exposing the authenticated principal (no /auth/me route exists).
+// GET /api/v1/me: the only endpoint exposing the authenticated principal (no /auth/me route exists).
 export async function getCurrentUser(authenticated = true): Promise<User> {
-  const user = await api<User | null>("/users/me", {}, authenticated);
+  const user = await api<User | null>("/api/v1/me", {}, authenticated);
   if (
     !user ||
     typeof user.id !== "string" ||

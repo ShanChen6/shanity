@@ -38,7 +38,7 @@ export function useEnrolledCourses() {
   return useQuery({
     queryKey: enrolledCoursesKey(user?.id),
     queryFn: ({ signal }) =>
-      api<EnrolledCourse[]>("/student/enrolled-courses", { signal }),
+      api<EnrolledCourse[]>("/api/v1/student/enrolled-courses", { signal }),
     enabled: Boolean(user),
     retry: false,
   });

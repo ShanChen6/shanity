@@ -5,12 +5,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, apiNestedPage } from "@/lib/api";
 import {
   queueQuery,
   type GradeHistory,
   type GradeResult,
   type GradingAttempt,
+  type GradingQueueItem,
   type GradingQueuePage,
   type GradesPayload,
   type QueueFilters,
@@ -26,9 +27,11 @@ export const fetchGradingQueue = (
   filters: QueueFilters,
   signal?: AbortSignal,
 ) =>
-  api<GradingQueuePage>(`/instructor/grading-queue?${queueQuery(filters)}`, {
-    signal,
-  });
+  apiNestedPage<"items", GradingQueueItem>(
+    "items",
+    `/api/v1/instructor/grading-queue?${queueQuery(filters)}`,
+    { signal },
+  ) satisfies Promise<GradingQueuePage>;
 
 /** A 403 here means the course filter is not one the caller teaches. */
 export function useGradingQueue(filters: QueueFilters) {
@@ -47,7 +50,9 @@ export function useGradingCourses() {
   return useQuery({
     queryKey: ["instructor", "grading-courses"],
     queryFn: ({ signal }) =>
-      api<CourseOption[]>("/instructor/grading-queue/courses", { signal }),
+      api<CourseOption[]>("/api/v1/instructor/grading-queue/courses", {
+        signal,
+      }),
   });
 }
 
@@ -58,8 +63,9 @@ export function useCourseQuizOptions(courseId: string) {
   return useQuery({
     queryKey: ["instructor", "grading-quizzes", courseId],
     queryFn: ({ signal }) =>
-      api<{ quizzes: QuizOption[] }>(
-        `/admin/quizzes?courseId=${courseId}&limit=100`,
+      apiNestedPage<"quizzes", QuizOption>(
+        "quizzes",
+        `/api/v1/instructor/quizzes?courseId=${courseId}&limit=100`,
         { signal },
       ).then(({ quizzes }) => quizzes),
     enabled: Boolean(courseId),
@@ -77,9 +83,12 @@ export function useGradeHistory(attemptId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["instructor", "grade-history", attemptId],
     queryFn: ({ signal }) =>
-      api<GradeHistory>(`/instructor/quiz-attempts/${attemptId}/grade-history`, {
-        signal,
-      }),
+      api<GradeHistory>(
+        `/api/v1/instructor/quiz-attempts/${attemptId}/grade-history`,
+        {
+          signal,
+        },
+      ),
     enabled,
     retry: false,
     // An adjustment just saved must show up when the timeline reopens.
@@ -91,7 +100,7 @@ export function useGradingAttempt(attemptId: string) {
   return useQuery({
     queryKey: gradingAttemptKey(attemptId),
     queryFn: ({ signal }) =>
-      api<GradingAttempt>(`/instructor/quiz-attempts/${attemptId}`, {
+      api<GradingAttempt>(`/api/v1/instructor/quiz-attempts/${attemptId}`, {
         signal,
       }),
     retry: false,
@@ -126,9 +135,12 @@ export function usePublishAttempt() {
   const refresh = useRefreshQueue();
   return useMutation({
     mutationFn: (attemptId: string) =>
-      api<PublishResult>(`/instructor/quiz-attempts/${attemptId}/publish`, {
-        method: "POST",
-      }),
+      api<PublishResult>(
+        `/api/v1/instructor/quiz-attempts/${attemptId}/publish`,
+        {
+          method: "POST",
+        },
+      ),
     onSuccess: refresh,
   });
 }
@@ -138,9 +150,12 @@ export function usePublishQuizResults() {
   const refresh = useRefreshQueue();
   return useMutation({
     mutationFn: (quizId: string) =>
-      api<PublishAllResult>(`/instructor/quizzes/${quizId}/publish-results`, {
-        method: "POST",
-      }),
+      api<PublishAllResult>(
+        `/api/v1/instructor/quizzes/${quizId}/publish-results`,
+        {
+          method: "POST",
+        },
+      ),
     onSuccess: refresh,
   });
 }
@@ -156,7 +171,7 @@ export function useSaveGrades(attemptId: string) {
       grades: GradesPayload;
       adjustmentReason?: string;
     }) =>
-      api<GradeResult>(`/instructor/quiz-attempts/${attemptId}/grade`, {
+      api<GradeResult>(`/api/v1/instructor/quiz-attempts/${attemptId}/grade`, {
         method: "POST",
         body: JSON.stringify({
           grades,

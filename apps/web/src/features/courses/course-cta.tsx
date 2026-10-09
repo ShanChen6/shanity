@@ -60,9 +60,12 @@ export function CourseCta({ course }: { course: CoursePricing }) {
   const enrollment = useQuery({
     queryKey: enrollmentKey,
     queryFn: ({ signal }) =>
-      api<{ isEnrolled: boolean }>(`/courses/${course.id}/enrollment-status`, {
-        signal,
-      }),
+      api<{ isEnrolled: boolean }>(
+        `/api/v1/student/courses/${course.id}/enrollment-status`,
+        {
+          signal,
+        },
+      ),
     enabled: isStudent,
     retry: false,
   });
@@ -74,7 +77,7 @@ export function CourseCta({ course }: { course: CoursePricing }) {
         lessonTitle: string | null;
         lastPosition: number;
         hasStarted: boolean;
-      }>(`/courses/${course.id}/resume-lesson`, { signal }),
+      }>(`/api/v1/student/courses/${course.id}/resume-lesson`, { signal }),
     enabled: isStudent && enrollment.data?.isEnrolled === true,
     retry: false,
   });

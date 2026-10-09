@@ -3,6 +3,11 @@ import cookieParser from 'cookie-parser';
 import { AuthConfig } from './auth/auth.config.js';
 import { AppLogger } from './common/app-logger.js';
 import { apiV1Middleware } from './common/api-v1.middleware.js';
+import {
+  LEGACY_ROUTE_HEADERS,
+  legacyDeprecationMiddleware,
+  readLegacyRoutePolicy,
+} from './common/legacy-deprecation.middleware.js';
 import { httpAccessLogMiddleware } from './common/http-access-log.middleware.js';
 import {
   CORRELATION_ID_HEADER,
@@ -15,12 +20,14 @@ export function configureApp(app: INestApplication) {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     // Lets the web app show the id when reporting a failed request.
-    exposedHeaders: [CORRELATION_ID_HEADER],
+    exposedHeaders: [CORRELATION_ID_HEADER, ...LEGACY_ROUTE_HEADERS],
   });
   app.use(requestContextMiddleware);
   app.use(httpAccessLogMiddleware);
   app.use(cookieParser());
   // After cookies/logging: rewrites /api/v1/<domain>/* onto the legacy route.
   app.use(apiV1Middleware);
+  // Old unprefixed routes announce their /api/v1 successor (and, later, a sunset).
+  app.use(legacyDeprecationMiddleware(readLegacyRoutePolicy()));
   app.enableShutdownHooks();
 }

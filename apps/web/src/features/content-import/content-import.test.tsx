@@ -124,7 +124,7 @@ describe("ImportQuizDialog", () => {
     await waitFor(() => expect(onImported).toHaveBeenCalled());
 
     const [{ path, form }] = sent;
-    expect(path).toBe("/admin/import/quiz");
+    expect(path).toBe("/api/v1/instructor/import/quiz");
     expect(form.get("title")).toBe("Kiểm tra JS");
     expect(form.get("scope")).toBe("STANDALONE");
     expect(form.get("slug")).toBe("kiem-tra-js");
@@ -235,7 +235,7 @@ describe("ImportLessonDialog", () => {
     );
     expect(onClose).toHaveBeenCalled();
     const [{ path, form }] = sent;
-    expect(path).toBe("/admin/import/lesson");
+    expect(path).toBe("/api/v1/instructor/import/lesson");
     expect(form.get("chapterId")).toBe("ch1");
     expect(form.get("title")).toBeNull();
     expect((form.get("file") as File).type).toBe("text/markdown");

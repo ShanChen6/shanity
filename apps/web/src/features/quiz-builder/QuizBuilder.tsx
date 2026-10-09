@@ -353,7 +353,9 @@ function BuilderForm({
           tone: "info",
           message: `Đã xuất bản phiên bản ${published.version}.`,
         });
-        const fresh = await api<ApiQuiz>(`/admin/quizzes/${result.id}`);
+        const fresh = await api<ApiQuiz>(
+          `/api/v1/instructor/quizzes/${result.id}`,
+        );
         setSaved(fresh);
         client.setQueryData(quizKey(result.id), fresh);
       } else setNotice({ tone: "info", message: "Đã lưu bản nháp." });
@@ -385,7 +387,9 @@ function BuilderForm({
     setBusy("version");
     try {
       const opened = await openNewVersion(saved.id);
-      const fresh = await api<ApiQuiz>(`/admin/quizzes/${saved.id}`);
+      const fresh = await api<ApiQuiz>(
+        `/api/v1/instructor/quizzes/${saved.id}`,
+      );
       setSaved(fresh);
       client.setQueryData(quizKey(saved.id), fresh);
       void client.invalidateQueries({ queryKey: quizzesKey });

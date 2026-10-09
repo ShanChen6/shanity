@@ -65,28 +65,29 @@ export function message(error: unknown) {
 export function useCourse(id: string) {
   return useQuery({
     queryKey: courseKey(id),
-    queryFn: ({ signal }) => api<Course>(`/courses/${id}`, { signal }),
+    queryFn: ({ signal }) =>
+      api<Course>(`/api/v1/instructor/courses/${id}`, { signal }),
   });
 }
 export function useChapters(id: string) {
   return useQuery({
     queryKey: chaptersKey(id),
     queryFn: ({ signal }) =>
-      api<Chapter[]>(`/courses/${id}/chapters`, { signal }),
+      api<Chapter[]>(`/api/v1/instructor/courses/${id}/chapters`, { signal }),
   });
 }
 export function useLessons(id: string) {
   return useQuery({
     queryKey: lessonsKey(id),
     queryFn: ({ signal }) =>
-      api<Lesson[]>(`/courses/${id}/lessons`, { signal }),
+      api<Lesson[]>(`/api/v1/instructor/courses/${id}/lessons`, { signal }),
   });
 }
 export function useSaveCourse(id: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (values: Partial<Course>) =>
-      api<Course>(`/courses/${id}`, {
+      api<Course>(`/api/v1/instructor/courses/${id}`, {
         method: "PATCH",
         body: JSON.stringify(values),
       }),
@@ -116,7 +117,7 @@ export function useReorder(id: string, kind: "chapters" | "lessons") {
     queryKey: key,
     mutationFn: ({ items, chapterId }) =>
       api(
-        `/courses/${id}/${kind === "chapters" ? "chapters/reorder" : `chapters/${chapterId}/lessons/reorder`}`,
+        `/api/v1/instructor/courses/${id}/${kind === "chapters" ? "chapters/reorder" : `chapters/${chapterId}/lessons/reorder`}`,
         {
           method: "PATCH",
           body: JSON.stringify(

@@ -114,7 +114,7 @@ export function useStudentsProgress(
     queryKey: ["instructor", "students-progress", courseId, query],
     queryFn: ({ signal }) =>
       api<StudentsProgressResponse>(
-        `/instructor/courses/${courseId}/students-progress?${progressSearch(query)}`,
+        `/api/v1/instructor/courses/${courseId}/students-progress?${progressSearch(query)}`,
         { signal },
       ),
     // Keep the current page on screen while the next one loads.
@@ -127,7 +127,7 @@ export function useStudentLessons(courseId: string, studentId: string | null) {
     queryKey: ["instructor", "student-lessons", courseId, studentId],
     queryFn: ({ signal }) =>
       api<StudentLessonsResponse>(
-        `/instructor/courses/${courseId}/students/${studentId}/progress`,
+        `/api/v1/instructor/courses/${courseId}/students/${studentId}/progress`,
         { signal },
       ),
     enabled: Boolean(studentId),

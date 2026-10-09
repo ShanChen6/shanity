@@ -25,7 +25,9 @@ export const VideoLessonRenderer = memo(function VideoLessonRenderer({
   const access = useQuery({
     queryKey: ["learn", "video-access", lesson.id],
     queryFn: ({ signal }) =>
-      api<VideoAccess>(`/lessons/${lesson.id}/video-access`, { signal }),
+      api<VideoAccess>(`/api/v1/student/lessons/${lesson.id}/video-access`, {
+        signal,
+      }),
     enabled: userAccess.canView && managed,
     staleTime: 50 * 60 * 1000,
     retry: false,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api, apiPage } from "./api";
+import { ApiError, api, apiFlatPage, apiNestedPage, apiPage } from "./api";
 
 type Reply = { status?: number; body?: unknown; headers?: HeadersInit };
 const calls: string[] = [];
@@ -163,7 +163,7 @@ describe("401 handling", () => {
       calls.map((url) => url.replace("http://localhost:4000", "")),
     ).toEqual([
       "/api/v1/student/courses",
-      "/users/me",
+      "/api/v1/me",
       "/auth/refresh",
       "/api/v1/student/courses",
     ]);
@@ -182,5 +182,31 @@ describe("401 handling", () => {
       status: 401,
     });
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("list adapters", () => {
+  const page = envelope({
+    data: [{ id: 1 }],
+    meta: { page: 2, limit: 5, total: 11, totalPages: 3 },
+  });
+
+  it("rebuilds the nested { <key>, pagination } shape", async () => {
+    reply({ body: page });
+    await expect(apiNestedPage("quizzes", "/api/v1/x")).resolves.toEqual({
+      quizzes: [{ id: 1 }],
+      pagination: { page: 2, limit: 5, totalItems: 11, totalPages: 3 },
+    });
+  });
+
+  it("rebuilds the flat { items, page, … } shape", async () => {
+    reply({ body: page });
+    await expect(apiFlatPage("/api/v1/x")).resolves.toEqual({
+      items: [{ id: 1 }],
+      page: 2,
+      limit: 5,
+      total: 11,
+      totalPages: 3,
+    });
   });
 });

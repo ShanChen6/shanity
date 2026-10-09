@@ -56,7 +56,7 @@ export function useSyllabusQuery(courseSlug: string) {
     queryKey: syllabusKey(courseSlug),
     queryFn: ({ signal }) =>
       api<Syllabus>(
-        `/public/courses/${encodeURIComponent(courseSlug)}/syllabus`,
+        `/api/v1/public/courses/${encodeURIComponent(courseSlug)}/syllabus`,
         { signal },
         false,
       ),
@@ -98,7 +98,7 @@ export function LearningProvider({
     queryKey: enrollmentKey(syllabus.course.id, user?.id),
     queryFn: ({ signal }) =>
       api<{ isEnrolled: boolean }>(
-        `/courses/${syllabus.course.id}/enrollment-status`,
+        `/api/v1/student/courses/${syllabus.course.id}/enrollment-status`,
         { signal },
       ),
     enabled: isStudent,

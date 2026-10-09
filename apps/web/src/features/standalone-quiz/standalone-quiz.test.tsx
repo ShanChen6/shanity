@@ -97,7 +97,7 @@ describe("landing primary action", () => {
   });
 
   it("shows the specs and the learner's standing, then starts and opens the runner", async () => {
-    routes["GET /quizzes/standalone/js-assessment"] = () => [
+    routes["GET /api/v1/student/quizzes/standalone/js-assessment"] = () => [
       detail({
         attemptsUsed: 1,
         attemptsRemaining: 2,
@@ -111,7 +111,7 @@ describe("landing primary action", () => {
         },
       }),
     ];
-    routes["POST /quizzes/z1/attempts"] = () => [
+    routes["POST /api/v1/student/quizzes/z1/attempts"] = () => [
       { id: "a2", status: "IN_PROGRESS" },
       201,
     ];
@@ -136,7 +136,7 @@ describe("landing primary action", () => {
   });
 
   it("disables starting when attempts are used up", async () => {
-    routes["GET /quizzes/standalone/js-assessment"] = () => [
+    routes["GET /api/v1/student/quizzes/standalone/js-assessment"] = () => [
       detail({ attemptsUsed: 3, attemptsRemaining: 0 }),
     ];
     render(<QuizLanding slug="js-assessment" />, { wrapper: wrapper() });
@@ -195,7 +195,7 @@ const attempt = (extra: Partial<Attempt> = {}): Attempt => ({
 
 describe("attempt runner", () => {
   it("autosaves, marks the navigator and shows the server save time", async () => {
-    routes["PUT /quiz-attempts/a1/answers"] = (body) => [
+    routes["PUT /api/v1/student/quiz-attempts/a1/answers"] = (body) => [
       {
         ...(body as object),
         selectedOptionId: "o1",
@@ -241,7 +241,7 @@ describe("attempt runner", () => {
   });
 
   it("restores saved answers and submits to the result", async () => {
-    routes["POST /quiz-attempts/a1/submit"] = () => [
+    routes["POST /api/v1/student/quiz-attempts/a1/submit"] = () => [
       { id: "a1", status: "SUBMITTED" },
     ];
     const onClosed = vi.fn();
@@ -276,7 +276,7 @@ describe("attempt runner", () => {
   });
 
   it("auto-submits on the server deadline and explains it in a modal", async () => {
-    routes["POST /quiz-attempts/a1/submit"] = () => [
+    routes["POST /api/v1/student/quiz-attempts/a1/submit"] = () => [
       { id: "a1", status: "TIMED_OUT" },
     ];
     const onClosed = vi.fn();
@@ -306,7 +306,7 @@ describe("attempt runner", () => {
   });
 
   it("opens the timeout modal when an autosave reports ATTEMPT_EXPIRED", async () => {
-    routes["PUT /quiz-attempts/a1/answers"] = () => [
+    routes["PUT /api/v1/student/quiz-attempts/a1/answers"] = () => [
       {
         code: "ATTEMPT_EXPIRED",
         message: "ATTEMPT_EXPIRED",

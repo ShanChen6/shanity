@@ -16,7 +16,7 @@ export function NewCourse() {
   const [category, setCategory] = useState("General");
   const mutation = useMutation({
     mutationFn: () =>
-      api<Course>("/courses", {
+      api<Course>("/api/v1/instructor/courses", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
