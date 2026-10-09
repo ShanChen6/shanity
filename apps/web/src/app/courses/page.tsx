@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { API_URL, ApiError, errorMessage } from "@/lib/api";
+import {
+  API_URL,
+  ApiError,
+  errorMessage,
+  type PaginationMeta,
+} from "@/lib/api";
 import { CatalogError } from "@/features/courses/catalog-error";
 import { SiteShell } from "@/components/layout/site-shell";
 import { CourseCatalog } from "@/features/courses/catalog-view";
 import type {
   CatalogFilters,
+  CatalogCourse,
   CourseCatalogResponse,
 } from "@/features/courses/catalog-types";
 
@@ -63,7 +69,7 @@ async function getCatalog(
   let response: Response;
   try {
     response = await fetch(
-      `${origin.replace(/\/$/, "")}/public/courses?${params}`,
+      `${origin.replace(/\/$/, "")}/api/v1/public/courses?${params}`,
       {
         cache: "no-store",
         signal: AbortSignal.timeout(12000),
@@ -86,14 +92,13 @@ async function getCatalog(
         : [typeof message === "string" ? message : "Không thể tải danh mục."],
     );
   }
-  if (
-    !result ||
-    typeof result !== "object" ||
-    !Array.isArray((result as CourseCatalogResponse).data) ||
-    typeof (result as CourseCatalogResponse).total !== "number"
-  )
+  const body = result as {
+    data?: unknown;
+    meta?: PaginationMeta;
+  } | null;
+  if (!body || !Array.isArray(body.data) || !body.meta)
     throw new ApiError(502, ["Dữ liệu danh mục không hợp lệ."]);
-  return result as CourseCatalogResponse;
+  return { data: body.data as CatalogCourse[], ...body.meta };
 }
 
 export default async function CoursesPage({

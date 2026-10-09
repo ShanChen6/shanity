@@ -23,7 +23,8 @@ export function LessonLockedState({
   const client = useQueryClient();
   const [error, setError] = useState("");
   const enroll = useMutation({
-    mutationFn: () => api(`/courses/${courseId}/enroll`, { method: "POST" }),
+    mutationFn: () =>
+      api(`/api/v1/student/courses/${courseId}/enroll`, { method: "POST" }),
     onSettled: (_data, failure) => {
       // "Already enrolled" (409) also means access should be re-evaluated.
       if (!failure || (failure instanceof ApiError && failure.status === 409))

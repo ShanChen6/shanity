@@ -114,12 +114,14 @@ function setup(
 ) {
   lessonSlug = `l-${current}`;
   let server = progress(completed, current, options.optional);
-  routes.set("GET /public/courses/js/syllabus", () => syllabusFor(options));
-  routes.set(`GET /courses/${COURSE}/enrollment-status`, () => ({
+  routes.set("GET /api/v1/public/courses/js/syllabus", () =>
+    syllabusFor(options),
+  );
+  routes.set(`GET /api/v1/student/courses/${COURSE}/enrollment-status`, () => ({
     isEnrolled: true,
   }));
-  routes.set(`GET /courses/${COURSE}/progress`, () => server);
-  routes.set(`GET /lessons/${current}`, () => {
+  routes.set(`GET /api/v1/student/courses/${COURSE}/progress`, () => server);
+  routes.set(`GET /api/v1/student/lessons/${current}`, () => {
     if (options.lessonError) throw options.lessonError;
     return lesson(current);
   });
@@ -129,13 +131,13 @@ function setup(
     type: "TEXT",
     content: "Short lesson body.",
   });
-  routes.set(`POST /lessons/${current}/progress/start`, () => ({
+  routes.set(`POST /api/v1/student/lessons/${current}/progress/start`, () => ({
     progress: { lessonId: current, status: "IN_PROGRESS", lastPosition: 0 },
     courseProgress: server,
   }));
   const completion = deferred<unknown>();
   routes.set(
-    `POST /lessons/${current}/progress/complete`,
+    `POST /api/v1/student/lessons/${current}/progress/complete`,
     () => completion.promise,
   );
   const client = new QueryClient({

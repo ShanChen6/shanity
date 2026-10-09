@@ -4,7 +4,10 @@ import { api } from "@/lib/api";
 
 // GET /courses/:courseId/quizzes (enrolled learners and course staff).
 export type QuizStepStatus =
-  "NOT_STARTED" | "IN_PROGRESS" | "PASSED" | "FAILED";
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "PASSED"
+  | "FAILED";
 export type CourseQuiz = {
   id: string;
   slug: string | null;
@@ -170,9 +173,12 @@ export function useCourseQuizzes(
   return useQuery({
     queryKey: courseQuizzesKey(courseId, userId),
     queryFn: ({ signal }) =>
-      api<{ quizzes: CourseQuiz[] }>(`/courses/${courseId}/quizzes`, {
-        signal,
-      }).then(({ quizzes }) => quizzes),
+      api<{ quizzes: CourseQuiz[] }>(
+        `/api/v1/student/courses/${courseId}/quizzes`,
+        {
+          signal,
+        },
+      ).then(({ quizzes }) => quizzes),
     enabled,
     retry: false,
   });
@@ -188,7 +194,9 @@ export function useAttemptResult(attemptId: string | null) {
   return useQuery({
     queryKey: resultKey(attemptId ?? ""),
     queryFn: ({ signal }) =>
-      api<AttemptResult>(`/quiz-attempts/${attemptId}/result`, { signal }),
+      api<AttemptResult>(`/api/v1/student/quiz-attempts/${attemptId}/result`, {
+        signal,
+      }),
     enabled: Boolean(attemptId),
     retry: false,
   });
@@ -202,14 +210,14 @@ const post = (path: string, body?: unknown) =>
 
 /** Starts a new attempt or resumes the running one (same endpoint). */
 export const startAttempt = (quizId: string) =>
-  post(`/quizzes/${quizId}/attempts`);
+  post(`/api/v1/student/quizzes/${quizId}/attempts`);
 
 export const saveAnswer = (
   attemptId: string,
   questionId: string,
   selectedOptionIds: string[],
 ) =>
-  api<SavedAnswer>(`/quiz-attempts/${attemptId}/answers`, {
+  api<SavedAnswer>(`/api/v1/student/quiz-attempts/${attemptId}/answers`, {
     method: "PUT",
     body: JSON.stringify({ questionId, selectedOptionIds }),
   });
@@ -223,7 +231,7 @@ export const saveDraft = (
   questionId: string,
   answer: { essayAnswer: EssayAnswerValue } | { selectedOptionIds: string[] },
 ) =>
-  api<SavedAnswer>(`/quiz-attempts/${attemptId}/answers/draft`, {
+  api<SavedAnswer>(`/api/v1/student/quiz-attempts/${attemptId}/answers/draft`, {
     method: "PATCH",
     body: JSON.stringify({ questionId, ...answer }),
   });
@@ -280,15 +288,16 @@ export async function uploadEssayAttachment(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<EssayAttachment> {
-  if (file.size > MAX_ATTACHMENT_BYTES)
-    throw new Error("Tệp tối đa 10 MB.");
+  if (file.size > MAX_ATTACHMENT_BYTES) throw new Error("Tệp tối đa 10 MB.");
   const signed = await api<{
     uploadUrl: string;
     apiKey: string;
     timestamp: number;
     folder: string;
     signature: string;
-  }>(`/quiz-attempts/${attemptId}/attachments/signature`, { method: "POST" });
+  }>(`/api/v1/student/quiz-attempts/${attemptId}/attachments/signature`, {
+    method: "POST",
+  });
   const form = new FormData();
   form.set("file", file);
   form.set("api_key", signed.apiKey);
@@ -305,4 +314,4 @@ export async function uploadEssayAttachment(
 }
 
 export const submitAttempt = (attemptId: string) =>
-  post(`/quiz-attempts/${attemptId}/submit`);
+  post(`/api/v1/student/quiz-attempts/${attemptId}/submit`);

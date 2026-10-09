@@ -72,7 +72,7 @@ describe("useReorder (chapters)", () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(requests[0]).toEqual({
-      path: `/courses/${course}/chapters/reorder`,
+      path: `/api/v1/instructor/courses/${course}/chapters/reorder`,
       method: "PATCH",
       body: {
         chapterOrders: [
@@ -122,7 +122,7 @@ describe("useReorder (lessons)", () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(requests[0]).toMatchObject({
-      path: `/courses/${course}/chapters/ch1/lessons/reorder`,
+      path: `/api/v1/instructor/courses/${course}/chapters/ch1/lessons/reorder`,
       body: { ids: ["l2", "l1"] },
     });
     const cached = client.getQueryData(lessonsKey(course)) as Lesson[];

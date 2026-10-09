@@ -184,7 +184,7 @@ describe("lesson creation", () => {
     await user.click(screen.getByRole("button", { name: "Tạo bài học" }));
     expect(await screen.findByText("Intro")).toBeInTheDocument();
     const post = calls.find((call) => call.method === "POST")!;
-    expect(post.path).toBe("/chapters/ch1/lessons");
+    expect(post.path).toBe("/api/v1/instructor/chapters/ch1/lessons");
     expect(post.body).toMatchObject({
       title: "Intro",
       type: "TEXT",
@@ -249,7 +249,7 @@ describe("lesson creation", () => {
     expect(await screen.findByText("Slides")).toBeInTheDocument();
     expect(xhr.open).toHaveBeenCalledWith(
       "POST",
-      `${API}/chapters/ch1/lessons/document-upload`,
+      `${API}/api/v1/instructor/chapters/ch1/lessons/document-upload`,
     );
     const form = xhr.send.mock.calls[0][0] as FormData;
     expect(form.get("allowDownload")).toBe("true");
@@ -268,7 +268,7 @@ describe("lesson toggles and deletion", () => {
     await waitFor(() =>
       expect(calls).toContainEqual({
         method: "PATCH",
-        path: "/lessons/a",
+        path: "/api/v1/instructor/lessons/a",
         body: { isRequired: false },
       }),
     );
@@ -282,7 +282,7 @@ describe("lesson toggles and deletion", () => {
     await waitFor(() =>
       expect(calls).toContainEqual({
         method: "PATCH",
-        path: "/lessons/a",
+        path: "/api/v1/instructor/lessons/a",
         body: { isPreview: true },
       }),
     );
@@ -299,7 +299,7 @@ describe("lesson toggles and deletion", () => {
     await waitFor(() =>
       expect(calls).toContainEqual({
         method: "PATCH",
-        path: "/lessons/a",
+        path: "/api/v1/instructor/lessons/a",
         body: { isPublished: true },
       }),
     );
@@ -315,7 +315,7 @@ describe("lesson toggles and deletion", () => {
     await waitFor(() => expect(screen.queryByText("Lesson a")).toBeNull());
     expect(calls).toContainEqual({
       method: "DELETE",
-      path: "/lessons/a",
+      path: "/api/v1/instructor/lessons/a",
       body: undefined,
     });
   });
@@ -352,7 +352,7 @@ describe("reordering", () => {
       );
     });
     const patch = calls.find(
-      (call) => call.path === "/chapters/ch1/lessons/reorder",
+      (call) => call.path === "/api/v1/instructor/chapters/ch1/lessons/reorder",
     )!;
     expect(patch.method).toBe("PATCH");
     expect(patch.body).toEqual({

@@ -17,7 +17,7 @@ export default async function CourseProgressPage({
 }: PageProps<"/instructor/courses/[id]/progress">) {
   const { id } = await params;
   const status = await serverAccessStatus(
-    `/instructor/courses/${encodeURIComponent(id)}/students-progress?limit=1`,
+    `/api/v1/instructor/courses/${encodeURIComponent(id)}/students-progress?limit=1`,
   );
   if (status === 403) return <CourseAccessDenied />;
   if (status === 404) notFound();

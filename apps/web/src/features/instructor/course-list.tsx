@@ -15,7 +15,8 @@ export function CourseList() {
   const [page, setPage] = useState(1);
   const query = useQuery({
     queryKey: ["instructor", "courses"],
-    queryFn: ({ signal }) => api<Course[]>("/courses", { signal }),
+    queryFn: ({ signal }) =>
+      api<Course[]>("/api/v1/instructor/courses", { signal }),
   });
   const owned = (query.data ?? []).filter(
     (course) => course.ownerId === user?.id,

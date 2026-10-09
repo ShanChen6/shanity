@@ -781,7 +781,7 @@ test("admin user detail preserves filters and handles missing/error states", asy
   await expect(
     page.getByRole("heading", { name: "Không tìm thấy người dùng" }),
   ).toBeVisible();
-  await page.route(`${API}/users/${id}`, (route) =>
+  await page.route(`${API}/api/v1/admin/users/${id}`, (route) =>
     route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -792,7 +792,7 @@ test("admin user detail preserves filters and handles missing/error states", asy
   await expect(
     page.getByRole("heading", { name: "Không thể tải thông tin người dùng" }),
   ).toBeVisible();
-  await page.unroute(`${API}/users/${id}`);
+  await page.unroute(`${API}/api/v1/admin/users/${id}`);
   await page.getByRole("button", { name: "Thử lại" }).click();
   await expect(page.locator("dd").filter({ hasText: email })).toBeVisible();
 });
@@ -859,7 +859,7 @@ test("admin role change requires confirmation, supports cancel and persists", as
     page.locator("dd").filter({ hasText: "Giảng viên" }),
   ).toBeVisible();
   await page.getByLabel("Vai trò mới").selectOption("ADMIN");
-  await page.route(`${API}/users/${id}/role`, (route) =>
+  await page.route(`${API}/api/v1/admin/users/${id}/role`, (route) =>
     route.fulfill({
       status: 409,
       contentType: "application/json",
@@ -874,7 +874,7 @@ test("admin role change requires confirmation, supports cancel and persists", as
     .click();
   await expect(dialog.getByRole("alert")).toHaveText("Role change blocked");
   await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
-  await page.unroute(`${API}/users/${id}/role`);
+  await page.unroute(`${API}/api/v1/admin/users/${id}/role`);
   const me = await (await context.request.get(`${API}/users/me`)).json();
   await page.goto(`/admin/users/${me.id}`);
   await expect(
@@ -945,7 +945,7 @@ test("admin account status confirms disable/activate and preserves account data"
   expect(updated.status).toBe("active");
   expect(updated.roles).toEqual(["student"]);
   expect(updated.email).toBe(targetEmail);
-  await page.route(`${API}/users/${id}/status`, (route) =>
+  await page.route(`${API}/api/v1/admin/users/${id}/status`, (route) =>
     route.fulfill({
       status: 409,
       contentType: "application/json",
@@ -960,7 +960,7 @@ test("admin account status confirms disable/activate and preserves account data"
     "Không thể vô hiệu hóa tài khoản này.",
   );
   await page.keyboard.press("Escape");
-  await page.unroute(`${API}/users/${id}/status`);
+  await page.unroute(`${API}/api/v1/admin/users/${id}/status`);
   const me = await (await context.request.get(`${API}/users/me`)).json();
   await page.goto(`/admin/users/${me.id}`);
   await expect(
@@ -979,13 +979,13 @@ test("admin overview uses aggregate statistics and handles loading, retry and ze
   ).json();
   let listRequests = 0;
   page.on("request", (req) => {
-    if (new URL(req.url()).pathname === "/users") listRequests++;
+    if (new URL(req.url()).pathname === "/api/v1/admin/users") listRequests++;
   });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route(`${API}/users/stats`, async (route) => {
+  await page.route(`${API}/api/v1/admin/users/stats`, async (route) => {
     await gate;
     await route.continue();
   });
@@ -1021,8 +1021,8 @@ test("admin overview uses aggregate statistics and handles loading, retry and ze
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.unroute(`${API}/users/stats`);
-  await page.route(`${API}/users/stats`, (route) =>
+  await page.unroute(`${API}/api/v1/admin/users/stats`);
+  await page.route(`${API}/api/v1/admin/users/stats`, (route) =>
     route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -1034,8 +1034,8 @@ test("admin overview uses aggregate statistics and handles loading, retry and ze
     page.getByRole("heading", { name: "Không thể tải thống kê người dùng" }),
   ).toBeVisible();
   await expect(overview).toHaveCount(0);
-  await page.unroute(`${API}/users/stats`);
-  await page.route(`${API}/users/stats`, (route) =>
+  await page.unroute(`${API}/api/v1/admin/users/stats`);
+  await page.route(`${API}/api/v1/admin/users/stats`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1148,7 +1148,7 @@ test("admin UX pagination, empty states and long text remain accessible", async 
   await expect(
     page.getByText("Hiển thị 1–20 trong 23 tài khoản."),
   ).toBeVisible();
-  await page.route(`${API}/users?**`, (route) =>
+  await page.route(`${API}/api/v1/admin/users?**`, (route) =>
     route.fulfill({
       status: 403,
       contentType: "application/json",
@@ -1162,7 +1162,7 @@ test("admin UX pagination, empty states and long text remain accessible", async 
     }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Thử lại" })).toHaveCount(0);
-  await page.unroute(`${API}/users?**`);
+  await page.unroute(`${API}/api/v1/admin/users?**`);
 });
 
 test("admin UX dialog focus, pending guard, toast and mobile menu", async ({
@@ -1209,7 +1209,7 @@ test("admin UX dialog focus, pending guard, toast and mobile menu", async ({
     release = resolve;
   });
   let writes = 0;
-  await page.route(`${API}/users/${id}/role`, async (route) => {
+  await page.route(`${API}/api/v1/admin/users/${id}/role`, async (route) => {
     writes++;
     await gate;
     await route.continue();
@@ -1233,8 +1233,8 @@ test("admin UX dialog focus, pending guard, toast and mobile menu", async ({
     page.getByRole("region", { name: "Thông báo quản trị" }),
   ).toHaveCount(0);
   await expect(page.locator("#admin-content")).toBeFocused();
-  await page.unroute(`${API}/users/${id}/role`);
-  await page.route(`${API}/users/${id}/role`, (route) =>
+  await page.unroute(`${API}/api/v1/admin/users/${id}/role`);
+  await page.route(`${API}/api/v1/admin/users/${id}/role`, (route) =>
     route.fulfill({
       status: 409,
       contentType: "application/json",
@@ -1723,13 +1723,13 @@ test("profile handles missing current-user data and recovers", async ({
   page,
 }) => {
   await register(page);
-  await page.route(`${API}/users/me`, (route) => route.fulfill({ json: {} }));
+  await page.route(`${API}/api/v1/me`, (route) => route.fulfill({ json: {} }));
   await page.reload();
   await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
   ).toHaveCount(0);
-  await page.unroute(`${API}/users/me`);
+  await page.unroute(`${API}/api/v1/me`);
   await page.getByRole("button", { name: "Thử lại" }).click();
   await expect(
     page.getByRole("heading", { name: "Hồ sơ của bạn" }),
@@ -1739,7 +1739,7 @@ test("profile handles missing current-user data and recovers", async ({
 for (const failure of ["network", "server"]) {
   test(`profile recovers from ${failure} failure`, async ({ page }) => {
     await register(page);
-    await page.route(`${API}/users/me`, (route) =>
+    await page.route(`${API}/api/v1/me`, (route) =>
       failure === "network"
         ? route.abort()
         : route.fulfill({ status: 500, json: {} }),
@@ -1748,7 +1748,7 @@ for (const failure of ["network", "server"]) {
     await expect(page.getByRole("main").getByRole("alert")).toContainText(
       failure === "network" ? "Không thể kết nối" : "Máy chủ đang gặp sự cố",
     );
-    await page.unroute(`${API}/users/me`);
+    await page.unroute(`${API}/api/v1/me`);
     await page.getByRole("button", { name: "Thử lại" }).click();
     await expect(
       page.getByRole("heading", { name: "Hồ sơ của bạn" }),
@@ -1777,7 +1777,7 @@ test("instructor login defaults to profile and restores identity without flicker
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route(`${API}/users/me`, async (route) => {
+  await page.route(`${API}/api/v1/me`, async (route) => {
     await gate;
     await route.continue();
   });
@@ -1844,7 +1844,7 @@ for (const width of [375, 768, 1024, 1440]) {
     await expect(name).toHaveAttribute("aria-invalid", "true");
     await name.fill("  Nguyễn Minh Anh  ");
     let writes = 0;
-    await page.route(`${API}/users/me`, async (route) => {
+    await page.route(`${API}/api/v1/me`, async (route) => {
       if (route.request().method() !== "PATCH") return route.continue();
       writes++;
       const response = await route.fetch();
@@ -1897,7 +1897,7 @@ for (const failure of [400, 409, 500, "network"] as const) {
     const dialog = page.getByRole("dialog");
     const name = dialog.getByLabel("Tên hiển thị", { exact: true });
     await name.fill("Keep this draft");
-    await page.route(`${API}/users/me`, (route) => {
+    await page.route(`${API}/api/v1/me`, (route) => {
       if (route.request().method() !== "PATCH") return route.continue();
       return failure === "network"
         ? route.abort()
@@ -1912,7 +1912,7 @@ for (const failure of [400, 409, 500, "network"] as const) {
     else await expect(dialog.getByRole("alert")).toBeVisible();
     await expect(dialog).not.toContainText("private backend exception");
     await expect(name).toHaveValue("Keep this draft");
-    await page.unroute(`${API}/users/me`);
+    await page.unroute(`${API}/api/v1/me`);
     await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
     await expect(dialog).toBeHidden();
     await expect(
@@ -2064,7 +2064,7 @@ test("an older session read cannot overwrite a saved profile name", async ({
   const ready = new Promise<void>((resolve) => {
     captured = resolve;
   });
-  await page.route(`${API}/users/me`, async (route) => {
+  await page.route(`${API}/api/v1/me`, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     const response = await route.fetch();
     captured();
@@ -2086,7 +2086,7 @@ test("an older session read cannot overwrite a saved profile name", async ({
   ).toBeVisible();
   const staleResponse = page.waitForResponse(
     (response) =>
-      response.url() === `${API}/users/me` &&
+      response.url() === `${API}/api/v1/me` &&
       response.request().method() === "GET",
   );
   release();
@@ -2158,11 +2158,11 @@ for (const width of [375, 768, 1024, 1440]) {
     await picker.setInputFiles(firstFile);
     const uploaded = page.waitForResponse(
       (res) =>
-        res.url() === `${API}/users/me/avatar` &&
+        res.url() === `${API}/api/v1/me/avatar` &&
         res.request().method() === "POST",
     );
     await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
-    const first = await (await uploaded).json();
+    const first = (await (await uploaded).json()).data;
     await expect(dialog).toBeHidden();
     await expect(page.locator("main img:visible")).toHaveAttribute(
       "src",
@@ -2192,11 +2192,11 @@ for (const width of [375, 768, 1024, 1440]) {
     });
     const replaced = page.waitForResponse(
       (res) =>
-        res.url() === `${API}/users/me/avatar` &&
+        res.url() === `${API}/api/v1/me/avatar` &&
         res.request().method() === "POST",
     );
     await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
-    const next = await (await replaced).json();
+    const next = (await (await replaced).json()).data;
     expect(next.avatarUrl).not.toBe(first.avatarUrl);
     expect(
       (await db.query("SELECT avatar_key FROM users WHERE email=$1", [email]))
@@ -2267,7 +2267,7 @@ for (const failure of [400, 413, 415, 500, "network"] as const) {
       mimeType: "image/png",
       buffer: await makeAvatarImage("blue"),
     });
-    await page.route(`${API}/users/me/avatar`, (route) =>
+    await page.route(`${API}/api/v1/me/avatar`, (route) =>
       failure === "network"
         ? route.abort()
         : route.fulfill({
@@ -2279,7 +2279,7 @@ for (const failure of [400, 413, 415, 500, "network"] as const) {
     await expect(dialog.getByRole("alert")).toBeVisible();
     await expect(dialog).not.toContainText("private storage path");
     await expect(dialog.getByAltText("Xem trước ảnh đại diện")).toBeVisible();
-    await page.unroute(`${API}/users/me/avatar`);
+    await page.unroute(`${API}/api/v1/me/avatar`);
     await dialog.getByRole("button", { name: "Tải ảnh lên" }).click();
     await expect(dialog).toBeHidden();
     await expect(page.locator(AVATAR_IMG_VISIBLE)).toBeVisible();
@@ -2314,7 +2314,7 @@ test("avatar rejects invalid selections and prevents repeated upload/remove", as
     buffer: await makeAvatarImage("green"),
   });
   let calls = 0;
-  await page.route(`${API}/users/me/avatar`, async (route) => {
+  await page.route(`${API}/api/v1/me/avatar`, async (route) => {
     calls++;
     const response = await route.fetch();
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -2367,7 +2367,7 @@ test("avatar removal failure keeps current image and expired upload returns to l
   await dialog
     .getByRole("button", { name: "Xóa ảnh đại diện", exact: true })
     .click();
-  await page.route(`${API}/users/me/avatar`, (route) =>
+  await page.route(`${API}/api/v1/me/avatar`, (route) =>
     route.fulfill({ status: 500, json: {} }),
   );
   await dialog.getByRole("button", { name: "Xác nhận xóa ảnh" }).click();
@@ -2376,7 +2376,7 @@ test("avatar removal failure keeps current image and expired upload returns to l
     "src",
     `${API}${avatarUrl}`,
   );
-  await page.unroute(`${API}/users/me/avatar`);
+  await page.unroute(`${API}/api/v1/me/avatar`);
   await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
   await dialog.getByLabel("Chọn ảnh").setInputFiles({
     name: "a.png",
@@ -2472,7 +2472,7 @@ test("concurrent avatar responses across tabs converge on the committed current 
   const ready = new Promise<void>((resolve) => {
     committed = resolve;
   });
-  await page.route(`${API}/users/me/avatar`, async (route) => {
+  await page.route(`${API}/api/v1/me/avatar`, async (route) => {
     const response = await route.fetch();
     committed();
     await gate;
@@ -2503,10 +2503,10 @@ test("concurrent avatar responses across tabs converge on the committed current 
       buffer: await makeAvatarImage("red"),
     });
   const saved = sibling.waitForResponse(
-    (res) => res.url() === `${API}/users/me/avatar`,
+    (res) => res.url() === `${API}/api/v1/me/avatar`,
   );
   await sibling.getByRole("button", { name: "Tải ảnh lên" }).click();
-  const latest = await (await saved).json();
+  const latest = (await (await saved).json()).data;
   await expect(page.locator(AVATAR_IMG_VISIBLE)).toHaveAttribute(
     "src",
     `${API}${latest.avatarUrl}`,

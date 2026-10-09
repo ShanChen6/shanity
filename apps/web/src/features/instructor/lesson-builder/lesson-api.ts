@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError, API_URL } from "@/lib/api";
+import { api, ApiError, API_URL, toApiError, unwrapBody } from "@/lib/api";
 import { lessonsKey } from "../data";
 import { sortLessons, toReorderPayload } from "./reorder";
 import type { LessonFormValues } from "./schema";
@@ -16,7 +16,9 @@ export function useChapterLessons(chapterId: string) {
   return useQuery({
     queryKey: chapterLessonsKey(chapterId),
     queryFn: ({ signal }) =>
-      api<ApiLesson[]>(`/chapters/${chapterId}/lessons`, { signal }),
+      api<ApiLesson[]>(`/api/v1/instructor/chapters/${chapterId}/lessons`, {
+        signal,
+      }),
     select: sortLessons,
   });
 }
@@ -39,16 +41,19 @@ function xhrUpload<T>(
       reject(new ApiError(0, ["Không thể kết nối máy chủ. Vui lòng thử lại."]));
     request.ontimeout = request.onerror;
     request.onload = () => {
-      let data: { message?: string | string[] } = {};
+      let data: unknown = {};
       try {
         data = JSON.parse(request.responseText || "{}");
       } catch {}
       if (request.status >= 200 && request.status < 300)
-        return resolve(data as T);
-      const messages = Array.isArray(data.message)
-        ? data.message
-        : [data.message ?? "Yêu cầu không thành công."];
-      reject(new ApiError(request.status, messages));
+        return resolve(unwrapBody(data) as T);
+      reject(
+        toApiError(
+          request.status,
+          data,
+          request.getResponseHeader("x-correlation-id") ?? undefined,
+        ),
+      );
     };
     request.send(form);
   });
@@ -64,7 +69,7 @@ export async function uploadForm<T>(
     return await xhrUpload<T>(path, "POST", form, onProgress);
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
-    await api("/users/me");
+    await api("/api/v1/me");
     return xhrUpload<T>(path, "POST", form, onProgress);
   }
 }
@@ -106,29 +111,35 @@ export async function saveLesson(
   if (input.mode === "create") {
     const { type } = input;
     if (type === "TEXT")
-      return api<ApiLesson>(`/chapters/${chapterId}/lessons`, {
-        method: "POST",
-        body: json({
-          title,
-          type,
-          isPreview: values.isPreview,
-          isRequired: values.isRequired,
-          content: { textBody: values.textBody },
-        }),
-      });
+      return api<ApiLesson>(
+        `/api/v1/instructor/chapters/${chapterId}/lessons`,
+        {
+          method: "POST",
+          body: json({
+            title,
+            type,
+            isPreview: values.isPreview,
+            isRequired: values.isRequired,
+            content: { textBody: values.textBody },
+          }),
+        },
+      );
     if (type === "VIDEO" && values.source === "url")
-      return api<ApiLesson>(`/chapters/${chapterId}/lessons`, {
-        method: "POST",
-        body: json({
-          title,
-          type,
-          isPreview: values.isPreview,
-          isRequired: values.isRequired,
-          content: { videoUrl: values.videoUrl.trim() },
-        }),
-      });
+      return api<ApiLesson>(
+        `/api/v1/instructor/chapters/${chapterId}/lessons`,
+        {
+          method: "POST",
+          body: json({
+            title,
+            type,
+            isPreview: values.isPreview,
+            isRequired: values.isRequired,
+            content: { videoUrl: values.videoUrl.trim() },
+          }),
+        },
+      );
     return uploadForm<ApiLesson>(
-      `/chapters/${chapterId}/lessons/${type === "VIDEO" ? "video-upload" : "document-upload"}`,
+      `/api/v1/instructor/chapters/${chapterId}/lessons/${type === "VIDEO" ? "video-upload" : "document-upload"}`,
       mediaForm(values, type),
       onProgress,
     );
@@ -151,29 +162,32 @@ export async function saveLesson(
     patch.content = { videoUrl: values.videoUrl.trim() };
 
   if (Object.keys(patch).length)
-    result = await api<ApiLesson>(`/lessons/${lesson.id}`, {
+    result = await api<ApiLesson>(`/api/v1/instructor/lessons/${lesson.id}`, {
       method: "PATCH",
       body: json(patch),
     });
 
   if (lesson.type === "VIDEO" && values.source === "upload" && values.file)
     result = await uploadForm<ApiLesson>(
-      `/lessons/${lesson.id}/video-upload`,
+      `/api/v1/instructor/lessons/${lesson.id}/video-upload`,
       mediaForm(values, "VIDEO"),
       onProgress,
     );
   if (lesson.type === "DOCUMENT") {
     if (values.file)
       result = await uploadForm<ApiLesson>(
-        `/lessons/${lesson.id}/document-upload`,
+        `/api/v1/instructor/lessons/${lesson.id}/document-upload`,
         mediaForm(values, "DOCUMENT"),
         onProgress,
       );
     else if (values.allowDownload !== (lesson.documentDownloadAllowed ?? false))
-      result = await api<ApiLesson>(`/lessons/${lesson.id}/document-settings`, {
-        method: "PATCH",
-        body: json({ allowDownload: values.allowDownload }),
-      });
+      result = await api<ApiLesson>(
+        `/api/v1/instructor/lessons/${lesson.id}/document-settings`,
+        {
+          method: "PATCH",
+          body: json({ allowDownload: values.allowDownload }),
+        },
+      );
   }
   return result;
 }
@@ -209,7 +223,7 @@ export function useLessonMutations(courseId: string, chapterId: string) {
         Pick<ApiLesson, "isPreview" | "isPublished" | "isRequired">
       >;
     }) =>
-      api<ApiLesson>(`/lessons/${id}`, {
+      api<ApiLesson>(`/api/v1/instructor/lessons/${id}`, {
         method: "PATCH",
         body: json(changes),
       }),
@@ -231,13 +245,13 @@ export function useLessonMutations(courseId: string, chapterId: string) {
 
   const remove = useMutation({
     mutationFn: (id: string) =>
-      api<void>(`/lessons/${id}`, { method: "DELETE" }),
+      api<void>(`/api/v1/instructor/lessons/${id}`, { method: "DELETE" }),
     onSettled: refresh,
   });
 
   const reorder = useMutation({
     mutationFn: (items: ApiLesson[]) =>
-      api(`/chapters/${chapterId}/lessons/reorder`, {
+      api(`/api/v1/instructor/chapters/${chapterId}/lessons/reorder`, {
         method: "PATCH",
         body: json(toReorderPayload(items)),
       }),

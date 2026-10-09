@@ -1,3 +1,4 @@
+import { pageEnvelope } from "@/test-utils/envelope";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -67,10 +68,7 @@ beforeEach(() => {
       totalPages: 0,
     }),
     "/api/v1/student/quiz-attempts": () => attemptsPage([]),
-    "/instructor/grading-queue": () => ({
-      items: [],
-      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-    }),
+    "/api/v1/instructor/grading-queue": () => pageEnvelope([]),
   };
   vi.stubGlobal(
     "fetch",
@@ -154,10 +152,8 @@ describe("NotificationBell", () => {
 
   it("tells instructors how many answers wait for grading, and only them", async () => {
     roles = ["instructor"];
-    routes["/instructor/grading-queue"] = () => ({
-      items: [],
-      pagination: { page: 1, limit: 20, totalItems: 3, totalPages: 1 },
-    });
+    routes["/api/v1/instructor/grading-queue"] = () =>
+      pageEnvelope([], { total: 3, totalPages: 1 });
     renderBell();
     await userEvent.click(
       await screen.findByLabelText("Thông báo, 1 mục cần xử lý"),
@@ -166,13 +162,13 @@ describe("NotificationBell", () => {
       screen.getByRole("link", { name: /3 bài làm cần chấm/ }),
     ).toHaveAttribute("href", "/instructor/grading");
     // An instructor-only account is not asked about learner data.
-    expect(calls).toEqual(["/instructor/grading-queue"]);
+    expect(calls).toEqual(["/api/v1/instructor/grading-queue"]);
   });
 
   it("never asks a learner about the grading queue", async () => {
     renderBell();
     await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls).not.toContain("/instructor/grading-queue");
+    expect(calls).not.toContain("/api/v1/instructor/grading-queue");
   });
 
   it("closes on Escape and returns focus to the bell", async () => {

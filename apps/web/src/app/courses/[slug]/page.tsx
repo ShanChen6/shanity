@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { API_URL, ApiError } from "@/lib/api";
+import { API_URL, ApiError, unwrapBody } from "@/lib/api";
 import { PublicCourseDetailView } from "@/features/courses/detail-view";
 import type { PublicCourseDetail } from "@/features/courses/detail-view";
 
@@ -14,14 +14,14 @@ async function getCourse(slug: string): Promise<PublicCourseDetail> {
   let response: Response;
   try {
     response = await fetch(
-      `${origin.replace(/\/$/, "")}/public/courses/${encodeURIComponent(slug)}`,
+      `${origin.replace(/\/$/, "")}/api/v1/public/courses/${encodeURIComponent(slug)}`,
       { cache: "no-store", signal: AbortSignal.timeout(12000) },
     );
   } catch {
     throw new ApiError(0, ["Không thể kết nối máy chủ. Vui lòng thử lại."]);
   }
 
-  const result: unknown = await response.json().catch(() => null);
+  const result: unknown = unwrapBody(await response.json().catch(() => null));
   if (response.status === 404) notFound();
   if (!response.ok)
     throw new ApiError(response.status, ["Không thể tải thông tin khóa học."]);

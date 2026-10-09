@@ -1,3 +1,4 @@
+import { pageEnvelope } from "@/test-utils/envelope";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -51,7 +52,12 @@ describe("grading queue model", () => {
       label: "GRADED (Unpublished)",
     });
     expect(
-      statusBadge(item("a", 0, { status: "COMPLETED", publishedAt: "2026-10-08T05:00:00.000Z" })),
+      statusBadge(
+        item("a", 0, {
+          status: "COMPLETED",
+          publishedAt: "2026-10-08T05:00:00.000Z",
+        }),
+      ),
     ).toEqual({ tone: "success", label: "PUBLISHED" });
   });
 
@@ -61,12 +67,12 @@ describe("grading queue model", () => {
       item("b", 1),
       item("c", 0, { quiz: { id: "q2", title: "Final" } }),
     ]);
-    expect(groups.map(({ quizTitle, pending }) => [quizTitle, pending])).toEqual(
-      [
-        ["Midterm", 3],
-        ["Final", 0],
-      ],
-    );
+    expect(
+      groups.map(({ quizTitle, pending }) => [quizTitle, pending]),
+    ).toEqual([
+      ["Midterm", 3],
+      ["Final", 0],
+    ]);
   });
 
   it("omits ALL and empty filters from the query", () => {
@@ -94,7 +100,9 @@ let urls: string[];
 let posts: string[];
 
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -113,15 +121,12 @@ describe("GradingQueue screen", () => {
             status: 200,
             headers: { "content-type": "application/json" },
           });
-        if (url.startsWith("/instructor/grading-queue?"))
-          return json({
-            items: [item("a", 2), item("b", 0)],
-            pagination: { page: 1, limit: 20, totalItems: 2, totalPages: 1 },
-          });
-        if (url.startsWith("/instructor/grading-queue/courses"))
+        if (url.startsWith("/api/v1/instructor/grading-queue?"))
+          return json(pageEnvelope([item("a", 2), item("b", 0)]));
+        if (url.startsWith("/api/v1/instructor/grading-queue/courses"))
           return json([{ id: "c1", title: "Course A", slug: "course-a" }]);
-        if (url.startsWith("/admin/quizzes"))
-          return json({ quizzes: [{ id: "q1", title: "Midterm" }] });
+        if (url.startsWith("/api/v1/instructor/quizzes"))
+          return json(pageEnvelope([{ id: "q1", title: "Midterm" }]));
         return json({});
       }),
     );
@@ -132,9 +137,7 @@ describe("GradingQueue screen", () => {
     render(<GradingQueue />, { wrapper });
     const group = await screen.findByRole("region", { name: "Midterm" });
     expect(within(group).getByText("2 essays pending")).toBeInTheDocument();
-    expect(
-      within(group).getByText("GRADED (Unpublished)"),
-    ).toBeInTheDocument();
+    expect(within(group).getByText("GRADED (Unpublished)")).toBeInTheDocument();
     expect(
       within(group).getByRole("link", { name: "Chấm bài" }),
     ).toHaveAttribute("href", "/instructor/grading/attempts/a");
@@ -147,11 +150,15 @@ describe("GradingQueue screen", () => {
     render(<GradingQueue />, { wrapper });
     const group = await screen.findByRole("region", { name: "Midterm" });
     // Only the graded row offers a publish button.
-    expect(within(group).getAllByRole("button", { name: "Publish Result" })).toHaveLength(1);
+    expect(
+      within(group).getAllByRole("button", { name: "Publish Result" }),
+    ).toHaveLength(1);
 
-    await user.click(within(group).getByRole("button", { name: "Publish Result" }));
+    await user.click(
+      within(group).getByRole("button", { name: "Publish Result" }),
+    );
     await waitFor(() =>
-      expect(posts).toEqual(["/instructor/quiz-attempts/b/publish"]),
+      expect(posts).toEqual(["/api/v1/instructor/quiz-attempts/b/publish"]),
     );
 
     await user.click(
@@ -163,7 +170,9 @@ describe("GradingQueue screen", () => {
     expect(posts).toHaveLength(1);
     await user.click(await screen.findByRole("button", { name: "Công bố" }));
     await waitFor(() =>
-      expect(posts.at(-1)).toBe("/instructor/quizzes/q1/publish-results"),
+      expect(posts.at(-1)).toBe(
+        "/api/v1/instructor/quizzes/q1/publish-results",
+      ),
     );
   });
 
@@ -175,9 +184,7 @@ describe("GradingQueue screen", () => {
     await user.click(
       screen.getByRole("tab", { name: "Đã chấm (chưa công bố)" }),
     );
-    await waitFor(() =>
-      expect(urls.at(-1)).toContain("status=GRADED"),
-    );
+    await waitFor(() => expect(urls.at(-1)).toContain("status=GRADED"));
     await user.selectOptions(screen.getByLabelText("Khóa học"), "c1");
     await waitFor(() => expect(urls.at(-1)).toContain("courseId=c1"));
     expect(screen.getByLabelText("Bài quiz")).toBeEnabled();
@@ -203,12 +210,9 @@ describe("GradingQueue screen", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input).replace(API, "");
-        const body = url.startsWith("/instructor/grading-queue?")
-          ? {
-              items: [],
-              pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-            }
-          : url.startsWith("/instructor/grading-queue/courses")
+        const body = url.startsWith("/api/v1/instructor/grading-queue?")
+          ? pageEnvelope([])
+          : url.startsWith("/api/v1/instructor/grading-queue/courses")
             ? [{ id: "c1", title: "Course A", slug: "course-a" }]
             : {};
         return new Response(JSON.stringify(body), {

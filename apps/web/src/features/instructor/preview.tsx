@@ -57,7 +57,9 @@ export function Preview({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
   const transition = useMutation({
     mutationFn: (action: string) =>
-      api<Course>(`/courses/${id}/${action}`, { method: "POST" }),
+      api<Course>(`/api/v1/instructor/courses/${id}/${action}`, {
+        method: "POST",
+      }),
     onSuccess: async (value) => {
       client.setQueryData(courseKey(id), value);
       await client.invalidateQueries({ queryKey: ["instructor", "courses"] });

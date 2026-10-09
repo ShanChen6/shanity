@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { api, apiNestedPage, ApiError } from "@/lib/api";
 import {
   planQuestionSync,
   questionPayload,
@@ -48,14 +48,17 @@ export const quizzesKey = ["instructor", "quizzes"];
 export function useInstructorCourses() {
   return useQuery({
     queryKey: ["instructor", "courses"],
-    queryFn: ({ signal }) => api<CourseOption[]>("/courses", { signal }),
+    queryFn: ({ signal }) =>
+      api<CourseOption[]>("/api/v1/instructor/courses", { signal }),
   });
 }
 export function useCourseChapters(courseId: string) {
   return useQuery({
     queryKey: ["instructor", "chapters", courseId],
     queryFn: ({ signal }) =>
-      api<ChapterOption[]>(`/courses/${courseId}/chapters`, { signal }),
+      api<ChapterOption[]>(`/api/v1/instructor/courses/${courseId}/chapters`, {
+        signal,
+      }),
     enabled: Boolean(courseId),
   });
 }
@@ -63,14 +66,17 @@ export function useCourseLessons(courseId: string) {
   return useQuery({
     queryKey: ["instructor", "lessons", courseId],
     queryFn: ({ signal }) =>
-      api<LessonOption[]>(`/courses/${courseId}/lessons`, { signal }),
+      api<LessonOption[]>(`/api/v1/instructor/courses/${courseId}/lessons`, {
+        signal,
+      }),
     enabled: Boolean(courseId),
   });
 }
 export function useQuiz(id: string) {
   return useQuery({
     queryKey: quizKey(id),
-    queryFn: ({ signal }) => api<ApiQuiz>(`/admin/quizzes/${id}`, { signal }),
+    queryFn: ({ signal }) =>
+      api<ApiQuiz>(`/api/v1/instructor/quizzes/${id}`, { signal }),
   });
 }
 export function useQuizList(params: {
@@ -87,7 +93,11 @@ export function useQuizList(params: {
   return useQuery({
     queryKey: [...quizzesKey, params],
     queryFn: ({ signal }) =>
-      api<QuizPage>(`/admin/quizzes?${query}`, { signal }),
+      apiNestedPage<"quizzes", QuizListItem>(
+        "quizzes",
+        `/api/v1/instructor/quizzes?${query}`,
+        { signal },
+      ),
   });
 }
 
@@ -97,7 +107,9 @@ export async function resolveTargetPath(quiz: ApiQuiz) {
   if (quiz.scope === "CHAPTER")
     return { courseId, chapterId: quiz.targetId ?? "", lessonId: "" };
   if (quiz.scope === "LESSON" && courseId) {
-    const lessons = await api<LessonOption[]>(`/courses/${courseId}/lessons`);
+    const lessons = await api<LessonOption[]>(
+      `/api/v1/instructor/courses/${courseId}/lessons`,
+    );
     const lesson = lessons.find(({ id }) => id === quiz.targetId);
     return {
       courseId,
@@ -125,11 +137,11 @@ export async function saveQuiz(
   const isNew = !existing;
   const quiz = existing
     ? await api<ApiQuiz>(
-        `/admin/quizzes/${existing.id}`,
+        `/api/v1/instructor/quizzes/${existing.id}`,
         json("PUT", settingsPayload(draft, false)),
       )
     : await api<ApiQuiz>(
-        "/admin/quizzes",
+        "/api/v1/instructor/quizzes",
         json("POST", settingsPayload(draft, true)),
       );
 
@@ -138,11 +150,14 @@ export async function saveQuiz(
     isNew ? [] : existing.questions,
   );
   for (const id of plan.remove)
-    await api(`/admin/quizzes/${quiz.id}/questions/${id}`, json("DELETE"));
+    await api(
+      `/api/v1/instructor/quizzes/${quiz.id}/questions/${id}`,
+      json("DELETE"),
+    );
   const created = new Map<string, string>();
   for (const question of plan.create) {
     const saved = await api<ApiQuestion>(
-      `/admin/quizzes/${quiz.id}/questions`,
+      `/api/v1/instructor/quizzes/${quiz.id}/questions`,
       json("POST", questionPayload(question)),
     );
     created.set(question.key, saved.id);
@@ -152,23 +167,23 @@ export async function saveQuiz(
     .filter((id): id is string => Boolean(id));
   if (order.length > 1)
     await api(
-      `/admin/quizzes/${quiz.id}/questions/reorder`,
+      `/api/v1/instructor/quizzes/${quiz.id}/questions/reorder`,
       json("PATCH", {
         items: order.map((id, index) => ({ id, position: index + 1 })),
       }),
     );
-  return api<ApiQuiz>(`/admin/quizzes/${quiz.id}`);
+  return api<ApiQuiz>(`/api/v1/instructor/quizzes/${quiz.id}`);
 }
 
 export const publishQuiz = (id: string) =>
   api<{ id: string; version: number; status: QuizStatus }>(
-    `/admin/quizzes/${id}/publish`,
+    `/api/v1/instructor/quizzes/${id}/publish`,
     json("POST"),
   );
 
 export const openNewVersion = (id: string) =>
   api<{ id: string; version: number; status: QuizStatus }>(
-    `/admin/quizzes/${id}/versions`,
+    `/api/v1/instructor/quizzes/${id}/versions`,
     json("POST"),
   );
 
