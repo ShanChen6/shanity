@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const tones = {
   error: "border-danger/40 bg-danger-background text-danger-foreground",
@@ -31,7 +32,11 @@ export function ToastCard({
     <div
       {...handlers}
       role={tone === "error" ? "alert" : "status"}
-      className={`flex items-start gap-3 rounded-lg border p-4 text-sm shadow-lg ${tones[tone]} ${className}`}
+      className={cn(
+        "flex items-start gap-3 rounded-lg border p-4 text-sm shadow-lg",
+        tones[tone],
+        className,
+      )}
     >
       <p className="min-w-0 flex-1 break-words">{message}</p>
       <button

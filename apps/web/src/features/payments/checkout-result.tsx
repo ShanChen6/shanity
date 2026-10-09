@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { createOrder } from "./api";
 import { Confetti } from "./confetti";
 import { formatDateTime, formatMoney } from "./format";
@@ -105,7 +106,7 @@ function Detail({
   return (
     <div className="min-w-0">
       <dt className="text-caption text-muted">{label}</dt>
-      <dd className={`break-all font-semibold ${mono ? "font-mono" : ""}`}>
+      <dd className={cn("break-all font-semibold", mono && "font-mono")}>
         {value}
       </dd>
     </div>

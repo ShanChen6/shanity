@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { cn } from "@/lib/utils";
 
 const paths = {
   menu: "M4 6h16 M4 12h16 M4 18h16",
@@ -56,7 +57,7 @@ export function Icon({
       strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`size-5 shrink-0 ${className}`}
+      className={cn("size-5 shrink-0", className)}
     >
       <path d={paths[name]} />
     </svg>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function AppShell({
   children,
@@ -14,7 +15,7 @@ export function AppShell({
   return (
     <div className="page flex flex-col">
       {header}
-      <main className={`flex-1 ${mainClassName}`}>{children}</main>
+      <main className={cn("flex-1", mainClassName)}>{children}</main>
       {footer}
     </div>
   );

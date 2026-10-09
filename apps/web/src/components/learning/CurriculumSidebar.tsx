@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CourseQuiz } from "@/features/quiz-player/api";
+import { cn } from "@/lib/utils";
 import {
   STATUS_LABEL,
   learningPath,
@@ -47,15 +48,15 @@ function QuizItem({
   onNavigate?: () => void;
 }) {
   const badge = QUIZ_BADGE[quiz.status];
-  const className = `flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors duration-normal ${
-    quiz.scope === "LESSON" ? "ml-5" : ""
-  } ${
+  const className = cn(
+    "flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors duration-normal",
+    quiz.scope === "LESSON" && "ml-5",
     active
       ? "border-primary/60 bg-secondary font-semibold text-secondary-foreground shadow-sm"
       : locked
         ? "cursor-not-allowed border-transparent text-muted opacity-70"
-        : "border-transparent hover:bg-surface-hover"
-  }`;
+        : "border-transparent hover:bg-surface-hover",
+  );
   const content = (
     <>
       <span className="flex w-5 shrink-0 justify-center" aria-hidden>
@@ -64,13 +65,13 @@ function QuizItem({
         ) : (
           <ClipboardCheck
             size={17}
-            className={
+            className={cn(
               quiz.status === "PASSED" || quiz.stepCompleted
                 ? "text-success"
                 : quiz.status === "FAILED"
                   ? "text-danger-foreground"
-                  : "text-primary"
-            }
+                  : "text-primary",
+            )}
           />
         )}
       </span>
@@ -201,13 +202,16 @@ export function CurriculumSidebar({
               <ChevronRight
                 aria-hidden
                 size={16}
-                className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
+                className={cn("transition-transform", isOpen && "rotate-90")}
               />
               <span className="min-w-0 flex-1">
                 Chương {index + 1}: {chapter.title}
               </span>
               <span
-                className={`shrink-0 tabular-nums normal-case ${done === chapter.lessons.length && done ? "text-success" : ""}`}
+                className={cn(
+                  "shrink-0 tabular-nums normal-case",
+                  done === chapter.lessons.length && done && "text-success",
+                )}
               >
                 {done}/{chapter.lessons.length}
                 <span className="sr-only"> bài đã hoàn thành</span>
@@ -219,13 +223,15 @@ export function CurriculumSidebar({
                   const status = statusOf(lesson);
                   const active = lesson.slug === activeSlug;
                   const prerequisite = prerequisiteOf?.(lesson) ?? null;
-                  const className = `flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors duration-normal ${
+                  const className = cn(
+                    "flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors duration-normal",
                     active
                       ? "border-primary/60 bg-secondary font-semibold text-secondary-foreground shadow-sm"
                       : prerequisite
                         ? "cursor-not-allowed border-transparent opacity-70"
-                        : "border-transparent hover:bg-surface-hover"
-                  } ${status === "LOCKED" ? "text-muted" : ""}`;
+                        : "border-transparent hover:bg-surface-hover",
+                    status === "LOCKED" && "text-muted",
+                  );
                   const content = (
                     <>
                       <span

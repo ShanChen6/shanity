@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
+import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/shared/loading-state";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -142,7 +143,10 @@ export function ThemeShowcase() {
             ].map(([label, className]) => (
               <div
                 key={label}
-                className={`rounded-md border border-border p-4 ${className}`}
+                className={cn(
+                  "rounded-md border border-border p-4",
+                  className,
+                )}
               >
                 <p className="font-semibold">{label}</p>
                 <p className="mt-1 text-body-sm text-foreground-secondary">

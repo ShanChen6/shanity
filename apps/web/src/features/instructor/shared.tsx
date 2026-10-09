@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { coursePath, message, type Course } from "./data";
 export function StatusBadge({ status }: { status: Course["status"] }) {
   return (
-    <span className={`instructor-badge status-${status.toLowerCase()}`}>
+    <span className={cn("instructor-badge", `status-${status.toLowerCase()}`)}>
       {status.toUpperCase()}
     </span>
   );

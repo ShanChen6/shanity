@@ -2,6 +2,7 @@
 
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useCopy } from "./use-copy";
 
 /** A labelled value with a one-tap copy button (account number, memo...). */
@@ -24,7 +25,12 @@ export function CopyField({
       <div className="min-w-0">
         <p className="text-caption text-muted">{label}</p>
         <p
-          className={`font-mono [overflow-wrap:anywhere] ${emphasize ? "text-body font-semibold text-primary" : "text-body-sm font-semibold"}`}
+          className={cn(
+            "font-mono [overflow-wrap:anywhere]",
+            emphasize
+              ? "text-body font-semibold text-primary"
+              : "text-body-sm font-semibold",
+          )}
         >
           {display ?? value}
         </p>

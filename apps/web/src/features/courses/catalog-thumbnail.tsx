@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const covers = [
   "from-emerald-700 via-teal-700 to-slate-900",
@@ -44,7 +45,10 @@ export function CatalogThumbnail({
         />
       ) : (
         <div
-          className={`relative flex h-full items-center justify-center overflow-hidden bg-gradient-to-br ${cover} text-white`}
+          className={cn(
+            "relative flex h-full items-center justify-center overflow-hidden bg-gradient-to-br text-white",
+            cover,
+          )}
           role="img"
           aria-label={`Ảnh minh họa khóa học ${title}`}
         >

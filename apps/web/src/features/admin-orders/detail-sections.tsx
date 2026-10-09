@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { formatMoney, formatTimestamp } from "./format";
 import { EnrollmentBadge, ProviderBadge } from "./order-badges";
 import { JsonBlock } from "./json-block";
@@ -38,7 +39,10 @@ function Row({
     <div className="flex items-baseline justify-between gap-4 py-1.5">
       <dt className="text-sm text-muted">{label}</dt>
       <dd
-        className={`min-w-0 text-right text-sm tabular-nums [overflow-wrap:anywhere] ${strong ? "font-semibold" : ""}`}
+        className={cn(
+          "min-w-0 text-right text-sm tabular-nums [overflow-wrap:anywhere]",
+          strong && "font-semibold",
+        )}
       >
         {children}
       </dd>

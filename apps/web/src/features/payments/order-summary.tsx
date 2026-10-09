@@ -2,6 +2,7 @@
 
 import { Clock } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { CopyField } from "./copy-field";
 import { formatCountdown, formatDateTime, formatMoney } from "./format";
 import { OrderStatusBadge } from "./status-badge";
@@ -87,11 +88,12 @@ export function OrderSummary({
             <span
               role="timer"
               aria-label="Thời gian còn lại để thanh toán"
-              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-body-sm font-semibold ${
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-body-sm font-semibold",
                 countdown.remainingMs < 60_000
                   ? "bg-danger-background text-danger-foreground"
-                  : "bg-warning-background text-warning-foreground"
-              }`}
+                  : "bg-warning-background text-warning-foreground",
+              )}
             >
               <Clock aria-hidden size={14} />
               {formatCountdown(countdown.remainingMs)}

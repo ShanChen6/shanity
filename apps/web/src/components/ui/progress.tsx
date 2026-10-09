@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 
 export function Progress({
   value,
@@ -27,10 +28,17 @@ export function Progress({
       aria-valuemin={0}
       aria-valuemax={safeMax}
       aria-valuenow={boundedValue}
-      className={`h-2 overflow-hidden rounded-full bg-surface-secondary ${className}`}
+      className={cn(
+        "h-2 overflow-hidden rounded-full bg-surface-secondary",
+        className,
+      )}
     >
       <div
-        className={`h-full rounded-full ${indicatorClassName} transition-[width] motion-reduce:transition-none ${value === undefined ? "w-1/3 animate-pulse" : ""}`}
+        className={cn(
+          "h-full rounded-full transition-[width] motion-reduce:transition-none",
+          indicatorClassName,
+          value === undefined && "w-1/3 animate-pulse",
+        )}
         style={
           percentage === undefined ? undefined : { width: `${percentage}%` }
         }

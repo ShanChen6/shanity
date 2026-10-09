@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Toast } from "@/components/ui/toast";
 import { ApiError, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { AttemptQuestion, EssayAnswerValue, EssayAttachment } from "./api";
 import { KatexText } from "./KatexText";
 import { readLocalDraft } from "./local-draft";
@@ -69,7 +70,10 @@ export function SaveIndicator({
       aria-live="polite"
       data-testid="essay-save-status"
       data-status={status}
-      className={`flex min-h-5 flex-wrap items-center gap-2 text-xs font-medium ${TONE[status]}`}
+      className={cn(
+        "flex min-h-5 flex-wrap items-center gap-2 text-xs font-medium",
+        TONE[status],
+      )}
     >
       {status === "dirty" ? "Unsaved changes..." : null}
       {status === "syncing" ? "Saving..." : null}
@@ -355,9 +359,10 @@ export function EssayAnswerInput({
               setDragging(false);
               void addFiles(event.dataTransfer.files);
             }}
-            className={`flex flex-col items-center gap-2 rounded-md border border-dashed p-4 text-center text-sm ${
+            className={cn(
+              "flex flex-col items-center gap-2 rounded-md border border-dashed p-4 text-center text-sm",
               dragging ? "border-primary bg-secondary" : "border-border-strong"
-            }`}
+            )}
           >
             <Upload aria-hidden size={20} />
             <p>Kéo thả ảnh bài làm nháp vào đây hoặc</p>

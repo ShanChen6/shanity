@@ -20,6 +20,7 @@ import {
   useSystemStatus,
 } from "@/features/system-status/use-system-status";
 import { API_URL } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const time = new Intl.DateTimeFormat("vi-VN", {
   hour: "2-digit",
@@ -56,7 +57,7 @@ export function AdminSettings() {
           >
             <span
               aria-hidden="true"
-              className={`size-2.5 rounded-full ${state.dot}`}
+              className={cn("size-2.5 rounded-full", state.dot)}
             />
             {state.label}
           </p>

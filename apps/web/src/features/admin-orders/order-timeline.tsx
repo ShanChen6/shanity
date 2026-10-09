@@ -3,6 +3,7 @@ import { ProofLink } from "./proof-link";
 import { DetailSection } from "./detail-sections";
 import { providerLabel, TIMELINE_TITLES, TIMELINE_TONES } from "./order-model";
 import type { OrderCurrency, TimelineEvent } from "./types";
+import { cn } from "@/lib/utils";
 
 const DOT = {
   success: "bg-success",
@@ -74,7 +75,10 @@ export function OrderTimeline({
           <li key={`${event.type}-${event.at}-${index}`} className="relative">
             <span
               aria-hidden="true"
-              className={`absolute -left-[1.6rem] top-1.5 size-2.5 rounded-full ring-4 ring-surface ${DOT[TIMELINE_TONES[event.type]]}`}
+              className={cn(
+                "absolute -left-[1.6rem] top-1.5 size-2.5 rounded-full ring-4 ring-surface",
+                DOT[TIMELINE_TONES[event.type]],
+              )}
             />
             <div className="flex flex-wrap items-baseline justify-between gap-x-3">
               <p className="font-semibold">{TIMELINE_TITLES[event.type]}</p>

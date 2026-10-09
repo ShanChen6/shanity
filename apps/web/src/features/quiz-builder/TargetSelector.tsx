@@ -1,6 +1,7 @@
 "use client";
 import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   useCourseChapters,
   useCourseLessons,
@@ -58,11 +59,13 @@ export function TargetSelector({
             return (
               <label
                 key={scope.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors ${
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors",
                   checked
                     ? "border-primary bg-secondary text-secondary-foreground"
-                    : "border-border hover:bg-surface-hover"
-                } ${disabled ? "cursor-not-allowed opacity-70" : ""}`}
+                    : "border-border hover:bg-surface-hover",
+                  disabled && "cursor-not-allowed opacity-70",
+                )}
               >
                 <Radio
                   name="quiz-scope"
@@ -89,7 +92,12 @@ export function TargetSelector({
 
       {needsCourse ? (
         <div
-          className={`grid grid-cols-1 gap-3 ${needsLesson ? "md:grid-cols-3" : needsChapter ? "md:grid-cols-2" : ""}`}
+          className={cn(
+            "grid grid-cols-1 gap-3",
+            needsLesson
+              ? "md:grid-cols-3"
+              : needsChapter && "md:grid-cols-2",
+          )}
         >
           <label className="block text-sm font-medium">
             Khóa học

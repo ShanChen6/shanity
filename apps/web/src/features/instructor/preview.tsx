@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   useCourse,
@@ -177,7 +178,7 @@ export function Preview({ id }: { id: string }) {
           <h2>Checklist xuất bản</h2>
           <ul>
             {checklist.map((item) => (
-              <li key={item.label} className={item.ready ? "is-ready" : ""}>
+              <li key={item.label} className={cn(item.ready && "is-ready")}>
                 <span aria-label={item.ready ? "Đã đủ" : "Còn thiếu"}>
                   {item.ready ? "✓" : "○"}
                 </span>{" "}

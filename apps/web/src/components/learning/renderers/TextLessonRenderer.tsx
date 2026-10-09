@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils";
 import type { EditorBlock, EditorContent, LessonRendererProps } from "./types";
 
 const ALLOWED_TAGS = [
@@ -103,7 +104,10 @@ export const TextLessonRenderer = memo(function TextLessonRenderer({
               code: ({ children, className, ...props }) => (
                 <code
                   {...props}
-                  className={`${className ?? ""} rounded bg-surface px-1 font-mono`}
+                  className={cn(
+                    "rounded bg-surface px-1 font-mono",
+                    className,
+                  )}
                 >
                   {children}
                 </code>

@@ -9,6 +9,7 @@ import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { KatexText } from "@/features/quiz-player/KatexText";
+import { cn } from "@/lib/utils";
 import {
   markCorrect,
   newEssay,
@@ -126,9 +127,10 @@ function RubricEditor({
           <p
             role={mismatch ? "alert" : undefined}
             data-testid="rubric-total"
-            className={`text-sm tabular-nums ${
-              mismatch ? "text-danger-foreground" : "text-muted"
-            }`}
+            className={cn(
+              "text-sm tabular-nums",
+              mismatch ? "text-danger-foreground" : "text-muted",
+            )}
           >
             Tổng rubric: {total} / {Number.isFinite(max) ? max : "—"} điểm
             {mismatch ? " — phải bằng điểm tối đa" : ""}
@@ -178,9 +180,11 @@ export function QuestionCard({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`rounded-lg border bg-surface p-4 shadow-sm sm:p-5 ${
-        issues.length ? "border-danger/60" : "border-border"
-      } ${isDragging ? "relative z-10 opacity-80 shadow-lg" : ""}`}
+      className={cn(
+        "rounded-lg border bg-surface p-4 shadow-sm sm:p-5",
+        issues.length ? "border-danger/60" : "border-border",
+        isDragging && "relative z-10 opacity-80 shadow-lg",
+      )}
       aria-label={label}
     >
       <div className="flex flex-wrap items-center gap-3">
@@ -250,9 +254,10 @@ export function QuestionCard({
       </div>
 
       <div
-        className={`mt-4 grid gap-3 ${
-          question.content.includes("$") ? "md:grid-cols-2" : ""
-        }`}
+        className={cn(
+          "mt-4 grid gap-3",
+          question.content.includes("$") && "md:grid-cols-2",
+        )}
       >
         <label className="block text-sm font-medium">
           Nội dung câu hỏi
@@ -350,7 +355,10 @@ export function QuestionCard({
                     maxLength={2000}
                     aria-label={`Nội dung đáp án ${optionIndex + 1}`}
                     placeholder={`Đáp án ${optionIndex + 1}`}
-                    className={`py-2 text-sm ${option.isCorrect ? "border-success/60" : ""}`}
+                    className={cn(
+                      "py-2 text-sm",
+                      option.isCorrect && "border-success/60",
+                    )}
                     onChange={(event) =>
                       set({
                         options: question.options.map((item) =>

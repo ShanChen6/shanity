@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 
 export function Radio({
   className = "",
@@ -8,7 +9,10 @@ export function Radio({
     <input
       {...props}
       type="radio"
-      className={`size-4 accent-primary focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:outline-danger ${className}`}
+      className={cn(
+        "size-4 accent-primary focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:outline-danger",
+        className,
+      )}
     />
   );
 }

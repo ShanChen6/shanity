@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function EmptyState({
   icon,
@@ -15,7 +16,10 @@ export function EmptyState({
 }) {
   return (
     <section
-      className={`flex flex-col items-center px-6 py-12 text-center ${className}`}
+      className={cn(
+        "flex flex-col items-center px-6 py-12 text-center",
+        className,
+      )}
     >
       {icon && (
         <span aria-hidden="true" className="mb-4 text-muted">

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Failure } from "@/features/instructor/shared";
 import { formatDuration } from "@/features/quiz-player/ResultView";
+import { cn } from "@/lib/utils";
 import {
   attemptHref,
   resultHref,
@@ -126,11 +127,12 @@ export function MyQuizAttempts() {
             type="button"
             aria-selected={scope === tab.value}
             onClick={() => go({ scope: tab.value })}
-            className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+            className={cn(
+              "rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors",
               scope === tab.value
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-strong hover:bg-surface-hover"
-            }`}
+                : "border-border-strong hover:bg-surface-hover",
+            )}
           >
             {tab.label}
           </button>

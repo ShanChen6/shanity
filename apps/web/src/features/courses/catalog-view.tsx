@@ -3,6 +3,7 @@ import { SiteShell } from "@/components/layout/site-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { API_URL } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { CatalogControls } from "./catalog-controls";
 import { CatalogThumbnail } from "./catalog-thumbnail";
 import { catalogHref } from "./catalog-types";
@@ -112,7 +113,10 @@ function CatalogPagination({
         href={catalogHref(filters, filters.page - 1)}
         aria-disabled={filters.page <= 1}
         tabIndex={filters.page <= 1 ? -1 : undefined}
-        className={`inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold transition-colors hover:bg-surface-hover ${filters.page <= 1 ? "pointer-events-none opacity-45" : ""}`}
+        className={cn(
+          "inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold transition-colors hover:bg-surface-hover",
+          filters.page <= 1 && "pointer-events-none opacity-45",
+        )}
       >
         <Icon name="arrowLeft" className="size-4" />
         <span className="hidden sm:inline">Trước</span>
@@ -122,11 +126,12 @@ function CatalogPagination({
           key={page}
           href={catalogHref(filters, page)}
           aria-current={page === filters.page ? "page" : undefined}
-          className={`inline-flex size-10 items-center justify-center rounded-md border text-sm font-semibold transition-colors ${
+          className={cn(
+            "inline-flex size-10 items-center justify-center rounded-md border text-sm font-semibold transition-colors",
             page === filters.page
               ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-surface text-foreground hover:bg-surface-hover"
-          }`}
+              : "border-border bg-surface text-foreground hover:bg-surface-hover",
+          )}
         >
           {page}
         </Link>
@@ -135,7 +140,10 @@ function CatalogPagination({
         href={catalogHref(filters, filters.page + 1)}
         aria-disabled={filters.page >= totalPages}
         tabIndex={filters.page >= totalPages ? -1 : undefined}
-        className={`inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold transition-colors hover:bg-surface-hover ${filters.page >= totalPages ? "pointer-events-none opacity-45" : ""}`}
+        className={cn(
+          "inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold transition-colors hover:bg-surface-hover",
+          filters.page >= totalPages && "pointer-events-none opacity-45",
+        )}
       >
         <span className="hidden sm:inline">Tiếp</span>
         <Icon name="arrow" className="size-4" />

@@ -21,6 +21,7 @@ import { useSession } from "@/features/auth/session-provider";
 import type { CatalogCourse } from "@/features/courses/catalog-types";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiPage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/theme-provider";
 import { rank } from "./search";
 
@@ -97,16 +98,22 @@ export function CommandMenuTrigger({
       aria-haspopup="dialog"
       aria-keyshortcuts="Control+K Meta+K"
       onClick={() => setOpen(true)}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:bg-surface-hover hover:text-foreground ${className}`}
+      className={cn(
+        "inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:bg-surface-hover hover:text-foreground",
+        className,
+      )}
     >
       <Icon name="search" className="size-4" />
-      <span className={compact ? "hidden 2xl:inline" : "hidden sm:inline"}>
+      <span
+        className={cn("hidden", compact ? "2xl:inline" : "sm:inline")}
+      >
         Tìm nhanh…
       </span>
       <kbd
-        className={`hidden rounded border border-border-strong px-1.5 py-0.5 font-mono text-xs ${
-          compact ? "xl:inline" : "md:inline"
-        }`}
+        className={cn(
+          "hidden rounded border border-border-strong px-1.5 py-0.5 font-mono text-xs",
+          compact ? "xl:inline" : "md:inline",
+        )}
       >
         {apple ? "⌘K" : "Ctrl K"}
       </kbd>
@@ -374,11 +381,12 @@ function CommandMenu({ onClose }: { onClose: () => void }) {
                   aria-selected={selected}
                   onMouseMove={() => setActive(index)}
                   onClick={() => choose(command)}
-                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-3 text-sm ${
+                  className={cn(
+                    "flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-3 text-sm",
                     selected
                       ? "bg-secondary text-secondary-foreground"
-                      : "text-foreground"
-                  }`}
+                      : "text-foreground",
+                  )}
                 >
                   <Icon name={command.icon} className="size-4" />
                   <span className="min-w-0 flex-1 truncate">

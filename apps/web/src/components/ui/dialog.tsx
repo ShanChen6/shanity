@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type DialogProps = {
   title: string;
@@ -46,7 +47,11 @@ export function Dialog({
       ref={ref}
       aria-labelledby={`${id}-title`}
       aria-describedby={description ? `${id}-description` : undefined}
-      className={`overflow-y-auto border border-border bg-surface p-6 text-foreground backdrop:bg-black/50 ${position} ${className}`}
+      className={cn(
+        "overflow-y-auto border border-border bg-surface p-6 text-foreground backdrop:bg-black/50",
+        position,
+        className,
+      )}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();

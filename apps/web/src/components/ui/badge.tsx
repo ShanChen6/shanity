@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
+import { cn } from "@/lib/utils";
 
 const tones = {
   default: "bg-surface-secondary text-foreground-secondary",
@@ -20,7 +21,11 @@ export function Badge({
   return (
     <span
       {...props}
-      className={`inline-flex items-center rounded-sm px-2 py-1 text-xs font-semibold ${tones[tone]} ${className}`}
+      className={cn(
+        "inline-flex items-center rounded-sm px-2 py-1 text-xs font-semibold",
+        tones[tone],
+        className,
+      )}
     />
   );
 }

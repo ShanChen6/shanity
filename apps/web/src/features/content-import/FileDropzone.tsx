@@ -1,6 +1,7 @@
 "use client";
 import { useId, useRef, useState, type DragEvent } from "react";
 import { FileSpreadsheet, FileText, Upload, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   FORMAT_LABEL,
   acceptOf,
@@ -95,11 +96,12 @@ export function FileDropzone({
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={drop}
-          className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={cn(
+            "flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             dragging
               ? "border-primary bg-secondary"
-              : "border-border-strong hover:bg-surface-hover"
-          }`}
+              : "border-border-strong hover:bg-surface-hover",
+          )}
         >
           <Upload aria-hidden size={24} className="text-primary" />
           <span className="font-medium">

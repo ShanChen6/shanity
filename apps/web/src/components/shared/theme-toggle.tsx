@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useTheme, type ThemePreference } from "@/providers/theme-provider";
 
 const choices: { value: ThemePreference; label: string }[] = [
@@ -15,7 +16,10 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     <div
       role="group"
       aria-label="Theme preference"
-      className={`inline-flex items-center gap-1 rounded-md border border-border bg-surface p-1 ${className}`}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border border-border bg-surface p-1",
+        className,
+      )}
     >
       {choices.map(({ value, label }) => (
         <Button
