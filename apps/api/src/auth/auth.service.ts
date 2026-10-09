@@ -393,7 +393,7 @@ export class AuthService {
         }
       }
       if (target.status !== nextStatus) {
-        // The existing user trigger advances update_at. Roles and user data remain intact.
+        // The existing user trigger advances updated_at. Roles and user data remain intact.
         await trx
           .getRepository(User)
           .update({ id }, { status: nextStatus })

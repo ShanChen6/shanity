@@ -17,6 +17,7 @@ import {
   sessionLock,
 } from "@/lib/api";
 import type { LoginRequest, RegisterRequest, User } from "./types";
+import { clearAllChatCaches } from "@/features/chat/chat-cache";
 
 type Status = "loading" | "authenticated" | "anonymous" | "error";
 type Session = {
@@ -51,6 +52,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<BroadcastChannel | null>(null);
   const flight = useRef<Promise<User | null> | null>(null);
   const reset = useCallback(() => {
+    // Signed out (here, in another tab, or the session lapsed): no chat
+    // history stays readable on this device.
+    clearAllChatCaches();
     generation.current++;
     setUser(null);
     setStatus("anonymous");

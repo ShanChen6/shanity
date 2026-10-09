@@ -378,14 +378,16 @@ describe('PAY3-5 order snapshot invariant', { timeout: 30_000 }, () => {
       ).createOrder(user2.id, { courseIds: [courseId] });
       expect(second.code).toBe(fresh);
 
-      const itemsBefore = await count('order_items');
+      // Scoped to this test's course: other suites create orders in parallel.
+      const items = () => count('order_items WHERE course_id=$1', [courseId]);
+      const itemsBefore = await items();
       await expect(
         new OrderFactoryService(database, sequence([taken])).createOrder(
           user3.id,
           { courseIds: [courseId] },
         ),
       ).rejects.toMatchObject({ status: 409 });
-      expect(await count('order_items')).toBe(itemsBefore);
+      expect(await items()).toBe(itemsBefore);
     });
 
     it('creates distinct codes for parallel checkouts', async () => {
