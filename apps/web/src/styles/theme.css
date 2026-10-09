@@ -2,45 +2,58 @@
 
 :root {
   color-scheme: light;
-  --background: oklch(0.985 0.004 260);
+  /*
+   * Brand palette, sampled from public/assets/branding/logo-*.png.
+   * Every hue below derives from these three; change the logo, change these.
+   *   ink  #0c403d  wordmark "Shanity"
+   *   teal #028983  graduation cap and the dark stroke of the "S"
+   *   mint #64ebd5  the light stroke of the "S"
+   */
+  --brand-ink: oklch(0.338 0.053 189);
+  --brand-teal: oklch(0.568 0.098 189);
+  --brand-mint: oklch(0.859 0.122 181);
+
+  --background: oklch(0.985 0.005 190);
   --surface: oklch(1 0 0);
-  --surface-secondary: oklch(0.965 0.012 260);
+  --surface-secondary: oklch(0.965 0.012 190);
   --surface-elevated: oklch(1 0 0);
-  --surface-hover: oklch(0.94 0.018 260);
-  --surface-active: oklch(0.91 0.025 260);
-  --foreground: oklch(0.23 0.035 260);
-  --foreground-secondary: oklch(0.38 0.035 260);
-  --muted: oklch(0.52 0.025 260);
-  --muted-foreground: oklch(0.48 0.025 260);
-  --disabled-foreground: oklch(0.65 0.018 260);
-  --primary: oklch(0.49 0.19 260);
-  --primary-hover: oklch(0.43 0.19 260);
-  --primary-active: oklch(0.38 0.17 260);
-  --primary-foreground: oklch(0.99 0.003 260);
-  --secondary: oklch(0.93 0.035 260);
-  --secondary-hover: oklch(0.88 0.055 260);
-  --secondary-foreground: oklch(0.32 0.11 260);
-  --accent: oklch(0.91 0.065 260);
-  --accent-foreground: oklch(0.3 0.1 260);
-  --border: oklch(0.89 0.015 260);
+  --surface-hover: oklch(0.945 0.018 190);
+  --surface-active: oklch(0.915 0.026 190);
+  --foreground: oklch(0.24 0.03 195);
+  --foreground-secondary: oklch(0.38 0.03 195);
+  --muted: oklch(0.52 0.022 195);
+  --muted-foreground: oklch(0.48 0.022 195);
+  --disabled-foreground: oklch(0.65 0.016 195);
+  /* Logo teal, darkened just enough for white text and text on light surfaces (4.5:1). */
+  --primary: oklch(0.52 0.09 189);
+  --primary-hover: oklch(0.45 0.075 189);
+  --primary-active: var(--brand-ink);
+  --primary-foreground: oklch(0.99 0.004 190);
+  --secondary: oklch(0.95 0.03 185);
+  --secondary-hover: oklch(0.91 0.045 185);
+  --secondary-foreground: var(--brand-ink);
+  /* Mint wash for highlights, selected items, avatars. */
+  --accent: oklch(0.93 0.06 181);
+  --accent-foreground: var(--brand-ink);
+  --border: oklch(0.9 0.014 190);
   /* Form and button outlines are UI boundaries: 3:1 against every surface (WCAG 1.4.11). */
-  --border-strong: oklch(0.63 0.025 260);
-  --input: oklch(0.63 0.02 260);
-  --input-hover: oklch(0.5 0.04 260);
+  --border-strong: oklch(0.63 0.022 195);
+  --input: oklch(0.63 0.02 195);
+  --input-hover: oklch(0.5 0.04 190);
   --input-focus: var(--primary);
-  --ring: oklch(0.57 0.18 260);
-  --success: oklch(0.43 0.12 155);
-  --success-foreground: oklch(0.31 0.08 155);
-  --success-background: oklch(0.95 0.035 155);
+  --ring: var(--brand-teal);
+  --success: oklch(0.45 0.12 145);
+  --success-foreground: oklch(0.32 0.08 145);
+  --success-background: oklch(0.95 0.035 145);
   --warning: oklch(0.48 0.12 75);
   --warning-foreground: oklch(0.34 0.08 75);
   --warning-background: oklch(0.96 0.045 82);
   --danger: oklch(0.53 0.19 25);
   --danger-foreground: oklch(0.38 0.14 25);
   --danger-background: oklch(0.95 0.035 25);
-  --info: oklch(0.48 0.14 245);
-  --info-foreground: oklch(0.34 0.1 245);
-  --info-background: oklch(0.95 0.035 245);
+  --info: oklch(0.48 0.14 250);
+  --info-foreground: oklch(0.34 0.1 250);
+  --info-background: oklch(0.95 0.035 250);
   --course-progress: var(--primary);
   --lesson-completed: var(--success);
   --lesson-current: var(--primary);
@@ -49,9 +62,9 @@
   --quiz-incorrect: var(--danger);
   --online: var(--success);
   --offline: var(--muted);
-  --shadow-sm: 0 1px 2px oklch(0.25 0.03 260 / 0.08);
-  --shadow-md: 0 8px 24px -12px oklch(0.25 0.03 260 / 0.2);
-  --shadow-lg: 0 20px 48px -22px oklch(0.25 0.03 260 / 0.24);
+  --shadow-sm: 0 1px 2px oklch(0.25 0.03 195 / 0.08);
+  --shadow-md: 0 8px 24px -12px oklch(0.25 0.03 195 / 0.2);
+  --shadow-lg: 0 20px 48px -22px oklch(0.25 0.03 195 / 0.24);
   --duration-fast: 120ms;
   --duration-normal: 180ms;
   --duration-slow: 280ms;
@@ -61,50 +74,54 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.17 0.018 260);
-  --surface: oklch(0.21 0.022 260);
-  --surface-secondary: oklch(0.25 0.026 260);
-  --surface-elevated: oklch(0.28 0.03 260);
-  --surface-hover: oklch(0.31 0.035 260);
-  --surface-active: oklch(0.35 0.04 260);
-  --foreground: oklch(0.94 0.012 260);
-  --foreground-secondary: oklch(0.82 0.02 260);
-  --muted: oklch(0.71 0.022 260);
-  --muted-foreground: oklch(0.75 0.02 260);
-  --disabled-foreground: oklch(0.55 0.02 260);
-  --primary: oklch(0.74 0.12 250);
-  --primary-hover: oklch(0.8 0.1 250);
-  --primary-active: oklch(0.85 0.08 250);
-  --primary-foreground: oklch(0.2 0.05 260);
-  --secondary: oklch(0.3 0.045 260);
-  --secondary-hover: oklch(0.35 0.055 260);
-  --secondary-foreground: oklch(0.88 0.035 255);
-  --accent: oklch(0.34 0.065 260);
-  --accent-foreground: oklch(0.9 0.035 260);
-  --border: oklch(0.36 0.025 260);
-  --border-strong: oklch(0.57 0.03 260);
-  --input: oklch(0.57 0.025 260);
-  --input-hover: oklch(0.68 0.035 260);
+  --background: oklch(0.17 0.016 200);
+  --surface: oklch(0.21 0.02 200);
+  --surface-secondary: oklch(0.25 0.024 200);
+  --surface-elevated: oklch(0.28 0.028 200);
+  --surface-hover: oklch(0.31 0.032 198);
+  --surface-active: oklch(0.35 0.038 196);
+  --foreground: oklch(0.95 0.01 190);
+  --foreground-secondary: oklch(0.83 0.018 190);
+  --muted: oklch(0.72 0.02 195);
+  --muted-foreground: oklch(0.76 0.018 195);
+  --disabled-foreground: oklch(0.55 0.018 195);
+  /* Logo mint carries the brand on dark surfaces; ink text on top. */
+  --primary: var(--brand-mint);
+  --primary-hover: oklch(0.9 0.1 181);
+  --primary-active: oklch(0.93 0.075 181);
+  --primary-foreground: var(--brand-ink);
+  --secondary: oklch(0.3 0.04 192);
+  --secondary-hover: oklch(0.35 0.05 192);
+  --secondary-foreground: oklch(0.9 0.04 185);
+  --accent: oklch(0.33 0.06 189);
+  --accent-foreground: oklch(0.92 0.05 181);
+  --border: oklch(0.36 0.024 198);
+  --border-strong: oklch(0.57 0.028 195);
+  --input: oklch(0.57 0.024 195);
+  --input-hover: oklch(0.68 0.035 190);
   --input-focus: var(--primary);
-  --ring: oklch(0.75 0.12 250);
-  --success: oklch(0.78 0.12 155);
-  --success-foreground: oklch(0.84 0.09 155);
-  --success-background: oklch(0.29 0.045 155);
+  --ring: oklch(0.8 0.115 181);
+  --success: oklch(0.8 0.13 145);
+  --success-foreground: oklch(0.86 0.1 145);
+  --success-background: oklch(0.29 0.045 145);
   --warning: oklch(0.82 0.12 82);
   --warning-foreground: oklch(0.87 0.1 82);
   --warning-background: oklch(0.31 0.05 82);
   --danger: oklch(0.78 0.14 25);
   --danger-foreground: oklch(0.85 0.11 25);
   --danger-background: oklch(0.31 0.055 25);
-  --info: oklch(0.78 0.12 245);
-  --info-foreground: oklch(0.85 0.1 245);
-  --info-background: oklch(0.29 0.05 245);
-  --shadow-sm: 0 1px 2px oklch(0.08 0.02 260 / 0.2);
-  --shadow-md: 0 8px 24px -12px oklch(0.06 0.02 260 / 0.5);
-  --shadow-lg: 0 20px 48px -22px oklch(0.05 0.02 260 / 0.65);
+  --info: oklch(0.78 0.12 250);
+  --info-foreground: oklch(0.85 0.1 250);
+  --info-background: oklch(0.29 0.05 250);
+  --shadow-sm: 0 1px 2px oklch(0.08 0.02 200 / 0.2);
+  --shadow-md: 0 8px 24px -12px oklch(0.06 0.02 200 / 0.5);
+  --shadow-lg: 0 20px 48px -22px oklch(0.05 0.02 200 / 0.65);
 }
 
 @theme inline {
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-mint: var(--brand-mint);
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-secondary: var(--surface-secondary);
