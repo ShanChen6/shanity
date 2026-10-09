@@ -31,7 +31,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   return (
     <Link
       href={`/courses/${encodeURIComponent(course.slug)}`}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition duration-normal hover:-translate-y-0.5 hover:border-emerald-700/40 hover:shadow-md focus-visible:outline-offset-4"
+      className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition duration-normal hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-offset-4"
       aria-label={`Xem khóa học ${course.title}`}
     >
       <CatalogThumbnail source={course.thumbnail} title={course.title} />
@@ -50,7 +50,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
               instructor?.avatar ? avatarSource(instructor.avatar) : undefined
             }
             unoptimized
-            className="size-9 bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+            className="size-9 bg-accent text-accent-foreground"
           >
             {instructor?.avatar && (
               <AvatarImage src={avatarSource(instructor.avatar)} />
@@ -185,9 +185,9 @@ export function CourseCatalog({
     <SiteShell>
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border bg-surface-secondary">
-          <div className="absolute inset-y-0 right-0 hidden w-1/3 border-l border-emerald-900/10 bg-[repeating-linear-gradient(135deg,transparent_0_20px,color-mix(in_oklab,var(--success)_8%,transparent)_20px_21px,transparent_21px_42px)] lg:block" />
+          <div className="absolute inset-y-0 right-0 hidden w-1/3 border-l border-border bg-[repeating-linear-gradient(135deg,transparent_0_20px,color-mix(in_oklab,var(--brand-teal)_10%,transparent)_20px_21px,transparent_21px_42px)] lg:block" />
           <div className="container relative py-9 sm:py-12">
-            <p className="text-caption font-bold uppercase text-emerald-800 dark:text-emerald-300">
+            <p className="text-caption font-bold uppercase text-primary">
               Shanity · Thư viện học tập
             </p>
             <div className="mt-3 flex flex-col gap-3 lg:max-w-3xl">

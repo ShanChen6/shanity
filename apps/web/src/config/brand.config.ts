@@ -34,7 +34,7 @@ export const BRAND = {
   },
   // Browser UI colours. Kept in step with --background in styles/theme.css;
   // brand.config.test.ts fails if they drift.
-  themeColor: { light: "#f8fafd", dark: "#0b1017" },
+  themeColor: { light: "#f7fbfb", dark: "#071212" },
 } as const;
 
 export type BrandVariant = "full" | "icon" | "monochrome";

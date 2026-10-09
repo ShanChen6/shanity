@@ -7,10 +7,12 @@ import { API_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const covers = [
-  "from-emerald-700 via-teal-700 to-slate-900",
-  "from-amber-500 via-orange-600 to-rose-800",
-  "from-cyan-600 via-sky-700 to-indigo-900",
-  "from-lime-600 via-green-700 to-teal-950",
+  // Placeholder covers use the fixed logo colours (same in light and dark),
+  // varied by direction so neighbouring cards still look different.
+  "from-brand-teal to-brand-ink",
+  "from-brand-ink to-brand-teal",
+  "from-brand-teal via-brand-ink to-brand-ink",
+  "from-brand-ink via-brand-ink to-brand-teal",
 ];
 
 function resolveImageSource(source: string) {
