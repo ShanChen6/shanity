@@ -55,6 +55,9 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   route(GET, '/public/courses'),
   route(GET, '/public/courses/:slug'),
   route(GET, '/public/courses/:slug/syllabus'),
+  route(GET, '/public/blog/posts'),
+  route(GET, '/public/blog/posts/:slug'),
+  route(GET, '/public/blog/sitemap'),
 
   // ── student ───────────────────────────────────────────────────────────
   route(GET, '/student/courses', '/courses'),
@@ -333,6 +336,9 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   route(POST, '/instructor/import/quiz', '/admin/import/quiz'),
 
   // ── admin: user management (legacy home: /users) ──────────────────────
+  route(GET, '/admin/comments'),
+  route(PATCH, '/admin/comments/:id/approve'),
+  route(PATCH, '/admin/comments/:id/reject'),
   route(GET, '/admin/users', '/users'),
   route(POST, '/admin/users', '/users'),
   route(GET, '/admin/users/stats', '/users/stats'),

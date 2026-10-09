@@ -58,7 +58,13 @@ describe("order console access", () => {
     ).toEqual(["/admin/orders"]);
     expect(
       navigationFor(adminNav, ["admin"]).map((item) => item.href),
-    ).toEqual(["/admin", "/admin/users", "/admin/orders", "/admin/settings"]);
+    ).toEqual([
+      "/admin",
+      "/admin/users",
+      "/admin/orders",
+      "/admin/comments",
+      "/admin/settings",
+    ]);
     expect(navigationFor(adminNav, ["student"])).toEqual([]);
   });
 });

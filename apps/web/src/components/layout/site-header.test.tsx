@@ -60,7 +60,7 @@ describe("SiteHeader for a visitor", () => {
       within(desktop())
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Khóa học"]);
+    ).toEqual(["Khóa học", "Blog"]);
     expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute(
       "href",
       "/login",

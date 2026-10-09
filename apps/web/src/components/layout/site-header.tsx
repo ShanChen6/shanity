@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 const PUBLIC_NAV: readonly NavItem[] = [
   { href: "/courses", label: "Khóa học", icon: "search" },
+  { href: "/blog", label: "Blog", icon: "book" },
 ];
 
 const linkClass = (active: boolean) =>

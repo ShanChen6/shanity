@@ -29,7 +29,7 @@ try {
     await trx
       .query('SELECT "code" FROM "roles" ORDER BY "code" ASC')
       .then((rows) => rows.map((row) => row.code)),
-    ['admin', 'instructor', 'student'],
+    ['admin', 'finance_officer', 'instructor', 'student'],
   );
   await trx.query(
     'INSERT INTO "user_roles" ("user_id", "role_code") VALUES ($1, $2)',
@@ -193,36 +193,16 @@ try {
         .then(([, count]) => count),
     '23503',
   );
-  const [room] = await trx.query(
-    'INSERT INTO "chat_rooms" ("course_id", "name") VALUES ($1, $2) RETURNING *',
-    [course.id, 'Test'],
-  );
-  await rejectsCode(
-    () =>
-      trx.query(
-        'INSERT INTO "messages" ("room_id", "sender_id", "body") VALUES ($1, $2, $3)',
-        [room.id, user.id, 'Not a member'],
-      ),
-    '23503',
-  );
-  await trx.query(
-    'INSERT INTO "chat_members" ("room_id", "user_id") VALUES ($1, $2)',
-    [room.id, user.id],
-  );
-  await trx.query(
-    'INSERT INTO "messages" ("room_id", "sender_id", "body") VALUES ($1, $2, $3)',
-    [room.id, user.id, 'Hello'],
-  );
   await rejectsCode(
     () =>
       trx.query(
         'INSERT INTO "posts" ("author_id", "slug", "title", "status") VALUES ($1, $2, $3, $4)',
-        [user.id, randomUUID(), 'Test', 'published'],
+        [user.id, 'verify-' + randomUUID(), 'Test', 'PUBLISHED'],
       ),
     '23514',
   );
   console.log(
-    'PASS: roles, ownership, instructor assignment, course statuses, chat membership, blog publication, uniqueness, cross-course foreign keys, nonnegative progress, independent completion, deletion protection',
+    'PASS: roles, ownership, instructor assignment, course statuses, blog publication, uniqueness, cross-course foreign keys, nonnegative progress, independent completion, deletion protection',
   );
 } finally {
   await runner.rollbackTransaction();

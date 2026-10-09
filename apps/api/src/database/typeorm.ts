@@ -23,6 +23,11 @@ import { ChatMessage } from '../modules/chat/entities/chat-message.entity.js';
 import { ChatReport } from '../modules/chat/entities/chat-report.entity.js';
 import { ChatMute } from '../modules/chat/entities/chat-mute.entity.js';
 import { ChatModerationLog } from '../modules/chat/entities/chat-moderation-log.entity.js';
+import { BlogCategory } from '../modules/blog/entities/blog-category.entity.js';
+import { BlogPost } from '../modules/blog/entities/blog-post.entity.js';
+import { PostReviewLog } from '../modules/blog/entities/post-review-log.entity.js';
+import { PostComment } from '../modules/blog/entities/post-comment.entity.js';
+import { PostCommentReviewLog } from '../modules/blog/entities/post-comment-review-log.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -65,6 +70,11 @@ export function createAppDataSource(): DataSource {
       ChatReport,
       ChatMute,
       ChatModerationLog,
+      BlogCategory,
+      BlogPost,
+      PostReviewLog,
+      PostComment,
+      PostCommentReviewLog,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

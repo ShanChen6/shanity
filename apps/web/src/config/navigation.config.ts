@@ -137,6 +137,13 @@ export const adminNav: readonly NavItem[] = [
     keywords: ["thanh toán", "đối soát", "hoàn tiền"],
   },
   {
+    href: "/admin/comments",
+    label: "Bình luận blog",
+    icon: "bell",
+    roles: ADMIN_ROLES,
+    keywords: ["kiểm duyệt", "spam", "bình luận"],
+  },
+  {
     href: "/admin/settings",
     label: "Cài đặt hệ thống",
     icon: "settings",
@@ -222,6 +229,7 @@ export const footerNav: readonly FooterGroup[] = [
     title: "Khám phá",
     links: [
       { href: "/courses", label: "Khóa học" },
+      { href: "/blog", label: "Blog" },
       { href: "/quizzes", label: "Bài kiểm tra" },
     ],
   },
