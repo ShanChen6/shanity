@@ -65,19 +65,31 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
     '/student/courses/:courseId/enrollment-status',
     '/courses/:courseId/enrollment-status',
   ),
-  route(GET, '/student/courses/:courseId/progress', '/courses/:courseId/progress'),
+  route(
+    GET,
+    '/student/courses/:courseId/progress',
+    '/courses/:courseId/progress',
+  ),
   route(
     GET,
     '/student/courses/:courseId/resume-lesson',
     '/courses/:courseId/resume-lesson',
   ),
-  route(GET, '/student/courses/:courseId/quizzes', '/courses/:courseId/quizzes'),
+  route(
+    GET,
+    '/student/courses/:courseId/quizzes',
+    '/courses/:courseId/quizzes',
+  ),
   route(POST, '/student/enrollments/free', '/enrollments/free'),
   route(GET, '/student/enrolled-courses'),
   route(GET, '/student/resume-course'),
   route(GET, '/student/payments/methods', '/payments/methods'),
   route(GET, '/student/lessons/:id', '/lessons/:id'),
-  route(GET, '/student/lessons/:id/document-view', '/lessons/:id/document-view'),
+  route(
+    GET,
+    '/student/lessons/:id/document-view',
+    '/lessons/:id/document-view',
+  ),
   route(
     GET,
     '/student/lessons/:id/document-download',
@@ -108,7 +120,11 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   route(GET, '/student/quizzes/standalone/:slug', '/quizzes/standalone/:slug'),
   route(GET, '/student/quizzes/:id/take', '/quizzes/:id/take'),
   route(POST, '/student/quizzes/:id/attempts', '/quizzes/:id/attempts'),
-  route(GET, '/student/quizzes/:id/active-attempt', '/quizzes/:id/active-attempt'),
+  route(
+    GET,
+    '/student/quizzes/:id/active-attempt',
+    '/quizzes/:id/active-attempt',
+  ),
   route(GET, '/student/quiz-attempts', '/my-quiz-attempts'),
   route(GET, '/student/quiz-attempts/:attemptId', '/quiz-attempts/:attemptId'),
   route(
@@ -168,8 +184,16 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
     '/instructor/courses/:courseId/thumbnail',
     '/courses/:courseId/thumbnail',
   ),
-  route(GET, '/instructor/courses/:courseId/chapters', '/courses/:courseId/chapters'),
-  route(POST, '/instructor/courses/:courseId/chapters', '/courses/:courseId/chapters'),
+  route(
+    GET,
+    '/instructor/courses/:courseId/chapters',
+    '/courses/:courseId/chapters',
+  ),
+  route(
+    POST,
+    '/instructor/courses/:courseId/chapters',
+    '/courses/:courseId/chapters',
+  ),
   route(
     PATCH,
     '/instructor/courses/:courseId/chapters/reorder',
@@ -177,7 +201,11 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   ),
   route(PATCH, '/instructor/chapters/:id', '/chapters/:id'),
   route(DELETE, '/instructor/chapters/:id', '/chapters/:id'),
-  route(GET, '/instructor/courses/:courseId/lessons', '/courses/:courseId/lessons'),
+  route(
+    GET,
+    '/instructor/courses/:courseId/lessons',
+    '/courses/:courseId/lessons',
+  ),
   route(
     POST,
     '/instructor/courses/:courseId/chapters/:chapterId/lessons',
@@ -225,7 +253,11 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   ),
   route(PATCH, '/instructor/lessons/:id', '/lessons/:id'),
   route(DELETE, '/instructor/lessons/:id', '/lessons/:id'),
-  route(POST, '/instructor/lessons/:id/video-upload', '/lessons/:id/video-upload'),
+  route(
+    POST,
+    '/instructor/lessons/:id/video-upload',
+    '/lessons/:id/video-upload',
+  ),
   route(
     POST,
     '/instructor/lessons/:id/document-upload',
@@ -255,8 +287,16 @@ export const API_V1_ROUTES: readonly ApiV1Route[] = [
   route(PUT, '/instructor/quizzes/:id', '/admin/quizzes/:id'),
   route(DELETE, '/instructor/quizzes/:id', '/admin/quizzes/:id'),
   route(POST, '/instructor/quizzes/:id/publish', '/admin/quizzes/:id/publish'),
-  route(POST, '/instructor/quizzes/:id/versions', '/admin/quizzes/:id/versions'),
-  route(GET, '/instructor/quizzes/:id/questions', '/admin/quizzes/:id/questions'),
+  route(
+    POST,
+    '/instructor/quizzes/:id/versions',
+    '/admin/quizzes/:id/versions',
+  ),
+  route(
+    GET,
+    '/instructor/quizzes/:id/questions',
+    '/admin/quizzes/:id/questions',
+  ),
   route(
     POST,
     '/instructor/quizzes/:quizId/questions',
@@ -344,7 +384,11 @@ export function resolveApiV1(
   method: string,
   pathname: string,
 ): ResolvedApiV1 | undefined {
-  if (NATIVE_V1_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)))
+  if (
+    NATIVE_V1_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
+  )
     return undefined;
   const domainMatch = DOMAIN_PATH.exec(pathname);
   if (!domainMatch) return undefined;
@@ -355,7 +399,9 @@ export function resolveApiV1(
   let best: (typeof COMPILED)[number] | undefined;
   let bestParams: Record<string, string> = {};
   for (const candidate of COMPILED) {
-    if (!(candidate.entry.methods as readonly string[]).includes(effectiveMethod))
+    if (
+      !(candidate.entry.methods as readonly string[]).includes(effectiveMethod)
+    )
       continue;
     if (candidate.v1.length !== requested.length) continue;
     const params: Record<string, string> = {};
@@ -380,4 +426,65 @@ export function resolveApiV1(
     )
     .join('/')}`;
   return { domain, legacyPath };
+}
+
+export interface LegacyMatch {
+  /** The legacy route pattern, e.g. `/courses/:id`. */
+  pattern: string;
+  /** Every `/api/v1` path that serves the same handler, params filled in. */
+  successors: string[];
+}
+
+/** Legacy side of the table, parsed once. */
+const COMPILED_LEGACY = API_V1_ROUTES.map((entry) => ({
+  entry,
+  legacy: segmentsOf(entry.legacy),
+  v1: segmentsOf(entry.v1),
+  literals: segmentsOf(entry.legacy).filter((s) => !isParam(s)).length,
+}));
+
+/**
+ * The reverse of `resolveApiV1`: for a request to an unprefixed route that has
+ * `/api/v1` aliases, names them, so the old URL can say where to go. Returns
+ * `undefined` for routes that never move (`/auth/*`, `/health/*`, media).
+ */
+export function findApiV1Successors(
+  method: string,
+  pathname: string,
+): LegacyMatch | undefined {
+  if (pathname.startsWith(`${API_V1_PREFIX}/`)) return undefined;
+  const effectiveMethod = method === 'HEAD' ? 'GET' : method;
+  const requested = segmentsOf(pathname);
+  let best: (typeof COMPILED_LEGACY)[number] | undefined;
+  for (const candidate of COMPILED_LEGACY) {
+    if (
+      !(candidate.entry.methods as readonly string[]).includes(effectiveMethod)
+    )
+      continue;
+    if (candidate.legacy.length !== requested.length) continue;
+    const matches = candidate.legacy.every(
+      (segment, index) => isParam(segment) || segment === requested[index],
+    );
+    if (matches && (!best || candidate.literals > best.literals))
+      best = candidate;
+  }
+  if (!best) return undefined;
+  const pattern = best.entry.legacy;
+  const successors = COMPILED_LEGACY.filter(
+    (candidate) =>
+      candidate.entry.legacy === pattern &&
+      (candidate.entry.methods as readonly string[]).includes(effectiveMethod),
+  ).map((candidate) => {
+    // Params share names between the two sides, so they can be carried across.
+    const values: Record<string, string> = {};
+    best.legacy.forEach((segment, index) => {
+      if (isParam(segment)) values[segment.slice(1)] = requested[index] ?? '';
+    });
+    return `${API_V1_PREFIX}/${candidate.v1
+      .map((segment) =>
+        isParam(segment) ? (values[segment.slice(1)] ?? segment) : segment,
+      )
+      .join('/')}`;
+  });
+  return { pattern, successors };
 }
