@@ -11,9 +11,14 @@ import { PaymentProviderFactory } from './payment-provider.factory.js';
 import { PaymentSettlementService } from './payment-settlement.service.js';
 
 const CHECKOUT_BATCH = 50;
+/** Gateway look-ups per run at most, however many checkouts are open. */
+export const CHECKOUT_MAX_PER_RUN = 500;
 const FULFILMENT_BATCH = 100;
 
 interface StaleCheckoutRow {
+  id: string;
+  /** created_at as PostgreSQL text: full precision for the keyset. */
+  created_at: string;
   code: string;
   provider: PaymentProviderEnum;
   provider_transaction_id: string | null;
@@ -43,50 +48,72 @@ export class PaymentReconciliationService {
     private readonly events: PaymentEventBus,
   ) {}
 
-  /** Asks gateways about checkouts that stayed INITIATED. Returns settled count. */
+  /**
+   * Asks gateways about checkouts that stayed INITIATED. Returns settled count.
+   *
+   * Walks every stale checkout page by page (keyset on created_at, id), not
+   * only the oldest page: sessions that are simply still open stay INITIATED
+   * for up to a day, and would otherwise fill the first page on every run
+   * and starve a newer paid session whose webhook was lost.
+   */
   async reconcilePendingCheckouts(minAgeSeconds = 120): Promise<number> {
-    const rows = await this.database.dataSource.query<StaleCheckoutRow[]>(
-      `SELECT o.code, t.provider, t.provider_transaction_id
-         FROM payment_transactions t JOIN orders o ON o.id = t.order_id
-        WHERE t.status = 'INITIATED' AND o.status = 'PENDING'
-          AND t.created_at <= now() - make_interval(secs => $2)
-          AND t.created_at > now() - interval '24 hours'
-        ORDER BY t.created_at LIMIT $1`,
-      [CHECKOUT_BATCH, minAgeSeconds],
-    );
     let settled = 0;
-    for (const row of rows) {
-      if (!this.factory.has(row.provider)) continue;
-      const provider = this.factory.getProvider(row.provider);
-      try {
-        const result = await provider.queryPayment(
-          row.code,
-          row.provider_transaction_id ?? undefined,
-        );
-        if (result.status === PaymentStatusEnum.PENDING) continue;
-        await this.settlement.settle(provider.providerName, {
-          orderCode: row.code,
-          providerTransactionId: result.providerTransactionId,
-          amount:
-            result.status === PaymentStatusEnum.SUCCESS
-              ? result.amountPaid
-              : toMinorUnits(1),
-          currency: result.currency,
-          status: result.status,
-          paidAt: result.paidAt,
-          rawPayload: {
-            source: 'reconciliation',
-            result: serialisable(result),
-          },
-        });
-        settled++;
-      } catch (error) {
-        this.logger.warn(
-          `Reconciling ${row.provider} order ${row.code} failed: ${String(error)}`,
-        );
-      }
+    let seen = 0;
+    let after: StaleCheckoutRow | null = null;
+    while (seen < CHECKOUT_MAX_PER_RUN) {
+      const limit = Math.min(CHECKOUT_BATCH, CHECKOUT_MAX_PER_RUN - seen);
+      const rows: StaleCheckoutRow[] = await this.database.dataSource.query(
+        `SELECT t.id, t.created_at::text AS created_at,
+                o.code, t.provider, t.provider_transaction_id
+           FROM payment_transactions t JOIN orders o ON o.id = t.order_id
+          WHERE t.status = 'INITIATED' AND o.status = 'PENDING'
+            AND t.created_at <= now() - make_interval(secs => $2)
+            AND t.created_at > now() - interval '24 hours'
+            AND ($3::timestamptz IS NULL
+              OR (t.created_at, t.id) > ($3::timestamptz, $4::uuid))
+          ORDER BY t.created_at, t.id LIMIT $1`,
+        [limit, minAgeSeconds, after?.created_at ?? null, after?.id ?? null],
+      );
+      for (const row of rows) if (await this.reconcileCheckout(row)) settled++;
+      seen += rows.length;
+      if (rows.length < limit) break;
+      after = rows[rows.length - 1]!;
     }
     return settled;
+  }
+
+  /** One stale checkout: true when the gateway's verdict settled it. */
+  private async reconcileCheckout(row: StaleCheckoutRow): Promise<boolean> {
+    if (!this.factory.has(row.provider)) return false;
+    const provider = this.factory.getProvider(row.provider);
+    try {
+      const result = await provider.queryPayment(
+        row.code,
+        row.provider_transaction_id ?? undefined,
+      );
+      if (result.status === PaymentStatusEnum.PENDING) return false;
+      await this.settlement.settle(provider.providerName, {
+        orderCode: row.code,
+        providerTransactionId: result.providerTransactionId,
+        amount:
+          result.status === PaymentStatusEnum.SUCCESS
+            ? result.amountPaid
+            : toMinorUnits(1),
+        currency: result.currency,
+        status: result.status,
+        paidAt: result.paidAt,
+        rawPayload: {
+          source: 'reconciliation',
+          result: serialisable(result),
+        },
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Reconciling ${row.provider} order ${row.code} failed: ${String(error)}`,
+      );
+      return false;
+    }
   }
 
   /** Re-publishes OrderCompletedEvent for paid orders missing an enrolment. */

@@ -19,6 +19,10 @@ import { OrderItem } from '../modules/payment/entities/order-item.entity.js';
 import { OrderAuditLog } from '../modules/payment/entities/order-audit-log.entity.js';
 import { Order } from '../modules/payment/entities/order.entity.js';
 import { PaymentTransaction } from '../modules/payment/entities/payment-transaction.entity.js';
+import { ChatMessage } from '../modules/chat/entities/chat-message.entity.js';
+import { ChatReport } from '../modules/chat/entities/chat-report.entity.js';
+import { ChatMute } from '../modules/chat/entities/chat-mute.entity.js';
+import { ChatModerationLog } from '../modules/chat/entities/chat-moderation-log.entity.js';
 import { migrations } from './migrations/index.js';
 import {
   Role,
@@ -57,6 +61,10 @@ export function createAppDataSource(): DataSource {
       CoursePriceLog,
       WebhookLog,
       PaymentTransaction,
+      ChatMessage,
+      ChatReport,
+      ChatMute,
+      ChatModerationLog,
     ],
     migrations,
     migrationsTableName: 'typeorm_migrations',

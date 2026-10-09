@@ -104,8 +104,8 @@ describe('Auth + User with PostgreSQL', () => {
       .then((rows) => rows[0]);
     expect(after.password_hash).not.toBe(before.password_hash);
     expect(after.password_hash).not.toBe(newPassword);
-    const { password_hash: _old, update_at: _oldTime, ...oldFields } = before;
-    const { password_hash: _new, update_at: _newTime, ...newFields } = after;
+    const { password_hash: _old, updated_at: _oldTime, ...oldFields } = before;
+    const { password_hash: _new, updated_at: _newTime, ...newFields } = after;
     expect(newFields).toEqual(oldFields);
     await request(app.getHttpServer())
       .get('/users/me')
@@ -623,7 +623,7 @@ describe('Auth + User with PostgreSQL', () => {
       updatedAt: expect.any(String),
     });
     expect(new Date(disabled.body.updatedAt).getTime()).toBeGreaterThan(
-      target.update_at.getTime(),
+      target.updated_at.getTime(),
     );
     expect(
       (
@@ -761,7 +761,7 @@ describe('Auth + User with PostgreSQL', () => {
       updatedAt: expect.any(String),
     });
     expect(new Date(instructor.body.updatedAt).getTime()).toBeGreaterThan(
-      target.update_at.getTime(),
+      target.updated_at.getTime(),
     );
     await patch(peer.id, targetSession).send({ role: 'ADMIN' }).expect(403);
     const repeated = await patch(target.id, adminSession)
@@ -780,7 +780,7 @@ describe('Auth + User with PostgreSQL', () => {
       .expect(403);
     // Profile writes also advance the database-managed timestamp.
     const before = await db
-      .query('SELECT "update_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
+      .query('SELECT "updated_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
         target.id,
       ])
       .then((rows) => rows[0]);
@@ -791,12 +791,12 @@ describe('Auth + User with PostgreSQL', () => {
       .send({ displayName: 'Updated profile' })
       .expect(200);
     const after = await db
-      .query('SELECT "update_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
+      .query('SELECT "updated_at" FROM "users" WHERE "id" = $1 LIMIT 1', [
         target.id,
       ])
       .then((rows) => rows[0]);
-    expect(after.update_at.getTime()).toBeGreaterThan(
-      before.update_at.getTime(),
+    expect(after.updated_at.getTime()).toBeGreaterThan(
+      before.updated_at.getTime(),
     );
     await patch(peer.id, adminSession).send({ role: 'ADMIN' }).expect(200);
     const results = await Promise.all([
@@ -848,7 +848,7 @@ describe('Auth + User with PostgreSQL', () => {
       status: 'active',
       roles: ['instructor', 'student'],
       createdAt: target.created_at.toISOString(),
-      updatedAt: target.update_at.toISOString(),
+      updatedAt: target.updated_at.toISOString(),
     });
     await db
       .query('UPDATE "users" SET "status" = $2 WHERE "id" = $1', [

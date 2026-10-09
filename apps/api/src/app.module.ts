@@ -14,6 +14,7 @@ import { ContentImportModule } from './modules/import/import.module.js';
 import { PaymentModule } from './modules/payment/payment.module.js';
 import { CommonModule } from './common/common.module.js';
 import { CacheModule } from './cache/cache.module.js';
+import { ChatModule } from './modules/chat/chat.module.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { CacheModule } from './cache/cache.module.js';
     QuizModule,
     ContentImportModule,
     PaymentModule,
+    ChatModule,
     CommonModule,
   ],
   controllers: [AppController],
