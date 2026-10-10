@@ -1,34 +1,66 @@
-# Ma trận quyền Shanity
+# Vai trò và phân quyền
 
-Ma trận được chủ dự án xác nhận. Đây là hợp đồng cho các API nghiệp vụ sắp triển khai; migration chỉ cung cấp quan hệ dữ liệu, chưa thực thi authorization.
+Quyền được kiểm tra ở API theo **vai trò hiện hành trong database** kết hợp với **quan hệ trên tài nguyên**. Mặc định từ chối hành động chưa được cấp. Web chỉ dùng thông tin này để ẩn/hiện giao diện.
+
+## Vai trò
+
+| Vai trò | Mã | Cấp bằng cách nào |
+| --- | --- | --- |
+| Học sinh | `student` | Tự đăng ký (email hoặc Google) — server luôn cấp, client không chọn được |
+| Giảng viên | `instructor` | Admin gán |
+| Quản trị viên | `admin` | Admin gán, hoặc `SUPER_ADMIN_*` khi seed lần đầu |
+| Nhân viên tài chính | `finance_officer` | Admin gán. Chỉ dùng bảng điều khiển đơn hàng `/admin/orders` (xem, đối soát thủ công, hoàn tiền); không quản lý người dùng hay nội dung |
+
+Một tài khoản có thể có nhiều vai trò (`user_roles`). Phụ huynh **chưa thuộc phạm vi**; chưa quyết định.
+
+## Ma trận chức năng
 
 | Chức năng | Học sinh | Giảng viên | Quản trị viên |
 | --- | --- | --- | --- |
-| Hồ sơ cá nhân | Xem, sửa của mình | Xem, sửa của mình | Xem và quản lý tài khoản |
-| Khóa học | Xem khóa đã xuất bản; đăng ký/mua | Tạo, sửa khóa do mình sở hữu; gửi duyệt | Duyệt, xuất bản, ẩn và quản lý mọi khóa |
-| Bài học, tài liệu | Xem khi có quyền truy cập khóa | Tạo, sửa trong khóa mình sở hữu | Quản lý mọi khóa |
-| Tiến độ học | Xem, cập nhật của mình | Xem tiến độ học viên trong khóa mình dạy | Xem phục vụ quản trị, hỗ trợ |
-| Quiz | Làm bài, xem kết quả của mình | Tạo đề, chấm tự luận trong khóa mình dạy | Quản lý và xử lý khiếu nại |
-| Thanh toán | Tạo đơn, xem giao dịch của mình | Xem báo cáo doanh thu của khóa mình dạy, nếu có | Xem giao dịch; xử lý hoàn tiền theo quy trình |
-| Blog | Đọc, bình luận | Đọc, viết bài và gửi duyệt | Duyệt, xuất bản, ẩn bài; kiểm duyệt bình luận |
-| Chat | Nhắn tin trong khóa mình tham gia | Nhắn tin trong khóa mình dạy | Xử lý báo cáo, kiểm duyệt khi cần |
+| Hồ sơ cá nhân | Xem, sửa của mình | Xem, sửa của mình | Xem, sửa của mình; quản lý mọi tài khoản |
+| Khóa học | Xem khóa đã xuất bản; ghi danh/mua | Tạo, sửa, xuất bản khóa mình sở hữu hoặc được phân công | Quản lý mọi khóa |
+| Bài học, tài liệu | Xem khi có quyền truy cập khóa (hoặc bài xem trước) | Tạo, sửa, sắp xếp trong khóa của mình | Quản lý mọi khóa |
+| Tiến độ | Xem, cập nhật của mình | Xem tiến độ học viên của khóa mình dạy | Xem phục vụ hỗ trợ |
+| Quiz | Làm bài, xem kết quả của mình | Soạn đề, chấm tự luận, công bố kết quả trong khóa mình dạy | Quản lý mọi quiz |
+| Thanh toán | Tạo đơn, xem đơn của mình | — | Xem mọi đơn, đối soát, hoàn tiền (cùng `finance_officer`) |
+| Blog | Đọc, bình luận | Viết bài, gửi duyệt | Duyệt, xuất bản, ẩn bài; kiểm duyệt bình luận |
+| Chat khóa học | Nhắn tin trong khóa đã ghi danh | Nhắn tin, kiểm duyệt trong khóa mình dạy | Xử lý báo cáo/kiểm duyệt (không mặc nhiên là thành viên phòng) |
+| Lớp trực tiếp | Xem lịch, tham gia buổi của khóa đã ghi danh | Tạo, hủy hoặc kết thúc sớm buổi học và xem báo cáo điểm danh của khóa mình dạy | Như giảng viên cho mọi khóa |
 
-## Ánh xạ dữ liệu
+## Cưỡng chế ở API
 
-- `roles`: student, instructor, admin; migration tạo danh mục, không cấp quyền cho tài khoản nào. PAY17 thêm `finance_officer` (nhân viên tài chính): chỉ dùng được bảng điều khiển đơn hàng `/admin/orders` (xem, đối soát thủ công, hoàn tiền), không quản lý người dùng hay nội dung. Admin cũng dùng được bảng này. Mọi thao tác đều ghi vào `order_audit_logs` (xem `docs/architecture/payment-admin-reconciliation.md`).
-- `user_roles`: quan hệ nhiều–nhiều, không ép mỗi tài khoản chỉ có một vai trò. API đăng ký sau này cấp student ở server; client không được tự chọn instructor/admin.
-- `courses.owner_id`: một chủ sở hữu hiện tại. `NULL` giữ tương thích khóa cũ/demo chưa có người phụ trách; không cho giảng viên sửa khóa chưa có owner. Gán chủ sở hữu có kiểm soát trước khi đưa khóa này vào luồng quản lý của giảng viên.
-- `course_instructors`: giảng viên được phân công dạy, unique(course_id,user_id). Phân công dạy không tự cho phép sửa khóa/bài học. Owner và phân công là hai quan hệ riêng; đề xuất khi tạo khóa thì thêm owner vào danh sách dạy trong cùng transaction. Chi tiết đồng giảng dạy/chuyển chủ vẫn cần chốt.
-- Khóa và bài blog hỗ trợ `review` và `hidden` bên cạnh draft/published/archived. Migration giữ nguyên mọi giá trị trạng thái hiện hữu; không tự ẩn hoặc đổi chủ khóa cũ. Ai được chuyển trạng thái phải được kiểm tra tại service; CHECK chỉ giới hạn tập giá trị.
+Ba lớp, từ ngoài vào trong:
 
-## Quy tắc thực thi ở giai đoạn API
+1. **Miền route** — `DomainAccessGuard` kiểm tra vai trò theo miền của `/api/v1/<miền>/*` (xem [architecture](architecture.md#bề-mặt-api)). Chỉ thu hẹp quyền.
+2. **Vai trò của handler** — `SessionGuard` xác thực phiên và áp `@Roles(...)`; vai trò đọc từ database ở mỗi request, nên thu hồi quyền có hiệu lực ngay.
+3. **Quan hệ trên tài nguyên** — các guard/service riêng:
 
-Kết hợp vai trò hiện hành với quan hệ tài nguyên; không chỉ kiểm tra role trong JWT. Mặc định từ chối hành động chưa được ma trận cấp. Hồ sơ của mình không bao gồm quyền tự đổi role. Giảng viên sửa khóa/bài cần owner_id trùng user hiện tại; xem tiến độ, quiz và chat cần phân công dạy. Học sinh xem nội dung cần enrollment còn hiệu lực và các điều kiện xuất bản sẽ chốt trong luồng học. Lọc theo tài khoản ở server đối với tiến độ, bài làm và giao dịch.
+| Quy tắc | Thực thi bởi |
+| --- | --- |
+| Giảng viên chỉ sửa khóa/chương/bài của khóa mình sở hữu hoặc dạy; admin vượt qua | `CourseOwnershipGuard`, `CourseOwnerGuard`, `LessonOwnershipGuard` |
+| Học viên chỉ xem bài khi có ghi danh còn hiệu lực (`revoked_at IS NULL`) hoặc bài là xem trước | `CourseAccessService`, `LessonAccessGuard`, `CourseEnrollmentGuard` |
+| Quiz: chỉ người quản lý khóa đích (hoặc chủ quiz độc lập, admin) sửa/chấm | `QuizAuthorizationGuard`, `QuizAuthoringService` |
+| Bài làm, tiến độ, đơn hàng luôn lọc theo tài khoản gọi | service lọc theo `principal.id` |
+| Phòng chat: giảng viên của khóa, hoặc học viên có ghi danh còn hiệu lực trong khóa **đã xuất bản**; luôn đọc từ database, không cache | `ChatAccessService` |
+| Hành động quản trị người dùng không thể tự hạ quyền/tự khóa, và luôn còn ít nhất một admin hoạt động | `UsersController` / service (advisory lock) |
 
-Chat kiểm tra quyền khóa và membership còn hiệu lực ở cả thao tác vào phòng, đọc lịch sử và gửi tin. Quyền quản trị kiểm duyệt không mặc nhiên là quyền tham gia trò chuyện như học viên. Doanh thu giảng viên là báo cáo theo khóa, không mở quyền xem mọi chi tiết giao dịch/người mua. Ghi audit cho cấp/thu hồi role, đổi owner, duyệt/ẩn nội dung, chấm lại và hoàn tiền khi triển khai các workflow này.
+Quan hệ dữ liệu: `courses.owner_id` là chủ sở hữu hiện tại (`NULL` ở khóa cũ chưa gán — giảng viên không sửa được khóa chưa có chủ); `course_instructors` là phân công dạy, tách khỏi quyền sở hữu (`unique(course_id, user_id)`). "Quản lý khóa" (`managesCourseSql`) gồm chủ sở hữu và giảng viên được phân công.
 
-DB chưa có RLS, trigger kiểm tra role hay NestJS guard. FK chỉ đảm bảo user tồn tại, không bảo đảm user đang có role instructor. Các đường ghi nghiệp vụ phải kiểm tra cả role và quan hệ trong transaction; khi thu hồi quyền không được tiếp tục tin claim JWT cũ.
+Nguyên tắc chung:
 
-## Phần còn mở
+- Không suy ra quyền tài nguyên chỉ từ role trong token (token không chứa role).
+- Bằng chứng thanh toán chỉ đến từ webhook đã xác minh hoặc quy trình đối soát có kiểm toán — không từ trang chuyển hướng của trình duyệt.
+- Quyền quản trị kiểm duyệt không phải quyền tham gia trò chuyện như học viên.
+- Cơ sở dữ liệu **không** có RLS; FK chỉ bảo đảm người dùng tồn tại, không bảo đảm họ đang có vai trò giảng viên. Mọi đường ghi nghiệp vụ phải kiểm tra cả vai trò lẫn quan hệ trong transaction.
 
-Quy tắc quiz và hoàn tiền vẫn chưa được xác định bởi ma trận quyền. Chưa tạo bảng quiz, thanh toán, bình luận, báo cáo hoặc audit. Cần chốt bình luận phẳng/phân cấp, sửa/xóa, báo cáo và thời hạn lưu; quy trình duyệt và lịch sử thay đổi; phân công/chuyển chủ khóa; cách hợp nhất quyền khi tài khoản có nhiều vai trò. Ma trận này không tự cấp thêm quyền tác giả sửa/xóa blog hoặc bình luận ngoài các hành động đã nêu.
+## Vòng đời trạng thái do quyền quyết định
+
+- Khóa học: `draft ↔ published`, và `draft`/`published` → `archived` (trạng thái cuối). Giá trị `review` và `hidden` được schema chấp nhận nhưng chưa có luồng chuyển trạng thái nào dùng (xem [courses-and-lessons](courses-and-lessons.md)). Chuyển trạng thái được kiểm tra ở service; CHECK chỉ giới hạn tập giá trị.
+- Bài blog: `DRAFT → PENDING_REVIEW → PUBLISHED ↔ HIDDEN`, `ARCHIVED`; chỉ admin xuất bản/từ chối/ẩn ([blog](blog.md)).
+
+## Còn mở
+
+- Phụ huynh/người thanh toán thay học sinh.
+- Chính sách thu hồi quyền học khi hoàn tiền (hiện hoàn đủ sẽ thu hồi, hoàn một phần thì giữ quyền học — xem [payments](payments.md)).
+- Quy trình chuyển chủ khóa và đồng giảng dạy chi tiết.
+- Audit cho cấp/thu hồi vai trò và đổi chủ khóa (hiện đã có audit cho đơn hàng, chấm điểm và kiểm duyệt chat/bình luận).

@@ -5,8 +5,8 @@ import { Column, PrimaryGeneratedColumn } from 'typeorm';
  * created_at / updated_at. PostgreSQL triggers advance updated_at for ORM and
  * raw SQL writes alike, so the columns stay truthful whoever writes them.
  *
- * Deliberately not here: deleted_at. See docs/architecture/pre-release-system-audit.md
- * ("Soft delete") for why it is opt-in per aggregate rather than blanket.
+ * Deliberately not here: deleted_at. See docs/architecture.md ("Quy ước dữ liệu")
+ * for why it is opt-in per aggregate rather than blanket.
  */
 export abstract class AuditedEntity {
   @PrimaryGeneratedColumn('uuid')

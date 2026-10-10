@@ -1,124 +1,49 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Shanity API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS 12 (TypeScript, ESM) với TypeORM 1.1 + PostgreSQL. Là ranh giới bảo mật duy nhất của nền tảng: xác thực phiên bằng cookie HttpOnly, kiểm tra vai trò từ database ở mọi request và kiểm tra quyền trên từng tài nguyên.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Tài liệu tổng quan ở [README gốc](../../README.md) và [docs/](../../docs/README.md). Tài liệu liên quan nhất tới API: [architecture](../../docs/architecture.md), [database](../../docs/database.md), [authentication](../../docs/authentication.md), [testing](../../docs/testing.md).
 
-## Description
+## Chạy
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+Từ thư mục gốc repository (cần `.env`, xem [getting-started](../../docs/getting-started.md)):
 
 ```bash
-$ pnpm install
+docker compose up -d --wait postgres
+pnpm --filter api db:migrate
+pnpm dev:api            # nest start --watch, http://localhost:4000
 ```
 
-## Compile and run the project
+`pnpm --filter api start:prod` chạy `node dist/main.js` (cần build trước). `GET /health/db` kiểm tra kết nối database.
 
-```bash
-# development
-$ pnpm run start
+## Cấu trúc `src/`
 
-# watch mode
-$ pnpm run start:dev
+| Thư mục | Nội dung |
+| --- | --- |
+| `auth/`, `users/`, `avatar/` | Đăng ký/đăng nhập, phiên, Google OAuth, hồ sơ, quản lý người dùng, avatar |
+| `courses/` | Khóa học, chương, ghi danh, giá (`pricing/`), thumbnail, quyền sở hữu |
+| `modules/lessons` | Bài học, quyền truy cập, phát video/tài liệu |
+| `modules/progress`, `modules/instructor` | Tiến độ học viên; báo cáo cho giảng viên |
+| `modules/quiz` | Soạn quiz, làm bài, chấm, hàng chờ chấm, công bố |
+| `modules/payment` | Đơn hàng, checkout, provider (VietQR, Stripe), webhook, đối soát, quản trị đơn |
+| `modules/chat`, `modules/blog`, `modules/live` | Chat theo khóa, blog + bình luận, lớp trực tiếp |
+| `modules/import`, `modules/curriculum` | Nhập bài học/quiz từ tệp; sự kiện thay đổi giáo trình |
+| `common/` | Middleware, guard miền, envelope, filter, logger, bí danh `/api/v1` |
+| `cache/`, `storage/`, `security/` | Cache (bộ nhớ/Redis) và rate limiter, lưu trữ media, làm sạch HTML |
+| `database/` | `data-source`, `migrate`, `migrations/`, `seeds/` |
 
-# production mode
-$ pnpm run start:prod
-```
+Các thư mục ngoài `src/`: `database/` (CLI `cli.mjs`, `seeds/`, test migration `typeorm.test.mjs`, fixture schema cũ) và `test/` (e2e, helper, `browser-server.mjs` cho Playwright).
 
-## Run tests
+## Lệnh
 
-```bash
-# unit tests
-$ pnpm run test
+| Lệnh | Công dụng |
+| --- | --- |
+| `build` / `start` / `start:dev` / `start:debug` / `start:prod` | Biên dịch và chạy |
+| `typecheck` / `lint` / `format` | `tsc --noEmit` (gồm cả e2e) / oxlint type-aware / Prettier |
+| `test` / `test:watch` / `test:cov` | Unit test (Vitest) |
+| `test:e2e` | E2E với PostgreSQL thật, chạy tuần tự |
+| `test:database` (`test:course-schema`) | Test migration, cần DB tên kết thúc `_test` |
+| `db:migrate` / `db:revert` / `db:adopt-legacy` | Migration, lùi migration gần nhất, nhận lịch sử Knex |
+| `db:seed` / `seed:course` / `seed:demo` | Seed phát triển |
 
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
-
-```bash
-$ pnpm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Các lệnh `db:*` và `seed:*` biên dịch trước rồi chạy `database/cli.mjs`; chi tiết ở [database](../../docs/database.md). Quy ước viết mã: dùng đuôi `.js` khi import nội bộ (ESM), mọi thay đổi schema đi kèm migration mới đăng ký trong `src/database/migrations/index.ts`, và thêm route mới vào `src/common/api-v1-routes.ts` hoặc ghi rõ lý do không có alias (test sẽ báo nếu quên).
