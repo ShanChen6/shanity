@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import {
-  API_URL,
-  ApiError,
-  errorMessage,
-  type PaginationMeta,
-} from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { CatalogError } from "@/features/courses/catalog-error";
 import { SiteShell } from "@/components/layout/site-shell";
 import { CourseCatalog } from "@/features/courses/catalog-view";
+import { fetchCatalog } from "@/features/courses/server";
 import type {
   CatalogFilters,
-  CatalogCourse,
   CourseCatalogResponse,
 } from "@/features/courses/catalog-types";
 
@@ -53,54 +48,6 @@ function parseFilters(searchParams: SearchParams): CatalogFilters {
   };
 }
 
-async function getCatalog(
-  filters: CatalogFilters,
-): Promise<CourseCatalogResponse> {
-  const params = new URLSearchParams({
-    page: String(filters.page),
-    limit: String(filters.limit),
-    sortBy: filters.sortBy,
-    sortOrder: filters.sortOrder,
-  });
-  if (filters.search) params.set("search", filters.search);
-  if (filters.instructorId) params.set("instructorId", filters.instructorId);
-
-  const origin = process.env.API_INTERNAL_URL ?? API_URL;
-  let response: Response;
-  try {
-    response = await fetch(
-      `${origin.replace(/\/$/, "")}/api/v1/public/courses?${params}`,
-      {
-        cache: "no-store",
-        signal: AbortSignal.timeout(12000),
-      },
-    );
-  } catch {
-    throw new ApiError(0, ["Không thể kết nối máy chủ. Vui lòng thử lại."]);
-  }
-
-  const result: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      result && typeof result === "object" && "message" in result
-        ? (result as { message?: unknown }).message
-        : undefined;
-    throw new ApiError(
-      response.status,
-      Array.isArray(message)
-        ? message.filter((item): item is string => typeof item === "string")
-        : [typeof message === "string" ? message : "Không thể tải danh mục."],
-    );
-  }
-  const body = result as {
-    data?: unknown;
-    meta?: PaginationMeta;
-  } | null;
-  if (!body || !Array.isArray(body.data) || !body.meta)
-    throw new ApiError(502, ["Dữ liệu danh mục không hợp lệ."]);
-  return { data: body.data as CatalogCourse[], ...body.meta };
-}
-
 export default async function CoursesPage({
   searchParams,
 }: PageProps<"/courses">) {
@@ -108,7 +55,7 @@ export default async function CoursesPage({
   let catalog: CourseCatalogResponse | undefined;
   let failure: string | undefined;
   try {
-    catalog = await getCatalog(filters);
+    catalog = await fetchCatalog(filters);
   } catch (error) {
     failure = errorMessage(error);
   }

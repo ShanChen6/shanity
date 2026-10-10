@@ -6,15 +6,19 @@ import {
   accountNav,
   activeNavItem,
   adminNav,
+  blogNavItem,
   footerNav,
   instructorNav,
   isNavActive,
+  learnerHeaderNav,
   navigationFor,
   portals,
   portalsFor,
+  publicHeaderNav,
   quickActions,
   searchableNavigation,
   studentNav,
+  userMenuNav,
   type NavItem,
 } from "./navigation.config";
 
@@ -43,6 +47,10 @@ const allNavigation: NavItem[] = [
   ...adminNav,
   ...accountNav,
   ...quickActions,
+  ...publicHeaderNav,
+  ...learnerHeaderNav,
+  ...userMenuNav,
+  blogNavItem,
 ];
 
 describe("navigation targets", () => {
@@ -63,10 +71,36 @@ describe("navigation targets", () => {
   });
 
   it("has no duplicate hrefs within one menu", () => {
-    for (const menu of [studentNav, instructorNav, adminNav]) {
+    for (const menu of [
+      studentNav,
+      instructorNav,
+      adminNav,
+      publicHeaderNav,
+      learnerHeaderNav,
+      userMenuNav,
+    ]) {
       const hrefs = menu.map((item) => item.href);
       expect(new Set(hrefs).size).toBe(hrefs.length);
     }
+  });
+});
+
+describe("header and user menu", () => {
+  it("keep every learner page reachable from one or the other", () => {
+    const reachable = new Set(
+      [...learnerHeaderNav, ...userMenuNav].map((item) => item.href),
+    );
+    for (const item of studentNav)
+      expect(reachable.has(item.href), `${item.href} is unreachable`).toBe(
+        true,
+      );
+  });
+
+  it("only show visitors pages that need no account", () => {
+    expect(publicHeaderNav.map((item) => item.href)).toEqual([
+      "/courses",
+      "/blog",
+    ]);
   });
 });
 

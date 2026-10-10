@@ -33,7 +33,13 @@ export function PostMeta({
   );
 }
 
-export function PostCard({ post }: { post: BlogPostCard }) {
+export function PostCard({
+  post,
+  headingLevel: Heading = "h2",
+}: {
+  post: BlogPostCard;
+  headingLevel?: "h2" | "h3";
+}) {
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
       <CatalogThumbnail source={post.coverImage} title={post.title} badge={null} />
@@ -43,7 +49,7 @@ export function PostCard({ post }: { post: BlogPostCard }) {
             {post.category.name}
           </span>
         )}
-        <h2 className="font-heading text-h4 font-semibold leading-snug">
+        <Heading className="font-heading text-h4 font-semibold leading-snug">
           {/* The whole card is the link (stretched), the title its name. */}
           <Link
             href={blogPostPath(post.slug)}
@@ -51,7 +57,7 @@ export function PostCard({ post }: { post: BlogPostCard }) {
           >
             {post.title}
           </Link>
-        </h2>
+        </Heading>
         <p className="line-clamp-3 text-sm text-foreground-secondary">
           {post.excerpt}
         </p>

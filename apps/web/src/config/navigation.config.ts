@@ -67,7 +67,7 @@ export const studentNav: readonly NavItem[] = [
   {
     href: "/quiz-attempts",
     label: "Lịch sử làm bài",
-    icon: "calendar",
+    icon: "check",
     aliases: ["/my-quiz-attempts"],
     keywords: ["kết quả", "điểm"],
   },
@@ -168,6 +168,51 @@ export const adminNav: readonly NavItem[] = [
 /** Account pages every signed-in user has, whatever their role. */
 export const accountNav: readonly NavItem[] = [
   { href: "/profile", label: "Hồ sơ & cài đặt tài khoản", icon: "user" },
+];
+
+// ── Site header ───────────────────────────────────────────────────────────
+// The header carries only the handful of sections people open every visit, so
+// it fits one row from 1024px. Everything else in studentNav stays reachable
+// through the user menu, the mobile panel and the command menu.
+function learnerItem(href: string): NavItem {
+  const item = studentNav.find((candidate) => candidate.href === href);
+  if (!item) throw new Error(`studentNav has no ${href}`);
+  return item;
+}
+
+export const blogNavItem: NavItem = {
+  href: "/blog",
+  label: "Blog",
+  icon: "info",
+  keywords: ["bài viết", "tin tức", "kiến thức"],
+};
+
+/** Visitors: what they can open without an account. */
+export const publicHeaderNav: readonly NavItem[] = [
+  learnerItem("/courses"),
+  blogNavItem,
+];
+
+/** Signed-in users: learning first, then discovery. */
+export const learnerHeaderNav: readonly NavItem[] = [
+  learnerItem("/my-learning"),
+  learnerItem("/courses"),
+  learnerItem("/student/dashboard/schedule"),
+  {
+    ...learnerItem("/quizzes"),
+    // Attempt history lives in the user menu; keep its section lit meanwhile.
+    aliases: ["/quiz-attempts", "/my-quiz-attempts"],
+  },
+  blogNavItem,
+];
+
+/** The learner pages the header leaves out, offered in the user menu. */
+export const userMenuNav: readonly NavItem[] = [
+  { href: "/dashboard", label: "Tổng quan", icon: "grid" },
+  { href: "/my-learning", label: "Khóa học của tôi", icon: "book" },
+  { href: "/quiz-attempts", label: "Lịch sử làm bài", icon: "check" },
+  { href: "/account/orders", label: "Đơn hàng", icon: "receipt" },
+  { href: "/profile", label: "Cài đặt tài khoản", icon: "user" },
 ];
 
 /** Shortcuts surfaced by the command menu rather than a sidebar. */
@@ -301,6 +346,7 @@ export function searchableNavigation(roles: readonly Role[]): NavItem[] {
   const seen = new Set<string>();
   return [
     ...studentNav,
+    blogNavItem,
     ...instructorNav,
     ...adminNav,
     ...quickActions,

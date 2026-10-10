@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { portalsFor } from "@/config/navigation.config";
+import { portalsFor, userMenuNav } from "@/config/navigation.config";
 import { errorMessage } from "@/lib/api";
 import { CurrentUserAvatar } from "./current-user-avatar";
 import { useSession } from "./session-provider";
@@ -12,7 +12,8 @@ import { useSession } from "./session-provider";
 const itemClass =
   "flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-surface-hover";
 
-// Learning lives at /my-learning; /profile is account settings only.
+// Learning lives at /my-learning; /profile is account settings only. The
+// learner pages the header leaves out (overview, attempts, orders) live here.
 export function UserMenu() {
   const session = useSession();
   const details = useRef<HTMLDetailsElement>(null);
@@ -58,7 +59,7 @@ export function UserMenu() {
         aria-label="Mở menu tài khoản"
       >
         <CurrentUserAvatar />
-        <span className="hidden max-w-32 truncate text-sm font-semibold lg:inline">
+        <span className="hidden max-w-32 truncate text-sm font-semibold xl:inline">
           {user.displayName}
         </span>
         <span aria-hidden="true" className="text-muted">
@@ -69,12 +70,16 @@ export function UserMenu() {
         <p className="truncate px-3 pb-2 pt-1 text-xs text-muted">
           {user.email}
         </p>
-        <Link href="/my-learning" className={itemClass} onClick={close}>
-          Khóa học của tôi
-        </Link>
-        <Link href="/profile" className={itemClass} onClick={close}>
-          Cài đặt tài khoản
-        </Link>
+        {userMenuNav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={itemClass}
+            onClick={close}
+          >
+            {item.label}
+          </Link>
+        ))}
         {portalsFor(user.roles)
           .filter((portal) => portal.id !== "student")
           .map((portal) => (
