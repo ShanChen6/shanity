@@ -46,6 +46,7 @@
     "marked": "^18.1.0",
     "pg": "^8.23.0",
     "pino": "^10.4.0",
+    "pusher": "5.3.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.18.0",

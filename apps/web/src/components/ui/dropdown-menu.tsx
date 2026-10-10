@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Button, type ButtonProps } from "./button";
 
 export type DropdownItem = {
@@ -15,12 +16,18 @@ export function DropdownMenu({
   disabled,
   variant = "outline",
   size = "sm",
+  align = "start",
+  ariaLabel,
 }: {
   label: ReactNode;
   items: DropdownItem[];
   disabled?: boolean;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  /** `end`: the menu opens leftwards from a trigger near the right edge. */
+  align?: "start" | "end";
+  /** For icon-only triggers. */
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -48,6 +55,7 @@ export function DropdownMenu({
         variant={variant}
         size={size}
         disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -59,7 +67,10 @@ export function DropdownMenu({
         <div
           id={menuId}
           role="menu"
-          className="absolute left-0 z-20 mt-1 min-w-40 rounded-md border border-border bg-surface p-1 shadow-lg"
+          className={cn(
+            "absolute z-20 mt-1 min-w-40 rounded-md border border-border bg-surface p-1 shadow-lg",
+            align === "end" ? "right-0" : "left-0",
+          )}
         >
           {items.map((item) => (
             <button
@@ -67,7 +78,7 @@ export function DropdownMenu({
               type="button"
               role="menuitem"
               disabled={item.disabled}
-              className="block w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-surface-hover focus-visible:bg-surface-hover disabled:opacity-50"
+              className="block w-full whitespace-nowrap rounded-sm px-3 py-2 text-left text-sm hover:bg-surface-hover focus-visible:bg-surface-hover disabled:opacity-50"
               onClick={() => {
                 setOpen(false);
                 item.onSelect();

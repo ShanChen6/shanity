@@ -12,6 +12,7 @@ const EXEMPT: Record<string, string> = {
   OrderAuditLog: 'append-only ledger',
   QuizGradeAuditLogEntity: 'append-only ledger',
   CoursePriceLog: 'append-only ledger',
+  ChatModerationLog: 'append-only ledger',
   WebhookLog: 'append-only provider event log',
   OrderItem: 'immutable order snapshot',
   // ORM-managed updated_at (@UpdateDateColumn) on money tables.

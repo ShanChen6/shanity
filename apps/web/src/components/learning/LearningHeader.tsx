@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Progress } from "@/components/ui/progress";
@@ -9,9 +10,14 @@ export function LearningHeader({
   courseTitle,
   courseProgress,
   showProgress = true,
+  chatHref,
+  chatActive = false,
   onOpenMenu,
 }: {
   courseTitle: string;
+  /** The course's discussion room; omitted when the viewer cannot join. */
+  chatHref?: string;
+  chatActive?: boolean;
   courseProgress: {
     completedRequiredLessons: number;
     totalRequiredLessons: number;
@@ -68,6 +74,22 @@ export function LearningHeader({
               {percentage}%
             </span>
           </div>
+        )}
+        {chatHref && (
+          <Link
+            href={chatHref}
+            aria-current={chatActive ? "page" : undefined}
+            data-testid="course-chat-link"
+            className={cn(
+              "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-semibold",
+              chatActive
+                ? "border-transparent bg-secondary text-secondary-foreground"
+                : "border-border-strong hover:bg-surface-hover",
+            )}
+          >
+            <MessagesSquare className="size-4" aria-hidden="true" />
+            <span className="max-sm:sr-only">Thảo luận</span>
+          </Link>
         )}
         <Link
           href="/my-learning"

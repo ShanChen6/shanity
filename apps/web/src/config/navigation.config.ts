@@ -104,6 +104,13 @@ export const instructorNav: readonly NavItem[] = [
     roles: INSTRUCTOR_ROLES,
     keywords: ["tự luận", "chấm điểm"],
   },
+  {
+    href: "/instructor/chat-moderation",
+    label: "Kiểm duyệt chat",
+    icon: "bell",
+    roles: INSTRUCTOR_ROLES,
+    keywords: ["thảo luận", "báo cáo", "tin nhắn", "vi phạm"],
+  },
 ];
 
 // ── Admin / finance ───────────────────────────────────────────────────────
