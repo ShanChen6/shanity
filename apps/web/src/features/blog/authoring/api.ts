@@ -108,6 +108,33 @@ export async function uploadImage(file: File) {
   return { ...image, url: image.path };
 }
 
+export const IMPORT_ACCEPT = ".docx,.md,.markdown,.txt,.xlsx,.pdf";
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+
+export type ImportedDraft = {
+  format: "docx" | "markdown" | "text" | "xlsx" | "pdf";
+  title: string | null;
+  content: string;
+  warnings: string[];
+};
+
+/**
+ * Converts a document into a draft body (Markdown). Nothing is saved: the
+ * editor shows the result for the author to review. Word images are stored
+ * on the way, so the draft can show them.
+ */
+export async function importDocument(file: File): Promise<ImportedDraft> {
+  if (file.size > MAX_IMPORT_BYTES)
+    throw new ApiError(413, ["BLOG_IMPORT_TOO_LARGE"], { code: "BLOG_IMPORT_TOO_LARGE" });
+  const body = new FormData();
+  body.append("file", file);
+  return api<ImportedDraft>("/api/v1/blog/import", {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(120_000),
+  });
+}
+
 const MISSING_LABELS: Record<string, string> = {
   content: "nội dung",
   categoryId: "chủ đề",
@@ -149,6 +176,18 @@ export function blogErrorMessage(error: unknown): string {
         return "Không đọc được ảnh này. Hãy thử ảnh khác (tối đa 40 megapixel, không phải ảnh động).";
       case "BLOG_IMAGE_REQUIRED":
         return "Chưa chọn ảnh.";
+      case "BLOG_IMPORT_UNSUPPORTED":
+        return "Chỉ nhập được file Word (.docx), Markdown (.md), văn bản (.txt), Excel (.xlsx) hoặc PDF. File .doc cũ hãy mở bằng Word và lưu lại thành .docx.";
+      case "BLOG_IMPORT_TOO_LARGE":
+        return "Tài liệu quá lớn. Vui lòng chọn file tối đa 20 MB.";
+      case "BLOG_IMPORT_NO_TEXT":
+        return "Không tìm thấy chữ trong tài liệu. PDF dạng ảnh scan không đọc được chữ.";
+      case "BLOG_IMPORT_UNREADABLE":
+        return "Không đọc được tài liệu này. File có thể bị hỏng, có mật khẩu hoặc không đúng định dạng.";
+      case "BLOG_IMPORT_PDF_UNAVAILABLE":
+        return "Máy chủ chưa bật nhập PDF. Hãy dùng file Word hoặc báo quản trị viên.";
+      case "BLOG_IMPORT_FILE_REQUIRED":
+        return "Chưa chọn tài liệu.";
       case "BLOG_POST_NOT_FOUND":
         return "Không tìm thấy bài viết, hoặc bạn không có quyền xem.";
     }

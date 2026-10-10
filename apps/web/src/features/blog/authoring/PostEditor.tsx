@@ -28,6 +28,7 @@ import {
   IMAGE_TYPES,
 } from "./api";
 import { blogImageUrl } from "../image-url";
+import { DocumentImport } from "./DocumentImport";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PostActions } from "./PostActions";
 import { STATUS_LABELS, formatDate, permissionsFor } from "./status";
@@ -273,9 +274,25 @@ function EditorForm({ basePath, post }: { basePath: string; post?: AuthoredPostD
           <CoverField value={form.coverImage} onChange={set("coverImage")} />
 
           <div className="space-y-2">
-            <label htmlFor="post-content" className="text-sm font-medium">
-              Nội dung
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="post-content" className="text-sm font-medium">
+                Nội dung
+              </label>
+              <DocumentImport
+                hasContent={Boolean(form.content.trim())}
+                disabled={!editable || save.isPending}
+                onImport={(draft, mode) =>
+                  setForm((current) => ({
+                    ...current,
+                    title: current.title.trim() || !draft.title ? current.title : draft.title,
+                    content:
+                      mode === "append" && current.content.trim()
+                        ? `${current.content.trimEnd()}\n\n${draft.content}`
+                        : draft.content,
+                  }))
+                }
+              />
+            </div>
             <MarkdownEditor
               id="post-content"
               value={form.content}

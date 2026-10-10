@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module.js';
 import { BlogCategoriesService } from './blog-categories.service.js';
+import { BlogImportController } from './import/blog-import.controller.js';
 import {
   BlogImageFilesController,
   BlogImagesController,
@@ -39,6 +40,7 @@ import {
     AdminCommentsController,
     BlogImagesController,
     BlogImageFilesController,
+    BlogImportController,
   ],
   providers: [
     BlogPostsService,
