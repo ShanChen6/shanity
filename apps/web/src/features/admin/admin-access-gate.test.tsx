@@ -97,6 +97,7 @@ describe("AdminNavigation", () => {
         "Trang quản trị",
         "Người dùng",
         "Đơn hàng",
+        "Blog",
         "Bình luận blog",
         "Cài đặt hệ thống",
       ],

@@ -62,6 +62,7 @@ describe("order console access", () => {
       "/admin",
       "/admin/users",
       "/admin/orders",
+      "/admin/blog",
       "/admin/comments",
       "/admin/settings",
     ]);
