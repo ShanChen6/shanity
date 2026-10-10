@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
-import { blogErrorMessage } from "./api";
+import { blogErrorMessage, fetchPosts, toPostPage } from "./api";
 import { permissionsFor } from "./status";
 import type { BlogPostStatus } from "./types";
 
@@ -68,5 +68,32 @@ describe("blogErrorMessage", () => {
 
   it("falls back to the generic message", () => {
     expect(blogErrorMessage(new Error("boom"))).toBe("Có lỗi xảy ra. Vui lòng thử lại.");
+  });
+});
+
+describe("fetchPosts", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const page = { items: [{ id: "p1" }], page: 1, limit: 20, total: 1, totalPages: 1 };
+
+  // Regression: /api/v1/blog/posts is not an enveloped v1 alias, and the
+  // list screen used to reject its plain body as "server error".
+  it("reads the plain list the blog controller returns", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(page), { status: 200 })),
+    );
+    await expect(fetchPosts({ page: 1, mine: true })).resolves.toEqual(page);
+    const url = String(vi.mocked(fetch).mock.calls[0]![0]);
+    expect(url).toContain("/api/v1/blog/posts?page=1&limit=20&mine=true");
+  });
+
+  it("also accepts the v1 envelope", () => {
+    const { items, ...meta } = page;
+    expect(toPostPage({ success: true, statusCode: 200, data: items, meta })).toEqual(page);
+  });
+
+  it("rejects anything else", () => {
+    expect(() => toPostPage({ nope: true })).toThrow(ApiError);
   });
 });

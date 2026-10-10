@@ -1,4 +1,4 @@
-import { ApiError, api, apiFlatPage, errorMessage } from "@/lib/api";
+import { ApiError, api, errorMessage } from "@/lib/api";
 import type { BlogCategory } from "../types";
 import type {
   AuthoredPost,
@@ -19,15 +19,42 @@ export const postKeys = {
   categories: ["blog", "categories"] as const,
 };
 
-export const fetchPosts = (
+export type AuthoredPostPage = {
+  items: AuthoredPost[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+/**
+ * `/api/v1/blog/*` is the blog controller's own path, not an alias in
+ * api-v1-routes.ts, so it answers without the v1 envelope: the list is the
+ * service's `{ items, page, limit, total, totalPages }` as is. An envelope
+ * (should the route become an alias) is accepted too.
+ */
+export function toPostPage(body: unknown): AuthoredPostPage {
+  if (body && typeof body === "object") {
+    const flat = body as Partial<AuthoredPostPage>;
+    if (Array.isArray(flat.items) && typeof flat.total === "number")
+      return flat as AuthoredPostPage;
+    const envelope = body as { data?: unknown; meta?: Omit<AuthoredPostPage, "items"> };
+    if (Array.isArray(envelope.data) && envelope.meta)
+      return { items: envelope.data as AuthoredPost[], ...envelope.meta };
+  }
+  throw new ApiError(502, ["Dữ liệu danh sách bài viết không hợp lệ."]);
+}
+
+export async function fetchPosts(
   { status, mine, page }: { status?: BlogPostStatus | ""; mine?: boolean; page: number },
   signal?: AbortSignal,
-) => {
+): Promise<AuthoredPostPage> {
   const query = new URLSearchParams({ page: String(page), limit: "20" });
   if (status) query.set("status", status);
   if (mine) query.set("mine", "true");
-  return apiFlatPage<AuthoredPost>(`${BASE}?${query}`, { signal });
-};
+  // `api` returns a body without an envelope unchanged.
+  return toPostPage(await api<unknown>(`${BASE}?${query}`, { signal }));
+}
 
 export const fetchPost = (id: string, signal?: AbortSignal) =>
   api<AuthoredPostDetail>(`${BASE}/${enc(id)}`, { signal });
