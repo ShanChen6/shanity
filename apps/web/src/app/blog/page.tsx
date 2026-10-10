@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteShell } from "@/components/layout/site-shell";
 import { PostCard } from "@/features/blog/blog-cards";
+import { WriteLink } from "@/features/blog/authoring/WriteLink";
 import { blogListHref, ogImageUrl } from "@/features/blog/seo";
 import { fetchBlogCategories, fetchBlogList } from "@/features/blog/server";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,10 @@ export default async function BlogPage({ searchParams }: PageProps<"/blog">) {
       <main className="flex-1">
         <section className="border-b border-border bg-surface-secondary">
           <div className="container py-10 sm:py-14">
-            <h1 className="font-heading text-h1 font-bold">Blog công nghệ</h1>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <h1 className="font-heading text-h1 font-bold">Blog công nghệ</h1>
+              <WriteLink />
+            </div>
             <p className="mt-3 max-w-2xl text-body-lg text-foreground-secondary">
               {DESCRIPTION}
             </p>
