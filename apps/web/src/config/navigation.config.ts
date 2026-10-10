@@ -53,6 +53,12 @@ export const studentNav: readonly NavItem[] = [
     keywords: ["khám phá", "danh mục", "catalog"],
   },
   {
+    href: "/student/dashboard/schedule",
+    label: "Lịch học",
+    icon: "calendar",
+    keywords: ["lớp học trực tiếp", "live", "thời khóa biểu"],
+  },
+  {
     href: "/quizzes",
     label: "Bài kiểm tra",
     icon: "quiz",
@@ -105,6 +111,13 @@ export const instructorNav: readonly NavItem[] = [
     keywords: ["tự luận", "chấm điểm"],
   },
   {
+    href: "/instructor/dashboard/schedule",
+    label: "Lịch giảng dạy",
+    icon: "calendar",
+    roles: INSTRUCTOR_ROLES,
+    keywords: ["lớp học trực tiếp", "live", "điểm danh"],
+  },
+  {
     href: "/instructor/chat-moderation",
     label: "Kiểm duyệt chat",
     icon: "bell",
@@ -135,6 +148,13 @@ export const adminNav: readonly NavItem[] = [
     icon: "receipt",
     roles: ORDER_CONSOLE_ROLES,
     keywords: ["thanh toán", "đối soát", "hoàn tiền"],
+  },
+  {
+    href: "/admin/comments",
+    label: "Bình luận blog",
+    icon: "bell",
+    roles: ADMIN_ROLES,
+    keywords: ["kiểm duyệt", "spam", "bình luận"],
   },
   {
     href: "/admin/settings",
@@ -222,6 +242,7 @@ export const footerNav: readonly FooterGroup[] = [
     title: "Khám phá",
     links: [
       { href: "/courses", label: "Khóa học" },
+      { href: "/blog", label: "Blog" },
       { href: "/quizzes", label: "Bài kiểm tra" },
     ],
   },
