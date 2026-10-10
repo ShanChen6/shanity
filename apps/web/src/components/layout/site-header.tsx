@@ -8,21 +8,16 @@ import { ThemeCycleButton } from "@/components/shared/theme-cycle-button";
 import { Icon } from "@/components/ui/icon";
 import {
   activeNavItem,
+  learnerHeaderNav,
   navigationFor,
   portalsFor,
-  studentNav,
-  type NavItem,
+  publicHeaderNav,
 } from "@/config/navigation.config";
 import { useSession } from "@/features/auth/session-provider";
 import { UserMenu } from "@/features/auth/user-menu";
 import { CommandMenuTrigger } from "@/features/command-menu/command-menu";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { cn } from "@/lib/utils";
-
-const PUBLIC_NAV: readonly NavItem[] = [
-  { href: "/courses", label: "Khóa học", icon: "search" },
-  { href: "/blog", label: "Blog", icon: "book" },
-];
 
 const linkClass = (active: boolean) =>
   cn(
@@ -33,7 +28,8 @@ const linkClass = (active: boolean) =>
 /**
  * Header of every public and learner page. The links, search, bell and menus
  * all come from config/ and the session, so it adapts to the visitor's roles
- * without any page deciding what to show.
+ * without any page deciding what to show. Only the most-visited sections sit
+ * in the bar (one row from 1024px); the rest live in the user menu.
  */
 export function SiteHeader() {
   const { user, status } = useSession();
@@ -44,7 +40,9 @@ export function SiteHeader() {
   const open = openedOn === pathname;
   const toggle = useRef<HTMLButtonElement>(null);
 
-  const items = user ? navigationFor(studentNav, user.roles) : PUBLIC_NAV;
+  const items = user
+    ? navigationFor(learnerHeaderNav, user.roles)
+    : publicHeaderNav;
   const current = activeNavItem(pathname, items);
   const portals = user
     ? portalsFor(user.roles).filter((portal) => portal.id !== "student")
@@ -90,7 +88,7 @@ export function SiteHeader() {
         />
         <nav
           aria-label="Điều hướng chính"
-          className="hidden flex-1 items-center gap-1 xl:flex"
+          className="hidden flex-1 items-center gap-0.5 lg:flex xl:gap-1"
         >
           {items.map((item) => (
             <Link
@@ -134,7 +132,7 @@ export function SiteHeader() {
             aria-expanded={open}
             aria-controls="site-mobile-nav"
             onClick={() => setOpenedOn(open ? null : pathname)}
-            className="flex size-11 items-center justify-center rounded-md text-foreground hover:bg-surface-hover xl:hidden"
+            className="flex size-11 items-center justify-center rounded-md text-foreground hover:bg-surface-hover lg:hidden"
           >
             <Icon name={open ? "close" : "menu"} />
           </button>
@@ -144,7 +142,7 @@ export function SiteHeader() {
         <nav
           id="site-mobile-nav"
           aria-label="Điều hướng chính (di động)"
-          className="container grid gap-1 border-t border-border py-3 xl:hidden"
+          className="container grid gap-1 border-t border-border py-3 lg:hidden"
         >
           <div className="flex items-center justify-between px-3 pb-1 sm:hidden">
             <span className="text-sm text-muted">Giao diện</span>
@@ -164,6 +162,15 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          {/* The bar hides "Tạo tài khoản" below 640px; offer it here instead. */}
+          {!user && status !== "loading" && (
+            <Link
+              href="/register"
+              className="mt-2 flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover sm:hidden"
+            >
+              Tạo tài khoản
+            </Link>
+          )}
         </nav>
       )}
     </header>

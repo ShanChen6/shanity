@@ -84,21 +84,13 @@ describe("SiteHeader for a visitor", () => {
 });
 
 describe("SiteHeader for a signed-in user", () => {
-  it("shows the learner menu, bell and user menu", () => {
+  it("keeps the bar to the main learner sections, plus bell and user menu", () => {
     render(<SiteHeader />);
     expect(
       within(desktop())
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual([
-      "Tổng quan",
-      "Góc học tập",
-      "Khóa học",
-      "Lịch học",
-      "Bài kiểm tra",
-      "Lịch sử làm bài",
-      "Đơn hàng",
-    ]);
+    ).toEqual(["Góc học tập", "Khóa học", "Lịch học", "Bài kiểm tra", "Blog"]);
     expect(screen.getByText("bell")).toBeInTheDocument();
     expect(screen.getByText("user-menu")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Đăng nhập" })).toBeNull();
@@ -113,12 +105,30 @@ describe("SiteHeader for a signed-in user", () => {
     expect(current.map((l) => l.textContent)).toEqual(["Khóa học"]);
   });
 
-  it("keeps the old orders URL highlighted through its alias", () => {
-    pathname = "/orders";
+  it("keeps the quizzes section lit on attempt history", () => {
+    pathname = "/quiz-attempts/abc";
     render(<SiteHeader />);
     expect(
-      within(desktop()).getByRole("link", { name: "Đơn hàng" }),
+      within(desktop()).getByRole("link", { name: "Bài kiểm tra" }),
     ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("lights the learning space inside a course player", () => {
+    pathname = "/learn/react/intro";
+    render(<SiteHeader />);
+    expect(
+      within(desktop()).getByRole("link", { name: "Góc học tập" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("marks nothing on the home page", () => {
+    pathname = "/";
+    render(<SiteHeader />);
+    expect(
+      within(desktop())
+        .getAllByRole("link")
+        .filter((link) => link.hasAttribute("aria-current")),
+    ).toEqual([]);
   });
 });
 
@@ -145,6 +155,17 @@ describe("mobile menu", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("navigation", { name: /di động/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Mở menu" })).toHaveFocus();
+  });
+
+  it("offers visitors a sign-up link in the panel", async () => {
+    user = null;
+    status = "anonymous";
+    render(<SiteHeader />);
+    await userEvent.click(screen.getByRole("button", { name: "Mở menu" }));
+    const mobile = screen.getByRole("navigation", { name: /di động/ });
+    expect(
+      within(mobile).getByRole("link", { name: "Tạo tài khoản" }),
+    ).toHaveAttribute("href", "/register");
   });
 
   it("offers no staff workspaces to a plain learner", async () => {

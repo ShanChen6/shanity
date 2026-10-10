@@ -18,7 +18,14 @@ function avatarSource(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-function CourseCard({ course }: { course: CatalogCourse }) {
+/** One catalog course. `headingLevel` follows the section it sits in. */
+export function CourseCard({
+  course,
+  headingLevel: Heading = "h2",
+}: {
+  course: CatalogCourse;
+  headingLevel?: "h2" | "h3";
+}) {
   const date = course.publishedAt
     ? new Intl.DateTimeFormat("vi-VN", {
         day: "2-digit",
@@ -36,9 +43,9 @@ function CourseCard({ course }: { course: CatalogCourse }) {
     >
       <CatalogThumbnail source={course.thumbnail} title={course.title} />
       <div className="flex flex-1 flex-col p-4 sm:p-5">
-        <h2 className="line-clamp-2 min-h-12 break-words font-heading text-h4 font-semibold leading-snug transition-colors group-hover:text-primary">
+        <Heading className="line-clamp-2 min-h-12 break-words font-heading text-h4 font-semibold leading-snug transition-colors group-hover:text-primary">
           {course.title}
-        </h2>
+        </Heading>
         <p className="mt-2 line-clamp-2 min-h-11 text-body-sm text-muted">
           {course.shortDescription ||
             "Khám phá nội dung và bắt đầu học theo nhịp của bạn."}
