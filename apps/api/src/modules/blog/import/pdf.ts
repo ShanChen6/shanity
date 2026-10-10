@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import type { ImportedDocument } from './types.js';
 
 export const MAX_PDF_PAGES = 100;
@@ -11,13 +13,13 @@ interface TextItem {
 }
 interface PdfJs {
   getDocument(options: Record<string, unknown>): {
+    destroy(): Promise<void>;
     promise: Promise<{
       numPages: number;
       getPage(number: number): Promise<{
         getTextContent(): Promise<{ items: Array<TextItem | { type: string }> }>;
       }>;
       getMetadata(): Promise<{ info?: { Title?: string } }>;
-      destroy(): Promise<void>;
     }>;
   };
 }
@@ -27,12 +29,22 @@ export class PdfUnavailableError extends Error {}
 // Loaded by name so the API builds and runs without it; only PDF import
 // needs it (pnpm --filter api add pdfjs-dist).
 const PDFJS_MODULE = 'pdfjs-dist/legacy/build/pdf.mjs';
-async function loadPdfJs(): Promise<PdfJs> {
+async function loadPdfJs(): Promise<{ pdfjs: PdfJs; assets: string | null }> {
+  let pdfjs: PdfJs;
   try {
-    return (await import(PDFJS_MODULE)) as PdfJs;
-  } catch {
-    throw new PdfUnavailableError('pdfjs-dist is not installed');
+    pdfjs = (await import(PDFJS_MODULE)) as PdfJs;
+  } catch (cause) {
+    throw new PdfUnavailableError(`pdfjs-dist could not be loaded: ${String(cause)}`);
   }
+  // Fonts PDFs name without embedding (Times, Helvetica…) and CJK CMaps
+  // ship with the package; without them some text comes out empty.
+  let assets: string | null = null;
+  try {
+    assets = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
+  } catch {
+    assets = null;
+  }
+  return { pdfjs, assets };
 }
 
 type Line = { text: string; size: number; y: number; gapAbove: number };
@@ -45,14 +57,23 @@ type Line = { text: string; size: number; y: number; gapAbove: number };
  * told); scanned PDFs have no text at all.
  */
 export async function pdfToMarkdown(buffer: Buffer): Promise<ImportedDocument> {
-  const pdfjs = await loadPdfJs();
-  const document = await pdfjs.getDocument({
+  const { pdfjs, assets } = await loadPdfJs();
+  const task = pdfjs.getDocument({
     data: new Uint8Array(buffer),
     isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
     stopAtErrors: false,
-  }).promise;
+    verbosity: 0,
+    ...(assets
+      ? {
+          standardFontDataUrl: join(assets, 'standard_fonts') + '/',
+          cMapUrl: join(assets, 'cmaps') + '/',
+          cMapPacked: true,
+        }
+      : {}),
+  });
+  const document = await task.promise;
   const warnings = new Set<string>([
     'PDF chỉ giữ được chữ: ảnh, bảng và công thức cần chèn lại, định dạng có thể lệch.',
   ]);
@@ -74,9 +95,20 @@ export async function pdfToMarkdown(buffer: Buffer): Promise<ImportedDocument> {
     } catch {
       title = null;
     }
-    return { title, markdown: linesToMarkdown(lines), warnings: [...warnings] };
+    title = usefulTitle(title);
+    let markdown = linesToMarkdown(lines);
+    // No usable metadata title: the opening heading is the title.
+    const opening = /^#{2,3} (.+)\n/.exec(markdown);
+    if (!title && opening) {
+      title = opening[1]!.replace(/\\(.)/g, '$1');
+      markdown = markdown.slice(opening[0].length).replace(/^\n+/, '');
+    }
+    return { title, markdown, warnings: [...warnings] };
   } finally {
-    await document.destroy().catch(() => undefined);
+    // Never let cleanup hide the result (or the real error).
+    await Promise.resolve()
+      .then(() => task.destroy())
+      .catch(() => undefined);
   }
 }
 
@@ -107,6 +139,17 @@ function pageLines(items: TextItem[], newPage: boolean): Line[] {
     // A new page always starts a new paragraph.
     gapAbove: index === 0 ? (newPage ? Infinity : 0) : lines[index - 1]!.y - line.y,
   }));
+}
+
+/** Metadata titles tools fill in by themselves are not titles. */
+function usefulTitle(title: string | null) {
+  const cleaned = (title ?? '')
+    .replace(/^Microsoft (Word|PowerPoint) - /i, '')
+    .replace(/\.(docx?|pptx?|pdf|odt)$/i, '')
+    .trim();
+  return !cleaned || /^(untitled|không có tiêu đề|document\d*|presentation\d*)$/i.test(cleaned)
+    ? null
+    : cleaned;
 }
 
 const BULLET = /^[•●○◦▪■·\-–—*]\s+/;
