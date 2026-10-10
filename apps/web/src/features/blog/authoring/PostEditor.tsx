@@ -27,6 +27,7 @@ import {
   uploadImage,
   IMAGE_TYPES,
 } from "./api";
+import { blogImageUrl } from "../image-url";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PostActions } from "./PostActions";
 import { STATUS_LABELS, formatDate, permissionsFor } from "./status";
@@ -439,14 +440,14 @@ function CoverField({ value, onChange }: { value: string; onChange: (value: stri
   return (
     <FormField
       label="Ảnh bìa (không bắt buộc)"
-      description="Tải ảnh lên (JPEG, PNG, WebP, tối đa 5 MB) hoặc dán đường dẫn ảnh. Nên dùng ảnh ngang tỉ lệ 16:10."
+      description="Tải ảnh lên (JPEG, PNG, WebP, tối đa 5 MB) hoặc dán đường dẫn ảnh https://. Nên dùng ảnh ngang tỉ lệ 16:10."
     >
       {(field) => (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           {value && !broken ? (
             // eslint-disable-next-line @next/next/no-img-element -- author images from any host
             <img
-              src={value}
+              src={blogImageUrl(value)}
               alt="Ảnh bìa"
               onError={() => setBroken(true)}
               className="aspect-[16/10] w-full rounded-md border border-border object-cover sm:w-48"
@@ -455,7 +456,9 @@ function CoverField({ value, onChange }: { value: string; onChange: (value: stri
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <Input
               {...field}
-              type="url"
+              // Not type="url": an uploaded cover is a path, /blog-images/<id>.
+              type="text"
+              inputMode="url"
               maxLength={2048}
               value={value}
               onChange={(event) => {

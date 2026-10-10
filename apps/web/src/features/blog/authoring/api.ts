@@ -1,4 +1,4 @@
-import { API_URL, ApiError, api, errorMessage } from "@/lib/api";
+import { ApiError, api, errorMessage } from "@/lib/api";
 import type { BlogCategory } from "../types";
 import type {
   AuthoredPost,
@@ -91,8 +91,8 @@ export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"
 
 /**
  * Uploads a cover or inline image. The API stores it re-encoded and answers
- * with a path on its own origin; posts keep the absolute URL (the cover
- * field requires one, and Markdown is read on the web origin).
+ * with `/blog-images/<id>`; posts keep exactly that path, without a host,
+ * and blogImageUrl() adds the current API origin when the post is shown.
  */
 export async function uploadImage(file: File) {
   if (!IMAGE_TYPES.includes(file.type))
@@ -105,7 +105,7 @@ export async function uploadImage(file: File) {
     "/api/v1/blog/images",
     { method: "POST", body, signal: AbortSignal.timeout(60_000) },
   );
-  return { ...image, url: `${API_URL}${image.path}` };
+  return { ...image, url: image.path };
 }
 
 const MISSING_LABELS: Record<string, string> = {

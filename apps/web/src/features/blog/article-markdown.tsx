@@ -8,6 +8,7 @@ import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { SITE_URL } from "@/config/site.config";
 import { cn } from "@/lib/utils";
+import { blogImageUrl } from "./image-url";
 
 /** Text of a React subtree, for heading anchors. */
 function textOf(node: ReactNode): string {
@@ -181,10 +182,11 @@ const components: Components = {
       )}
     />
     ),
-  img: ({ alt, ...props }) => (
+  img: ({ alt, src, ...props }) => (
     // eslint-disable-next-line @next/next/no-img-element -- author images from any host, sized by CSS
     <img
       {...domProps(props)}
+      src={typeof src === "string" ? blogImageUrl(src) : src}
       alt={alt ?? ""}
       loading="lazy"
       decoding="async"

@@ -7,12 +7,13 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUrl,
   IsUUID,
+  isURL,
   Matches,
   Max,
   MaxLength,
   Min,
+  ValidateBy,
   ValidateIf,
 } from 'class-validator';
 import { SLUG_MAX_LENGTH, SLUG_PATTERN } from '../../common/slug.js';
@@ -31,6 +32,22 @@ export const BLOG_TITLE_MAX = 200;
 export const BLOG_CONTENT_MAX = 100_000;
 export const BLOG_EXCERPT_MAX = 500;
 const URL_OPTIONS = { protocols: ['http', 'https'], require_protocol: true };
+/** An image uploaded here, stored without a host (blog-images.controller). */
+export const UPLOADED_IMAGE_PATH =
+  /^\/blog-images\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A cover: an uploaded image's path, or an http(s) URL elsewhere. */
+const IsCoverImage = () =>
+  ValidateBy({
+    name: 'isCoverImage',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'string' &&
+        (UPLOADED_IMAGE_PATH.test(value) || isURL(value, URL_OPTIONS)),
+      defaultMessage: () =>
+        'coverImage must be an uploaded image path or an http(s) URL',
+    },
+  });
 
 export class CreateBlogPostDto {
   @Transform(trimString)
@@ -62,7 +79,7 @@ export class CreateBlogPostDto {
   @IsOptional()
   @Transform(blankToNull)
   @ValidateIf(set)
-  @IsUrl(URL_OPTIONS)
+  @IsCoverImage()
   @MaxLength(2048)
   coverImage?: string | null;
 
@@ -108,7 +125,7 @@ export class UpdateBlogPostDto {
   @IsOptional()
   @Transform(blankToNull)
   @ValidateIf(set)
-  @IsUrl(URL_OPTIONS)
+  @IsCoverImage()
   @MaxLength(2048)
   coverImage?: string | null;
 

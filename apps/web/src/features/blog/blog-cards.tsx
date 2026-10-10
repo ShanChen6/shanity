@@ -3,6 +3,7 @@ import { ArrowRight, Clock } from "lucide-react";
 import { formatMoney } from "@/features/payments/format";
 import { cn } from "@/lib/utils";
 import { CatalogThumbnail } from "@/features/courses/catalog-thumbnail";
+import { blogImageUrl } from "./image-url";
 import { blogPostPath } from "./seo";
 import type { BlogPostCard, RelatedCourse } from "./types";
 
@@ -42,7 +43,11 @@ export function PostCard({
 }) {
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-      <CatalogThumbnail source={post.coverImage} title={post.title} badge={null} />
+      <CatalogThumbnail
+        source={post.coverImage ? blogImageUrl(post.coverImage) : null}
+        title={post.title}
+        badge={null}
+      />
       <div className="flex flex-1 flex-col gap-3 p-5">
         {post.category && (
           <span className="text-xs font-semibold uppercase tracking-wide text-primary">
