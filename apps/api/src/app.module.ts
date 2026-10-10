@@ -15,6 +15,8 @@ import { PaymentModule } from './modules/payment/payment.module.js';
 import { CommonModule } from './common/common.module.js';
 import { CacheModule } from './cache/cache.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { BlogModule } from './modules/blog/blog.module.js';
+import { LiveSessionModule } from './modules/live/live-session.module.js';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { ChatModule } from './modules/chat/chat.module.js';
     ContentImportModule,
     PaymentModule,
     ChatModule,
+    BlogModule,
+    LiveSessionModule,
     CommonModule,
   ],
   controllers: [AppController],

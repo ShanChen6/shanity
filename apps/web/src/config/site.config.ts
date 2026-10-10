@@ -66,3 +66,29 @@ export const SITE = {
   /** When the legal pages were last reviewed against the product. */
   legalUpdated: "2026-10-08",
 } as const;
+
+/**
+ * The site's public origin, for absolute URLs in sitemaps, canonical links,
+ * Open Graph and structured data. Must be http(s) with no path; anything
+ * else falls back to the local dev server.
+ */
+export function resolveSiteUrl(value: string | undefined): string {
+  try {
+    const url = new URL((value ?? "").trim());
+    if (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.pathname === "/" &&
+      !url.search &&
+      !url.username
+    )
+      return url.origin;
+  } catch {
+    // fall through
+  }
+  return "http://localhost:3000";
+}
+
+export const SITE_URL = resolveSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+
+/** An absolute URL on this site. */
+export const absoluteUrl = (path: string) => new URL(path, SITE_URL).toString();

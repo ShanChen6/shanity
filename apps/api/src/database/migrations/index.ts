@@ -41,6 +41,11 @@ import { AddQuizGradeAuditLogs1792368000001 } from './202610190001_add_quiz_grad
 import { PreReleaseSchemaAlignment1792454400001 } from './202610200001_pre_release_schema_alignment.js';
 import { CourseChat1792540800001 } from './202610210001_course_chat.js';
 import { ChatModeration1792627200001 } from './202610220001_chat_moderation.js';
+import { BlogPosts1792713600001 } from './202610230001_blog_posts.js';
+import { DropLegacyChat1792713600002 } from './202610230002_drop_legacy_chat.js';
+import { PostComments1792800000001 } from './202610240001_post_comments.js';
+import { LiveSessions1792886400001 } from './202610250001_live_sessions.js';
+import { LiveAttendances1792972800001 } from './202610260001_live_attendances.js';
 
 export const migrationHistory = [
   {
@@ -300,6 +305,36 @@ export const migrationHistory = [
     name: 'ChatModeration1792627200001',
     timestamp: 1792627200001,
     migration: ChatModeration1792627200001,
+  },
+  {
+    legacy: null,
+    name: 'BlogPosts1792713600001',
+    timestamp: 1792713600001,
+    migration: BlogPosts1792713600001,
+  },
+  {
+    legacy: null,
+    name: 'DropLegacyChat1792713600002',
+    timestamp: 1792713600002,
+    migration: DropLegacyChat1792713600002,
+  },
+  {
+    legacy: null,
+    name: 'PostComments1792800000001',
+    timestamp: 1792800000001,
+    migration: PostComments1792800000001,
+  },
+  {
+    legacy: null,
+    name: 'LiveSessions1792886400001',
+    timestamp: 1792886400001,
+    migration: LiveSessions1792886400001,
+  },
+  {
+    legacy: null,
+    name: 'LiveAttendances1792972800001',
+    timestamp: 1792972800001,
+    migration: LiveAttendances1792972800001,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

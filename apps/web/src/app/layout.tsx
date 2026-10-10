@@ -8,6 +8,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { ToastProvider } from "@/providers/toast-provider";
 import { CommandMenuProvider } from "@/features/command-menu/command-menu";
 import { BRAND } from "@/config/brand.config";
+import { SITE_URL } from "@/config/site.config";
 import { cn } from "@/lib/utils";
 
 const geistSans = Geist({
@@ -21,6 +22,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Relative canonical / Open Graph URLs resolve against the public origin.
+  metadataBase: new URL(SITE_URL),
   title: `${BRAND.name} · ${BRAND.tagline}`,
   description: BRAND.description,
   // favicon.ico is picked up from app/; the manifest from app/manifest.ts.
