@@ -1,6 +1,8 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import katex from "katex";
+// Chemistry: \ce{2H2 + O2 -> 2H2O}, \pu{9.8 m/s^2}. Registers on this katex.
+import "katex/contrib/mhchem";
 import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
@@ -54,6 +56,31 @@ export function isExternal(href: string | undefined) {
   } catch {
     return false;
   }
+}
+
+/**
+ * KaTeX HTML for one formula. Rendered with the app's own katex (not
+ * rehype-katex's bundled copy) so the mhchem extension applies. KaTeX
+ * output is markup it generates itself; `trust` stays off, so \href,
+ * \includegraphics and raw HTML commands are not honoured. A formula with
+ * an error renders in red instead of breaking the article.
+ */
+export function renderMath(tex: string, displayMode: boolean) {
+  return katex.renderToString(tex, {
+    displayMode,
+    throwOnError: false,
+    strict: false,
+    trust: false,
+    maxExpand: 1000,
+  });
+}
+
+const isMath = (className: unknown, kind: "inline" | "display") =>
+  typeof className === "string" && className.split(" ").includes(`math-${kind}`);
+
+/** remark-math hands formulas over as `code.math-inline` / `pre > code.math-display`. */
+function mathSource(children: ReactNode) {
+  return textOf(children).replace(/\n$/, "");
 }
 
 /** react-markdown passes its AST `node`; it is not a DOM attribute. */
@@ -118,13 +145,33 @@ const components: Components = {
       className="my-6 border-l-4 border-primary/50 bg-surface-secondary px-5 py-3 italic text-foreground-secondary"
     />
   ),
-  pre: (props) => (
-    <pre
-      {...domProps(props)}
-      className="my-6 overflow-x-auto rounded-lg border border-border bg-surface-secondary p-4 font-mono text-code"
-    />
-  ),
-  code: ({ className, ...props }) => (
+  pre: (props) => {
+    const child = Array.isArray(props.children) ? props.children[0] : props.children;
+    const childProps =
+      child && typeof child === "object" && "props" in child
+        ? (child.props as { className?: string; children?: ReactNode })
+        : null;
+    if (childProps && isMath(childProps.className, "display"))
+      return (
+        <div
+          className="math-display"
+          dangerouslySetInnerHTML={{ __html: renderMath(mathSource(childProps.children), true) }}
+        />
+      );
+    return (
+      <pre
+        {...domProps(props)}
+        className="my-6 overflow-x-auto rounded-lg border border-border bg-surface-secondary p-4 font-mono text-code"
+      />
+    );
+  },
+  code: ({ className, ...props }) =>
+    isMath(className, "inline") ? (
+      <span
+        className="math-inline"
+        dangerouslySetInnerHTML={{ __html: renderMath(mathSource(props.children), false) }}
+      />
+    ) : (
     <code
       {...domProps(props)}
       className={cn(
@@ -133,7 +180,7 @@ const components: Components = {
         className,
       )}
     />
-  ),
+    ),
   img: ({ alt, ...props }) => (
     // eslint-disable-next-line @next/next/no-img-element -- author images from any host, sized by CSS
     <img
@@ -172,7 +219,6 @@ export function ArticleMarkdown({ content }: { content: string }) {
     <div className="text-body-lg leading-relaxed text-foreground [&_.katex-display]:my-6 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         components={components}
       >
         {normalizeDisplayMath(content)}

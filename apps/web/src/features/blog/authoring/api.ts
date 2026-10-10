@@ -1,4 +1,4 @@
-import { ApiError, api, errorMessage } from "@/lib/api";
+import { API_URL, ApiError, api, errorMessage } from "@/lib/api";
 import type { BlogCategory } from "../types";
 import type {
   AuthoredPost,
@@ -86,6 +86,28 @@ export const createCategory = (name: string) =>
     body: JSON.stringify({ name: name.trim() }),
   });
 
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/**
+ * Uploads a cover or inline image. The API stores it re-encoded and answers
+ * with a path on its own origin; posts keep the absolute URL (the cover
+ * field requires one, and Markdown is read on the web origin).
+ */
+export async function uploadImage(file: File) {
+  if (!IMAGE_TYPES.includes(file.type))
+    throw new ApiError(415, ["BLOG_IMAGE_TYPE"], { code: "BLOG_IMAGE_TYPE" });
+  if (file.size > MAX_IMAGE_BYTES)
+    throw new ApiError(413, ["BLOG_IMAGE_TOO_LARGE"], { code: "BLOG_IMAGE_TOO_LARGE" });
+  const body = new FormData();
+  body.append("file", file);
+  const image = await api<{ path: string; width: number; height: number }>(
+    "/api/v1/blog/images",
+    { method: "POST", body, signal: AbortSignal.timeout(60_000) },
+  );
+  return { ...image, url: `${API_URL}${image.path}` };
+}
+
 const MISSING_LABELS: Record<string, string> = {
   content: "nội dung",
   categoryId: "chủ đề",
@@ -119,6 +141,14 @@ export function blogErrorMessage(error: unknown): string {
         return "Chủ đề đã chọn không còn tồn tại.";
       case "BLOG_CATEGORY_SLUG_TAKEN":
         return "Chủ đề này đã có.";
+      case "BLOG_IMAGE_TOO_LARGE":
+        return "Ảnh quá lớn. Vui lòng chọn ảnh tối đa 5 MB.";
+      case "BLOG_IMAGE_TYPE":
+        return "Chỉ hỗ trợ ảnh JPEG, PNG, WebP hoặc GIF tĩnh.";
+      case "BLOG_IMAGE_INVALID":
+        return "Không đọc được ảnh này. Hãy thử ảnh khác (tối đa 40 megapixel, không phải ảnh động).";
+      case "BLOG_IMAGE_REQUIRED":
+        return "Chưa chọn ảnh.";
       case "BLOG_POST_NOT_FOUND":
         return "Không tìm thấy bài viết, hoặc bạn không có quyền xem.";
     }

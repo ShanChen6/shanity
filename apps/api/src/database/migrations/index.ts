@@ -46,6 +46,8 @@ import { DropLegacyChat1792713600002 } from './202610230002_drop_legacy_chat.js'
 import { PostComments1792800000001 } from './202610240001_post_comments.js';
 import { LiveSessions1792886400001 } from './202610250001_live_sessions.js';
 import { LiveAttendances1792972800001 } from './202610260001_live_attendances.js';
+import { DefaultBlogCategories1793059200001 } from './202610270001_default_blog_categories.js';
+import { BlogImages1793059200002 } from './202610270002_blog_images.js';
 
 export const migrationHistory = [
   {
@@ -335,6 +337,18 @@ export const migrationHistory = [
     name: 'LiveAttendances1792972800001',
     timestamp: 1792972800001,
     migration: LiveAttendances1792972800001,
+  },
+  {
+    legacy: null,
+    name: 'DefaultBlogCategories1793059200001',
+    timestamp: 1793059200001,
+    migration: DefaultBlogCategories1793059200001,
+  },
+  {
+    legacy: null,
+    name: 'BlogImages1793059200002',
+    timestamp: 1793059200002,
+    migration: BlogImages1793059200002,
   },
 ];
 export const migrations = migrationHistory.map((entry) => entry.migration);

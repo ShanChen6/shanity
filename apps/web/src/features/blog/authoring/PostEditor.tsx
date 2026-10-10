@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
@@ -15,8 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { useToast } from "@/providers/toast-provider";
-import { cn } from "@/lib/utils";
-import { ArticleMarkdown } from "../article-markdown";
 import {
   blogErrorMessage,
   createCategory,
@@ -26,7 +24,10 @@ import {
   postKeys,
   runPostAction,
   updatePost,
+  uploadImage,
+  IMAGE_TYPES,
 } from "./api";
+import { MarkdownEditor } from "./MarkdownEditor";
 import { PostActions } from "./PostActions";
 import { STATUS_LABELS, formatDate, permissionsFor } from "./status";
 import type { AuthoredPostDetail, PostInput } from "./types";
@@ -102,7 +103,6 @@ function EditorForm({ basePath, post }: { basePath: string; post?: AuthoredPostD
   const viewer = { id: user?.id ?? "", isAdmin: user?.roles.includes("admin") ?? false };
   const initial = post ? formOf(post) : EMPTY;
   const [form, setForm] = useState<Form>(initial);
-  const [tab, setTab] = useState<"write" | "preview">("write");
   const [error, setError] = useState("");
 
   const allowed = post ? permissionsFor(post, viewer) : null;
@@ -269,66 +269,19 @@ function EditorForm({ basePath, post }: { basePath: string; post?: AuthoredPostD
             )}
           </FormField>
 
-          <FormField label="Ảnh bìa (không bắt buộc)" description="Đường dẫn ảnh bắt đầu bằng http:// hoặc https://.">
-            {(field) => (
-              <Input
-                {...field}
-                type="url"
-                maxLength={2048}
-                value={form.coverImage}
-                onChange={(event) => set("coverImage")(event.target.value)}
-                placeholder="https://…"
-              />
-            )}
-          </FormField>
+          <CoverField value={form.coverImage} onChange={set("coverImage")} />
 
           <div className="space-y-2">
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <label htmlFor="post-content" className="text-sm font-medium">
-                Nội dung
-              </label>
-              <div role="tablist" aria-label="Chế độ soạn thảo" className="flex gap-1">
-                {(["write", "preview"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === mode}
-                    onClick={() => setTab(mode)}
-                    className={cn(
-                      "min-h-8 rounded-md px-3 text-xs font-semibold",
-                      tab === mode ? "bg-secondary text-secondary-foreground" : "text-muted hover:bg-surface-hover",
-                    )}
-                  >
-                    {mode === "write" ? "Soạn thảo" : "Xem trước"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {tab === "write" ? (
-              <>
-                <Textarea
-                  id="post-content"
-                  className="min-h-[28rem] font-mono text-sm"
-                  maxLength={CONTENT_MAX}
-                  value={form.content}
-                  onChange={(event) => set("content")(event.target.value)}
-                  placeholder={"## Mở đầu\n\nViết bằng Markdown. Công thức toán: $x^2 + 1$ hoặc $$\\frac{a}{b}$$"}
-                />
-                <p className="text-caption text-muted">
-                  Hỗ trợ Markdown (tiêu đề, danh sách, bảng, code) và công thức toán KaTeX. ·{" "}
-                  {form.content.length.toLocaleString("vi-VN")} / {CONTENT_MAX.toLocaleString("vi-VN")} ký tự
-                </p>
-              </>
-            ) : (
-              <div className="min-h-[28rem] rounded-md border border-border bg-surface px-5 py-2">
-                {form.content.trim() ? (
-                  <ArticleMarkdown content={form.content} />
-                ) : (
-                  <p className="py-10 text-center text-sm text-muted">Chưa có nội dung để xem trước.</p>
-                )}
-              </div>
-            )}
+            <label htmlFor="post-content" className="text-sm font-medium">
+              Nội dung
+            </label>
+            <MarkdownEditor
+              id="post-content"
+              value={form.content}
+              onChange={set("content")}
+              maxLength={CONTENT_MAX}
+              disabled={!editable || save.isPending}
+            />
           </div>
         </fieldset>
 
@@ -459,6 +412,79 @@ function CategoryField({
                 + Thêm chủ đề mới
               </Button>
             ))}
+        </div>
+      )}
+    </FormField>
+  );
+}
+
+function CoverField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const toasts = useToast();
+  const input = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [broken, setBroken] = useState(false);
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const image = await uploadImage(file);
+      setBroken(false);
+      onChange(image.url);
+    } catch (error) {
+      toasts.error(blogErrorMessage(error));
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <FormField
+      label="Ảnh bìa (không bắt buộc)"
+      description="Tải ảnh lên (JPEG, PNG, WebP, tối đa 5 MB) hoặc dán đường dẫn ảnh. Nên dùng ảnh ngang tỉ lệ 16:10."
+    >
+      {(field) => (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          {value && !broken ? (
+            // eslint-disable-next-line @next/next/no-img-element -- author images from any host
+            <img
+              src={value}
+              alt="Ảnh bìa"
+              onError={() => setBroken(true)}
+              className="aspect-[16/10] w-full rounded-md border border-border object-cover sm:w-48"
+            />
+          ) : null}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Input
+              {...field}
+              type="url"
+              maxLength={2048}
+              value={value}
+              onChange={(event) => {
+                setBroken(false);
+                onChange(event.target.value);
+              }}
+              placeholder="https://…"
+            />
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" loading={uploading} loadingLabel="Đang tải ảnh…" onClick={() => input.current?.click()}>
+                Tải ảnh lên
+              </Button>
+              {value && (
+                <Button size="sm" variant="ghost" onClick={() => onChange("")}>
+                  Bỏ ảnh bìa
+                </Button>
+              )}
+            </div>
+            <input
+              ref={input}
+              type="file"
+              accept={IMAGE_TYPES.join(",")}
+              hidden
+              onChange={(event) => {
+                void pick(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </div>
         </div>
       )}
     </FormField>
