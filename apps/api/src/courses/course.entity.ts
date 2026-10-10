@@ -52,6 +52,10 @@ export class Course extends AuditedEntity {
   })
   accessType: CourseAccessType;
 
+  /** Percent of a live session's length that counts as attending it. */
+  @Column({ name: 'live_attendance_threshold', type: 'smallint', default: 50 })
+  liveAttendanceThreshold: number;
+
   // Raw minor units: VND integer, USD cents. FREE => 0, PAID => > 0 (DB CHECK).
   @Column({
     type: 'bigint',

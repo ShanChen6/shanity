@@ -49,8 +49,8 @@ Khi triển khai phiên bản có migration mới, chạy `docker compose run --
 | Nội dung   | `courses` → `course_sections` → `lessons` → `lesson_assets`; slug khóa unique, position không âm và unique trong cha; `lessons.is_preview` cho phép truy cập nội dung xem trước; tài nguyên chỉ lưu storage key, không lưu file hoặc signed URL |
 | Ghi danh   | `enrollments`: unique(user_id, course_id), FK user/course cascade; giữ `revoked_at` lịch sử và composite key được `lesson_progress` tham chiếu                                                                                                            |
 | Tiến độ    | `lesson_progress`: PK(enrollment_id, lesson_id); composite FK đảm bảo enrollment và lesson cùng khóa; last_position_seconds là vị trí tiếp tục, watched_seconds là thời lượng do ứng dụng tính, completed_at độc lập; updated_at tự cập nhật bằng trigger |
-| Blog       | `posts` có tác giả, slug unique, draft/review/published/archived; published cần published_at; `categories` và `post_categories` nhiều–nhiều                                                                                                               |
-| Chat       | `chat_rooms` luôn thuộc khóa; `chat_members` unique(room_id,user_id); `messages` FK đến thành viên cùng phòng, index(room_id,created_at,id) để phân trang lịch sử                                                                                         |
+| Blog       | `posts`: tác giả, slug unique (đóng băng sau lần xuất bản đầu), content Markdown/KaTeX, excerpt, ảnh bìa, một `category_id`, `linked_course_id`; enum `BlogPostStatus` DRAFT → PENDING_REVIEW → PUBLISHED (từ chối/rút về DRAFT, PUBLISHED ↔ HIDDEN, ARCHIVED), trigger chặn chuyển trạng thái sai; `post_review_logs` audit chỉ-ghi-thêm mỗi bước duyệt; `categories` |
+| Chat       | `chat_messages` thuộc khóa (thành viên = enrollment còn hiệu lực hoặc giảng viên dạy khóa), index(course_id,created_at,id) phân trang lịch sử; `chat_reports`, `chat_mutes`, `chat_moderation_logs` (audit chỉ-ghi-thêm). Các bảng `chat_rooms`/`chat_members`/`messages` cũ đã bị xóa (migration 202610230002) |
 
 UUID hiện có dùng `gen_random_uuid()`; chapter và enrollment UUID dùng `uuid_generate_v4()` từ extension `uuid-ossp`. FK mặc định RESTRICT để bảo vệ lịch sử, ngoại trừ chapter/course và enrollment/user-course được cấu hình CASCADE theo schema mới. Index riêng trên enrollment user/course hỗ trợ hai hướng tra cứu. Chưa triển khai hard-delete tài khoản hoặc tự động xóa lịch sử.
 
@@ -63,7 +63,7 @@ README còn để mở quy tắc quiz, chấm lại và người thanh toán. Tr
 - **Quiz:** `quizzes(course_id, lesson_id?)` → `quiz_versions(quiz_id, version)` → `questions(version_id, kind, prompt, max_score NUMERIC)` → `question_options(question_id, position, body, is_correct)`. Kind gồm trắc nghiệm và tự luận. `quiz_attempts(version_id, enrollment_id, attempt_number, submitted_at, status)` unique(enrollment_id, version_id, attempt_number); `answers(attempt_id, question_id, essay_text, awarded_score NUMERIC)` unique(attempt_id,question_id); `answer_options(answer_id, option_id)` hỗ trợ nhiều đáp án. Composite FK phải chặn câu hỏi ngoài version và option ngoài câu hỏi. Version đã có lượt làm phải bất biến; chấm tự luận có điểm nullable và trạng thái pending, lịch sử chấm riêng `grade_revisions`. Cần chốt một/nhiều đáp án đúng, giới hạn lượt làm theo quiz hay version, snapshot, công bố điểm và quy tắc sửa điểm.
 - **Thanh toán:** `orders(buyer_id, currency, total_minor BIGINT, status)` → `order_items(order_id, course_id, title_snapshot, amount_minor BIGINT)`; `payments(order_id, provider, provider_reference, status, amount_minor BIGINT)` unique(provider,provider_reference); `payment_events(provider,event_id,payment_id,processed_at)` unique(provider,event_id). Tiền không âm, không dùng float; không lưu PAN/CVV hoặc payload thẻ. Tham chiếu giao dịch chỉ unique trong nhà cung cấp. Webhook xác minh và cấp enrollment trong transaction chống xử lý lặp; trạng thái dự kiến pending/succeeded/failed/cancelled, refund tách bản ghi khi chốt hoàn tiền. Cần chốt người mua/người học, tiền tệ/đơn vị nhỏ nhất, giỏ nhiều khóa, hoàn tiền một phần và cổng thanh toán.
 - **Auth mở rộng:** Session/JWT refresh token và liên kết phụ huynh cần thiết kế riêng. Vai trò, chủ sở hữu và phân công giảng viên đã được bổ sung theo [ma trận quyền](permissions.md).
-- **Blog/chat mở rộng:** chốt duyệt bài, audit người duyệt, liên kết bài–khóa, báo cáo/ẩn tin nhắn, lưu trữ lịch sử và quản trị viên vào phòng trước khi thêm bảng tương ứng. Chưa hỗ trợ chat cá nhân.
+- **Blog/chat mở rộng:** bình luận blog, hiện lại bài HIDDEN và chat cá nhân chưa hỗ trợ.
 
 ## Migration an toàn và sao lưu
 
@@ -98,7 +98,7 @@ Các lệnh tích hợp cần DB đã migrate và env hợp lệ. `db:verify` d�
 - PostgreSQL 17 chạy bằng Compose project riêng `shanity-db-verification`, host port 55439, volume riêng; không truy cập hoặc sửa database đang có của người dùng.
 - `db:migrate` áp dụng 2 migration trên DB trống, lần hai báo Already up to date.
 - `db:seed` chạy hai lần: vẫn đúng 1 khóa, 1 chương, 1 bài, không có tài khoản mẫu.
-- `db:verify` qua các kiểm tra unique/FK/check/delete, chat membership và điều kiện xuất bản blog.
+- `db:verify` qua các kiểm tra unique/FK/check/delete và điều kiện xuất bản blog.
 - API `build`, `lint`, `test` (1 test), `test:e2e` (2 test) đều qua.
 - `docker compose ... config --quiet`, `build api`, `up -d --build api` thành công; Docker build đã build cả API và web bằng Node 24, frozen lockfile pnpm 11.24.0. Host dùng Node 25.9.0/pnpm 11.18.0.
 - Backend build chạy trực tiếp trên port 55440 và container trên port 55441 trả `{ "status": "ok" }`; dừng PostgreSQL thì endpoint container trả 503 với thông báo chung.
