@@ -1,5 +1,6 @@
 import { BRAND } from "@/config/brand.config";
 import { absoluteUrl } from "@/config/site.config";
+import { blogImageUrl } from "./image-url";
 import type { BlogPostFull } from "./types";
 
 export const blogPostPath = (slug: string) =>
@@ -27,8 +28,8 @@ export function articleJsonLd(post: BlogPostFull) {
   const url = absoluteUrl(blogPostPath(post.slug));
   const images = [
     ogImageUrl(post.slug),
-    ...(post.coverImage && /^https?:\/\//.test(post.coverImage)
-      ? [post.coverImage]
+    ...(post.coverImage && /^https?:\/\//.test(blogImageUrl(post.coverImage))
+      ? [blogImageUrl(post.coverImage)]
       : []),
   ];
   return [

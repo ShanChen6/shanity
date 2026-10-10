@@ -118,6 +118,13 @@ export const instructorNav: readonly NavItem[] = [
     keywords: ["lớp học trực tiếp", "live", "điểm danh"],
   },
   {
+    href: "/instructor/blog",
+    label: "Bài viết blog",
+    icon: "grading",
+    roles: INSTRUCTOR_ROLES,
+    keywords: ["blog", "viết bài", "bài viết"],
+  },
+  {
     href: "/instructor/chat-moderation",
     label: "Kiểm duyệt chat",
     icon: "bell",
@@ -148,6 +155,13 @@ export const adminNav: readonly NavItem[] = [
     icon: "receipt",
     roles: ORDER_CONSOLE_ROLES,
     keywords: ["thanh toán", "đối soát", "hoàn tiền"],
+  },
+  {
+    href: "/admin/blog",
+    label: "Blog",
+    icon: "book",
+    roles: ADMIN_ROLES,
+    keywords: ["bài viết", "duyệt bài", "viết bài", "xuất bản"],
   },
   {
     href: "/admin/comments",
@@ -230,6 +244,20 @@ export const quickActions: readonly NavItem[] = [
     icon: "quiz",
     roles: INSTRUCTOR_ROLES,
     keywords: ["thêm", "new quiz"],
+  },
+  {
+    href: "/instructor/blog/new",
+    label: "Viết bài blog mới",
+    icon: "grading",
+    roles: INSTRUCTOR_ROLES,
+    keywords: ["thêm", "blog", "new post"],
+  },
+  {
+    href: "/admin/blog/new",
+    label: "Viết bài blog mới",
+    icon: "book",
+    roles: ADMIN_ROLES,
+    keywords: ["thêm", "blog", "new post"],
   },
 ];
 

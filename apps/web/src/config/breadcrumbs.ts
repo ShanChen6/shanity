@@ -49,6 +49,7 @@ export const SEGMENT_LABELS: Readonly<Record<string, string>> = {
 
 /** Label for the dynamic segment that follows these parents. */
 const DYNAMIC_LABELS: Readonly<Record<string, string>> = {
+  blog: "Bài viết",
   users: "Chi tiết người dùng",
   courses: "Chi tiết khóa học",
   quizzes: "Chi tiết bài kiểm tra",
@@ -71,6 +72,9 @@ export const PAGE_ROUTES: readonly string[] = [
   "/",
   "/account/orders",
   "/admin",
+  "/admin/blog",
+  "/admin/blog/[id]/edit",
+  "/admin/blog/new",
   "/admin/comments",
   "/admin/login",
   "/admin/orders",
@@ -87,6 +91,9 @@ export const PAGE_ROUTES: readonly string[] = [
   "/dev/theme",
   "/forbidden",
   "/instructor",
+  "/instructor/blog",
+  "/instructor/blog/[id]/edit",
+  "/instructor/blog/new",
   "/instructor/chat-moderation",
   "/instructor/courses",
   "/instructor/courses/[id]/edit",

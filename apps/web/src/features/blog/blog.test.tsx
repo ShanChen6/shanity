@@ -97,6 +97,17 @@ describe("ArticleMarkdown", () => {
     expect(container.querySelector(".katex-display")).not.toBeNull();
   });
 
+  it("renders chemistry with mhchem and keeps formulas in code untouched", () => {
+    const { container } = render(
+      <ArticleMarkdown
+        content={"Phản ứng $\\ce{2H2 + O2 -> 2H2O}$ và\n\n$$\n\\ce{N2 + 3H2 <=> 2NH3}\n$$\n\n`$x$`"}
+      />,
+    );
+    expect(container.querySelectorAll(".katex").length).toBe(2);
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.querySelector("code")?.textContent).toBe("$x$");
+  });
+
   it("treats a line of $$...$$ as display math, but not inside code", () => {
     expect(normalizeDisplayMath("a\n$$x^2$$\nb")).toBe("a\n$$\nx^2\n$$\nb");
     expect(normalizeDisplayMath("giá $$5 và $$6")).toBe("giá $$5 và $$6");

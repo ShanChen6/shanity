@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // The API has no route that sets an order's status, so the console must not
@@ -26,7 +26,7 @@ describe("no direct order status override", () => {
   });
 
   it("api.ts only reads (GET) or POSTs the audited workflows", () => {
-    const api = sources.find((source) => source.path.endsWith("/api.ts"))!;
+    const api = sources.find((source) => basename(source.path) === "api.ts")!;
     const methods = [...api.text.matchAll(/method:\s*["'`]([A-Za-z]+)["'`]/g)];
     expect(methods.length).toBeGreaterThan(0);
     for (const [, method] of methods) expect(method).toBe("POST");
